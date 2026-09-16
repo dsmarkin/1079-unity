@@ -1,0 +1,14 @@
+{
+  "name": "Height1079.Editor",
+  "rootNamespace": "Height1079.EditorTools",
+  "references": ["Height1079.Core", "Height1079.Runtime", "Unity.Netcode.Runtime", "Unity.Netcode.Components"],
+  "includePlatforms": ["Editor"],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": true,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}

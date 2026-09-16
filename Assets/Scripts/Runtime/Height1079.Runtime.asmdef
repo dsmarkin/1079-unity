@@ -1,0 +1,14 @@
+{
+  "name": "Height1079.Runtime",
+  "rootNamespace": "Height1079.Runtime",
+  "references": ["Height1079.Core", "Unity.Netcode.Runtime", "Unity.Netcode.Components", "Unity.Collections", "Unity.Networking.Transport"],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": true,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}
