@@ -1,0 +1,14 @@
+{
+  "name": "Height1079.Steam",
+  "rootNamespace": "Height1079.Steam",
+  "references": ["Height1079.Runtime", "Unity.Netcode.Runtime", "Facepunch Transport for Netcode for GameObjects"],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": true,
+  "defineConstraints": ["STEAM_FACEPUNCH"],
+  "versionDefines": [],
+  "noEngineReferences": false
+}

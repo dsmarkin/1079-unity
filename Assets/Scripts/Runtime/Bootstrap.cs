@@ -13,6 +13,8 @@ namespace Height1079.Runtime
         public static float[] Dem { get; private set; }
         public static string PlayerName = "Путник";
         public static bool AutoKindle;
+        /// <summary>Set by the optional Steam assembly; null when the game runs with plain Unity Transport.</summary>
+        public static ILobbyProvider Lobby;
         public static HudController Hud { get; private set; }
         public static HikerController LocalHiker
         {
@@ -147,19 +149,22 @@ namespace Height1079.Runtime
         public static void Host(string name)
         {
             PlayerName = string.IsNullOrWhiteSpace(name) ? "Путник" : name.Trim();
-            network.GetComponent<UnityTransport>().SetConnectionData("0.0.0.0", 7777, "0.0.0.0");
+            var transport = network.GetComponent<UnityTransport>(); network.NetworkConfig.NetworkTransport = transport;
+            transport.SetConnectionData("0.0.0.0", 7777, "0.0.0.0");
             if (network.StartHost()) Hud.ShowMenu(false); else Hud.SetStatus("Не удалось открыть порт 7777.");
         }
 
         public static void Join(string name, string address)
         {
             PlayerName = string.IsNullOrWhiteSpace(name) ? "Путник" : name.Trim();
-            network.GetComponent<UnityTransport>().SetConnectionData(string.IsNullOrWhiteSpace(address) ? "127.0.0.1" : address.Trim(), 7777);
+            var transport = network.GetComponent<UnityTransport>(); network.NetworkConfig.NetworkTransport = transport;
+            transport.SetConnectionData(string.IsNullOrWhiteSpace(address) ? "127.0.0.1" : address.Trim(), 7777);
             if (network.StartClient()) { Hud.ShowMenu(false); Hud.SetStatus("Подключаемся…"); } else Hud.SetStatus("Не удалось подключиться.");
         }
 
         public static void Leave()
         {
+            Lobby?.Leave();
             if (network.IsListening) network.Shutdown();
             OnLeft();
         }

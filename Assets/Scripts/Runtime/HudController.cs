@@ -103,8 +103,13 @@ namespace Height1079.Runtime
             addressField = Field("Address", card, new Vector2(32, -358), new Vector2(376, 40), "127.0.0.1");
             ButtonUi("Host", card, new Vector2(32, -416), new Vector2(180, 44), "СОЗДАТЬ НОЧЬ", new Color(.86f, .9f, .91f), new Color(.09f, .16f, .19f), () => Bootstrap.Host(nameField.text));
             ButtonUi("Join", card, new Vector2(228, -416), new Vector2(180, 44), "ПРИСОЕДИНИТЬСЯ", new Color(.2f, .29f, .34f), Ink, () => Bootstrap.Join(nameField.text, addressField.text));
-            status = Label("Status", card, new Vector2(32, -474), new Vector2(380, 60), 12, new Color(.69f, .76f, .78f));
-            status.text = "Хост открывает порт 7777. Steam-лобби появится в следующем этапе.";
+            if (Bootstrap.Lobby != null)
+            {
+                ButtonUi("SteamHost", card, new Vector2(32, -470), new Vector2(180, 40), "НОЧЬ ЧЕРЕЗ STEAM", new Color(.11f, .2f, .29f), Ink, () => Bootstrap.Lobby.Host(nameField.text, SetStatus));
+                ButtonUi("SteamInvite", card, new Vector2(228, -470), new Vector2(180, 40), "ПРИГЛАСИТЬ ДРУЗЕЙ", new Color(.11f, .2f, .29f), Ink, () => Bootstrap.Lobby.Invite());
+            }
+            status = Label("Status", card, new Vector2(32, -520), new Vector2(380, 40), 12, new Color(.69f, .76f, .78f));
+            status.text = Bootstrap.Lobby != null && Bootstrap.Lobby.Available ? "Steam подключён. Друзья заходят через приглашение или список друзей." : "Хост открывает порт 7777. Steam-лобби включается сборкой со Steam (см. README).";
         }
 
         void BuildHud()

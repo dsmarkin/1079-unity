@@ -39,13 +39,15 @@ namespace Height1079.EditorTools
             if (File.Exists(target) && !force) return;
             File.Copy("Assets/Data/terrain.png", target, true);
             AssetDatabase.ImportAsset(target);
+            string hiker = Path.Combine(ResourcesDir, "hiker.bytes");
+            if (File.Exists("Assets/Data/hiker-v1.glb")) { File.Copy("Assets/Data/hiker-v1.glb", hiker, true); AssetDatabase.ImportAsset(hiker); }
         }
 
         static void EnsureHikerPrefab(bool force)
         {
             string path = Path.Combine(ResourcesDir, "Hiker.prefab");
             if (File.Exists(path) && !force) return;
-            var go = new GameObject("Hiker", typeof(Rigidbody), typeof(CapsuleCollider), typeof(NetworkObject), typeof(OwnerNetworkTransform), typeof(HikerController));
+            var go = new GameObject("Hiker", typeof(Rigidbody), typeof(CapsuleCollider), typeof(NetworkObject), typeof(OwnerNetworkTransform), typeof(HikerController), typeof(HikerAnimator));
             var visual = new GameObject("Visual");
             visual.transform.SetParent(go.transform, false);
             var body = GameObject.CreatePrimitive(PrimitiveType.Capsule); body.name = "Body"; body.transform.SetParent(visual.transform, false);
