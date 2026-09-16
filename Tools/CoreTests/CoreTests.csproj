@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Runs the engine-free core tests without Unity (dotnet run, from this folder). Uses a tiny NUnit shim; Unity uses real NUnit. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>disable</Nullable>
+    <LangVersion>9.0</LangVersion>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="Shim.cs" />
+    <Compile Include="../../Assets/Scripts/Core/**/*.cs" />
+    <Compile Include="../../Assets/Tests/EditMode/**/*.cs" />
+    <None Include="../../Assets/Data/terrain.png" Link="Assets/Data/terrain.png" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

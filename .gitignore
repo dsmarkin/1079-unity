@@ -26,3 +26,4 @@ Assets/Resources/
 Assets/Resources.meta
 Assets/Scenes/
 Assets/Scenes.meta
+!Tools/CoreTests/CoreTests.csproj
