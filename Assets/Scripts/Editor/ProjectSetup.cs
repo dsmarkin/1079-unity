@@ -108,7 +108,7 @@ namespace Height1079.EditorTools
         }
     }
 
-    /// <summary>Batch-mode builds: `Unity -batchmode -quit -projectPath unity -executeMethod Height1079.EditorTools.Builds.Mac` (or Windows).</summary>
+    /// <summary>Batch-mode builds: `Unity -batchmode -quit -projectPath . -executeMethod Height1079.EditorTools.Builds.Mac` (or Windows).</summary>
     public static class Builds
     {
         static string[] Scenes => new[] { "Assets/Scenes/Main.unity" };
