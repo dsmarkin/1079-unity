@@ -26,6 +26,8 @@ namespace Height1079.EditorTools
         {
             Directory.CreateDirectory(ResourcesDir);
             EnsureDem(force);
+            MakeMaterial("Flat", new Color(.886f, .91f, .93f));
+            MakeMaterial("Snow", new Color(.96f, .98f, 1f, .75f), "Particles/Standard Unlit");
             EnsureHikerPrefab(force);
             EnsureSessionPrefab(force);
             EnsureScene(force);
@@ -76,12 +78,12 @@ namespace Height1079.EditorTools
             Object.DestroyImmediate(go);
         }
 
-        static Material MakeMaterial(string name, Color color)
+        static Material MakeMaterial(string name, Color color, string shader = "Standard")
         {
             string path = Path.Combine(ResourcesDir, name + ".mat");
             var existing = AssetDatabase.LoadAssetAtPath<Material>(path);
             if (existing != null) { existing.color = color; return existing; }
-            var m = new Material(Shader.Find("Standard")) { color = color };
+            var m = new Material(Shader.Find(shader)) { color = color };
             m.SetFloat("_Glossiness", .05f);
             AssetDatabase.CreateAsset(m, path);
             return m;

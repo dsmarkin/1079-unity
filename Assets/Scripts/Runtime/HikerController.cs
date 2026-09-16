@@ -30,7 +30,8 @@ namespace Height1079.Runtime
         float yaw, pitch = .08f, orbit = 6f;
         bool firstPerson = true, grounded, kindling, paused;
         Vector3 groundNormal = Vector3.up;
-        float lastVerticalSpeed;
+        float lastVerticalSpeed, stumbleUntil;
+        public bool Stumbling => Time.time < stumbleUntil;
         public bool Paused => paused;
         public bool FirstPerson => firstPerson;
         public float Yaw => yaw;
@@ -139,11 +140,12 @@ namespace Height1079.Runtime
             grounded = Physics.SphereCast(transform.position + Vector3.up * .5f, .3f, Vector3.down, out var hit, .45f, ~0, QueryTriggerInteraction.Ignore);
             groundNormal = grounded ? hit.normal : Vector3.up;
             var v = body.linearVelocity;
-            if (grounded && lastVerticalSpeed < -HardLanding) StumbleRpc();
+            if (grounded && lastVerticalSpeed < -HardLanding) { StumbleRpc(); stumbleUntil = Time.time + 1.2f; }
             lastVerticalSpeed = v.y;
 
-            float f = (paused || finished) ? 0f : (Input.GetKey(KeyCode.W) ? 1f : 0f) - (Input.GetKey(KeyCode.S) ? 1f : 0f);
-            float r = (paused || finished) ? 0f : (Input.GetKey(KeyCode.D) ? 1f : 0f) - (Input.GetKey(KeyCode.A) ? 1f : 0f);
+            bool locked = paused || finished || Stumbling;
+            float f = locked ? 0f : (Input.GetKey(KeyCode.W) ? 1f : 0f) - (Input.GetKey(KeyCode.S) ? 1f : 0f);
+            float r = locked ? 0f : (Input.GetKey(KeyCode.D) ? 1f : 0f) - (Input.GetKey(KeyCode.A) ? 1f : 0f);
             var forward = Quaternion.Euler(0, yaw, 0) * Vector3.forward, right = Quaternion.Euler(0, yaw, 0) * Vector3.right;
             var wish = (forward * f + right * r); if (wish.sqrMagnitude > 1f) wish.Normalize();
             float speed = Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift) ? RunSpeed : WalkSpeed;
@@ -186,7 +188,12 @@ namespace Height1079.Runtime
         void UpdateCamera()
         {
             var rot = Quaternion.Euler(pitch, yaw, 0);
-            var visual = transform.Find("Visual"); if (visual != null && visual.gameObject.activeSelf == firstPerson) visual.gameObject.SetActive(!firstPerson);
+            var visual = transform.Find("Visual");
+            if (visual != null)
+            {
+                if (visual.gameObject.activeSelf == firstPerson) visual.gameObject.SetActive(!firstPerson);
+                visual.localRotation = Quaternion.Slerp(visual.localRotation, Quaternion.Euler(Stumbling ? 38f : 0f, 0f, 0f), 1f - Mathf.Exp(-8f * Time.deltaTime));
+            }
             if (firstPerson)
             {
                 float shake = NightSession.Instance != null ? (100f - NightSession.Instance.Hands) * .00015f * Mathf.Sin(Time.time * 9f) : 0f;

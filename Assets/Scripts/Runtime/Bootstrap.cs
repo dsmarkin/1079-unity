@@ -40,13 +40,15 @@ namespace Height1079.Runtime
             BuildWorld();
             BuildNetwork();
             Hud = HudController.Create();
+            Ambience.Create();
             var driver = new GameObject("Atmosphere", typeof(Atmosphere));
             Object.DontDestroyOnLoad(driver);
         }
 
         static Material Flat(Color c)
         {
-            var m = new Material(Shader.Find("Standard")) { color = c };
+            var template = Resources.Load<Material>("Flat"); // created by ProjectSetup so the shader ships in builds
+            var m = template != null ? new Material(template) { color = c } : new Material(Shader.Find("Standard")) { color = c };
             m.SetFloat("_Glossiness", .05f); m.SetFloat("_Metallic", 0f);
             return m;
         }
