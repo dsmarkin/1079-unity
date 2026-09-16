@@ -1,7 +1,5 @@
 # 1079 · Высота — Unity-версия
 
-Репозиторий Unity-клиента игры «1079 · Высота». Браузерный прототип и правила-эталон: https://github.com/dsmarkin/1079-last-night (играбельно на https://1079-game-production.up.railway.app).
-
 Второй клиент той же игры: Unity 6 (6000.0 LTS), C#, физика PhysX, Netcode for GameObjects. Логика ночи (`Assets/Scripts/Core`) — прямой порт `public/survival.js`, `server/run.js`, `public/world.js`, `server/terrain.js` из браузерной версии и не зависит от UnityEngine, поэтому её тесты гоняются и в Unity Test Runner, и обычным `dotnet`.
 
 ## Что уже есть
@@ -16,23 +14,27 @@
 
 ## Как открыть
 
-1. Unity Hub → Add → корень этого репозитория. Версия 6000.0.x LTS (Hub предложит поставить нужную). Модули: macOS Build Support (Mono), Windows Build Support (Mono) — для сборок под обе платформы с Mac.
+1. Unity Hub → Add → папка `unity/`. Версия 6000.0.x LTS (Hub предложит поставить нужную). Модули: macOS Build Support (Mono), Windows Build Support (Mono) — для сборок под обе платформы с Mac.
 2. Первое открытие: пакеты подтянутся из манифеста, `ProjectSetup` создаст `Assets/Resources/{Hiker,NightSession}.prefab`, `terrain.bytes` и `Assets/Scenes/Main.unity`. Если что-то не появилось — меню **1079 → Generate prefabs and scene**.
 3. Play. В меню: имя, «Создать ночь» (хост) или «Присоединиться» по адресу хоста. Второй экземпляр — через сборку или ParrelSync.
+
+## Пролог
+
+Сюжет, локации и участники миссий от Свердловска до палатки на склоне — в [docs/PROLOGUE.md](docs/PROLOGUE.md). Данные ростера и миссий — `Assets/Scripts/Core/Campaign.cs` (с тестами хронологии). Реальные имена — только в прологе и архиве; ночь на склоне остаётся с вымышленной парой.
 
 ## Тесты
 
 - В редакторе: Window → General → Test Runner → EditMode (11 тестов ядра).
-- Без Unity: `dotnet run --project Tools/CoreTests` (те же исходники, NUnit-шим).
+- Без Unity: `dotnet run --project unity/Tools/CoreTests` (те же исходники, NUnit-шим).
 
 ## Сборки из командной строки
 
 ```
-/Applications/Unity/Hub/Editor/6000.0.58f1/Unity.app/Contents/MacOS/Unity -batchmode -quit -projectPath . -executeMethod Height1079.EditorTools.Builds.Mac -logFile -
-/Applications/Unity/Hub/Editor/6000.0.58f1/Unity.app/Contents/MacOS/Unity -batchmode -quit -projectPath . -executeMethod Height1079.EditorTools.Builds.Windows -logFile -
+/Applications/Unity/Hub/Editor/6000.0.58f1/Unity.app/Contents/MacOS/Unity -batchmode -quit -projectPath unity -executeMethod Height1079.EditorTools.Builds.Mac -logFile -
+/Applications/Unity/Hub/Editor/6000.0.58f1/Unity.app/Contents/MacOS/Unity -batchmode -quit -projectPath unity -executeMethod Height1079.EditorTools.Builds.Windows -logFile -
 ```
 
-Результат — `Builds/mac/1079.app` и `Builds/windows/1079.exe`.
+Результат — `unity/Builds/mac/1079.app` и `unity/Builds/windows/1079.exe`.
 
 ## Steam
 

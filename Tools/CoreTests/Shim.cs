@@ -14,6 +14,7 @@ namespace NUnit.Framework {
     public static void AreEqual(double e, double a, double tol, string m = null) { if (Math.Abs(e - a) > tol) Fail(m ?? $"expected {e}±{tol} but was {a}"); }
     public static void Less(double a, double b, string m = null) { if (!(a < b)) Fail(m ?? $"{a} !< {b}"); }
     public static void Greater(double a, double b, string m = null) { if (!(a > b)) Fail(m ?? $"{a} !> {b}"); }
+    public static void DoesNotThrow(Action act) { try { act(); } catch (Exception e) { Fail("threw " + e.GetType().Name + ": " + e.Message); } }
     public static void Throws<T>(Action act) where T : Exception { try { act(); } catch (T) { return; } catch (Exception e) { Fail("wrong exception " + e.GetType().Name); } Fail("no exception"); }
   }
   public static class StringAssert { public static void Contains(string needle, string hay) { if (!hay.Contains(needle)) Assert.IsTrue(false, $"'{hay}' lacks '{needle}'"); } }
