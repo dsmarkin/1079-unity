@@ -20,12 +20,12 @@
 
 ## Пролог
 
-Сюжет, локации и участники миссий от Свердловска до палатки на склоне — в [docs/PROLOGUE.md](docs/PROLOGUE.md); посценный сценарий с локациями, референсами и репликами — в [docs/SCRIPT.md](docs/SCRIPT.md). Данные ростера и миссий — `Assets/Scripts/Core/Campaign.cs` (с тестами хронологии). Реальные имена — только в прологе и архиве; ночь на склоне остаётся с вымышленной парой.
+Сюжет, локации и участники миссий от Свердловска до палатки на склоне — в [docs/PROLOGUE.md](docs/PROLOGUE.md); посценный сценарий с локациями, референсами и репликами — в [docs/SCRIPT.md](docs/SCRIPT.md). Данные ростера и миссий — `Assets/Scripts/Core/Campaign.cs` (с тестами хронологии); биты сцен, выборы, дневник и протокол пролога — `Assets/Scripts/Core/Prologue.cs` (`PrologueRun`: Advance/Choose → Protocol(), без движка). Реальные имена — только в прологе и архиве; ночь на склоне остаётся с вымышленной парой.
 
 ## Тесты
 
 - В редакторе: Window → General → Test Runner → EditMode (11 тестов ядра).
-- Без Unity: `dotnet run --project unity/Tools/CoreTests` (те же исходники, NUnit-шим).
+- Без Unity: `dotnet run --project Tools/CoreTests` (те же исходники, NUnit-шим).
 
 ## Сборки из командной строки
 
