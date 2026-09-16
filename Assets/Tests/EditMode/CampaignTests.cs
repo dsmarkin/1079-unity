@@ -14,7 +14,7 @@ namespace Height1079.Tests
             Assert.AreEqual(10, Campaign.Roster.Select(m => m.Id).Distinct().Count());
             Assert.AreEqual(1, Campaign.Roster.Count(m => m.LeftAtSecondNorthern));
             Assert.AreEqual("yudin", Campaign.Roster.Single(m => m.LeftAtSecondNorthern).Id);
-            Assert.IsTrue(Campaign.Roster.All(m => m.Age >= 20 && m.Age <= 38 && m.Traits.Length > 0));
+            Assert.IsTrue(Campaign.Roster.All(m => m.Age >= 20 && m.Age <= 37 && m.Traits.Length > 0));
         }
 
         [Test]
