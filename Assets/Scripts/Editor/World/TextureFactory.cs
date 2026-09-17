@@ -99,17 +99,29 @@ namespace Height1079.EditorTools.World
         }
 
         /// <summary>Bare winter birch twigs: thin purple-brown branching strokes.</summary>
-        public static Texture2D Twigs(string name, int seed)
+        public static Texture2D Twigs(string name, int seed) => Twigs(name, seed, new Color(.33f, .29f, .27f), 2, 0f);
+
+        /// <summary>Bare winter twigs. <paramref name="extraKids"/> makes the spray denser (downy birch holds a fine purple-brown haze);
+        /// <paramref name="spurs"/> 0..1 adds the short knobby shoots of larch.</summary>
+        public static Texture2D Twigs(string name, int seed, Color tone, int extraKids, float spurs)
         {
             const int W = 256, H = 256;
             var rnd = new System.Random(seed);
-            var t = New(W, H, new Color(.3f, .22f, .2f, 0));
+            var t = New(W, H, new Color(tone.r, tone.g, tone.b, 0));
             void Branch(Vector2 a, float ang, float len, float width, int depth)
             {
                 if (depth > 5 || len < 4) return;
                 Vector2 b = a + new Vector2(Mathf.Sin(ang), Mathf.Cos(ang)) * len;
-                Stroke(t, a, b, width, new Color(.33f + .03f * depth, .29f + .02f * depth, .27f + .02f * depth, 1));
-                int kids = 2 + rnd.Next(2);
+                Stroke(t, a, b, width, new Color(tone.r + .03f * depth, tone.g + .02f * depth, tone.b + .02f * depth, 1));
+                if (spurs > 0 && depth >= 1)
+                    for (float k = .15f; k < 1f; k += .12f)
+                        if (rnd.NextDouble() < spurs)
+                        {
+                            Vector2 p = Vector2.Lerp(a, b, k);
+                            float sa = ang + (rnd.NextDouble() < .5 ? -1.2f : 1.2f);
+                            Stroke(t, p, p + new Vector2(Mathf.Sin(sa), Mathf.Cos(sa)) * 3.5f, 1.6f, new Color(tone.r * .8f, tone.g * .8f, tone.b * .8f, 1));
+                        }
+                int kids = 2 + rnd.Next(extraKids);
                 for (int i = 0; i < kids; i++)
                 {
                     float at = .35f + .6f * (float)rnd.NextDouble();
@@ -117,6 +129,30 @@ namespace Height1079.EditorTools.World
                 }
             }
             Branch(new Vector2(W / 2, 2), 0, 110, 2.2f, 0);
+            t.Apply();
+            return Save(name, t, true, TextureWrapMode.Clamp);
+        }
+
+        /// <summary>Hanging beard lichen (Bryoria/Usnea type): a tuft of fine grey-green strands falling from the top edge (v = 1 at the top).</summary>
+        public static Texture2D Beard(string name, int seed)
+        {
+            const int W = 128, H = 256;
+            var rnd = new System.Random(seed);
+            var t = New(W, H, new Color(.5f, .52f, .45f, 0));
+            for (int i = 0; i < 70; i++)
+            {
+                float x = W * (.2f + .6f * (float)rnd.NextDouble()), len = H * (.35f + .6f * (float)rnd.NextDouble());
+                Vector2 a = new Vector2(x, H - 2), p = a;
+                float sway = ((float)rnd.NextDouble() - .5f) * 1.2f;
+                int seg = 8;
+                var col = Color.Lerp(new Color(.42f, .45f, .38f, 1), new Color(.62f, .64f, .55f, 1), (float)rnd.NextDouble());
+                for (int k = 0; k < seg; k++)
+                {
+                    Vector2 q = p + new Vector2(sway * len / seg * ((float)rnd.NextDouble() - .3f), -len / seg);
+                    Stroke(t, p, q, .8f + .5f * (1f - k / (float)seg), col);
+                    p = q;
+                }
+            }
             t.Apply();
             return Save(name, t, true, TextureWrapMode.Clamp);
         }

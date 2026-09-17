@@ -57,17 +57,29 @@ namespace Height1079.Core
     }
 
     /// <summary>Tree instances detected in the Meta/WRI 1 m canopy height model (local maxima ≥ 3 m). Species are assigned by rule (docs/MAP.md).</summary>
-    public enum TreeSpecies : byte { Spruce = 0, Fir = 1, Birch = 2, SiberianPine = 3 }
+    public enum TreeSpecies : byte { Spruce = 0, Fir = 1, Birch = 2, SiberianPine = 3, Larch = 4 }
+
+    /// <summary>Growth form: normal taiga tree, tree-line form (stunted, flagged, crooked), or a standing dead snag.</summary>
+    public enum TreeForm : byte { Normal = 0, TreeLine = 1, Snag = 2 }
 
     public readonly struct TreeRecord
     {
-        public readonly float X, Z, Height; public readonly TreeSpecies Species;
-        public TreeRecord(float x, float z, float height, TreeSpecies species) { X = x; Z = z; Height = height; Species = species; }
+        public readonly float X, Z, Height; public readonly TreeSpecies Species; public readonly TreeForm Form;
+        public TreeRecord(float x, float z, float height, TreeSpecies species, TreeForm form = TreeForm.Normal) { X = x; Z = z; Height = height; Species = species; Form = form; }
+    }
+
+    /// <summary>What grows (or lies) under and beyond the canopy (Tools/terrain/forest.py).</summary>
+    public enum UnderKind : byte { YoungSpruce = 0, YoungFir = 1, Rowan = 2, Willow = 3, Juniper = 4, DwarfBirch = 5, Windfall = 6, Hummock = 7, BirchClump = 8, YoungPine = 9 }
+
+    public readonly struct UnderRecord
+    {
+        public readonly float X, Z, Size, Yaw; public readonly UnderKind Kind;
+        public UnderRecord(float x, float z, float size, UnderKind kind, float yaw) { X = x; Z = z; Size = size; Kind = kind; Yaw = yaw; }
     }
 
     public static class Dem
     {
-        /// <summary>trees.f32: records of 4 little-endian floats (x east, z north, canopy height m, species).</summary>
+        /// <summary>trees.f32: records of 4 little-endian floats (x east, z north, canopy height m, species + 10 × form).</summary>
         public static TreeRecord[] LoadTrees(byte[] raw)
         {
             if (raw == null || raw.Length % 16 != 0) throw new InvalidDataException("trees.f32 must hold 16-byte records");
@@ -75,7 +87,23 @@ namespace Height1079.Core
             for (int i = 0; i < list.Length; i++)
             {
                 int o = i * 16;
-                list[i] = new TreeRecord(BitConverter.ToSingle(raw, o), BitConverter.ToSingle(raw, o + 4), BitConverter.ToSingle(raw, o + 8), (TreeSpecies)(int)BitConverter.ToSingle(raw, o + 12));
+                int code = (int)Math.Round(BitConverter.ToSingle(raw, o + 12));
+                list[i] = new TreeRecord(BitConverter.ToSingle(raw, o), BitConverter.ToSingle(raw, o + 4), BitConverter.ToSingle(raw, o + 8), (TreeSpecies)(code % 10), (TreeForm)(code / 10));
+            }
+            return list;
+        }
+
+        /// <summary>understory.f32: records of 4 little-endian floats (x east, z north, size m, kind + yaw/360 as the fraction).</summary>
+        public static UnderRecord[] LoadUnderstory(byte[] raw)
+        {
+            if (raw == null || raw.Length % 16 != 0) throw new InvalidDataException("understory.f32 must hold 16-byte records");
+            var list = new UnderRecord[raw.Length / 16];
+            for (int i = 0; i < list.Length; i++)
+            {
+                int o = i * 16;
+                float code = BitConverter.ToSingle(raw, o + 12);
+                int kind = (int)Math.Floor(code);
+                list[i] = new UnderRecord(BitConverter.ToSingle(raw, o), BitConverter.ToSingle(raw, o + 4), BitConverter.ToSingle(raw, o + 8), (UnderKind)kind, (code - kind) * 360f);
             }
             return list;
         }

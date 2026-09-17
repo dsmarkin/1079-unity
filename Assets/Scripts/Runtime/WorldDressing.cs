@@ -109,8 +109,8 @@ namespace Height1079.Runtime
         /// <summary>Site viewer (F3): orbit camera around the event sites in turn; the hiker keeps standing where it was. Index -1 = off.</summary>
         public static int ViewIndex { get; private set; } = -1;
         static Transform campTent, campFire;
-        static readonly string[] ViewIds = { "tent", "cedar", "p4", "labaz", "camp-gear", "camp-inside", "camp-things", "camp-kitchen", "dyatlov" };
-        static readonly float[] ViewRadius = { 9f, 14f, 8f, 13f, 2.4f, .7f, .42f, 2.6f, 10f };
+        static readonly string[] ViewIds = { "tent", "cedar", "p4", "labaz", "camp-gear", "camp-inside", "camp-things", "camp-kitchen", "dyatlov", "forest-taiga", "forest-edge" };
+        static readonly float[] ViewRadius = { 9f, 14f, 8f, 13f, 2.4f, .7f, .42f, 2.6f, 10f, 22f, 22f };
         public static string ViewName => ViewIndex < 0 ? "" : ViewIds[ViewIndex] switch
         {
             "labaz" => "Стоянка 31 января и лабаз",
@@ -118,6 +118,8 @@ namespace Height1079.Runtime
             "camp-inside" => "Стоянка 31 января · в палатке",
             "camp-things" => "Стоянка 31 января · фотоаппарат «Зоркий», дневник, ботинки",
             "camp-kitchen" => "Стоянка 31 января · костёр на брёвнах",
+            "forest-taiga" => "Лес · темнохвойная тайга в долине Ауспии",
+            "forest-edge" => "Лес · граница леса на подъёме (~720 м)",
             _ => WorldData.Get(ViewIds[ViewIndex]).Label,
         };
 
@@ -143,6 +145,19 @@ namespace Height1079.Runtime
                 cam.transform.LookAt(c);
                 return true;
             }
+            if (vid.StartsWith("forest-"))
+            {
+                // walk slowly on a circle at eye height, looking ahead and a little inward
+                var centre = ForestSpot(dem, vid == "forest-edge" ? 720f : 0f);
+                float wa = Time.unscaledTime * .035f;
+                var eyeF = centre + new Vector3(Mathf.Cos(wa) * r, 0, Mathf.Sin(wa) * r);
+                eyeF.y = TerrainBuilder.Height(dem, eyeF.x, eyeF.z) + 1.65f;
+                var ahead = centre + new Vector3(Mathf.Cos(wa + .5f) * r * .8f, 0, Mathf.Sin(wa + .5f) * r * .8f);
+                ahead.y = TerrainBuilder.Height(dem, ahead.x, ahead.z) + 2.2f;
+                cam.transform.position = eyeF;
+                cam.transform.LookAt(ahead);
+                return true;
+            }
             var p = WorldData.Get(vid);
             float x = p.X, z = p.Z;
             if (vid == "p4") { x = WorldData.Den.x; z = WorldData.Den.z; }
@@ -153,6 +168,21 @@ namespace Height1079.Runtime
             cam.transform.position = pos;
             cam.transform.LookAt(target);
             return true;
+        }
+
+        static Vector3 ForestSpot(HeightField dem, float elevation)
+        {
+            // taiga: 120 m down the valley from the 31 Jan camp; edge: the first point of the ascent at the given height
+            if (elevation <= 0f)
+            {
+                var (cx, cz) = WorldData.Camp;
+                var up = new Vector2(WorldData.Tent.X - cx, WorldData.Tent.Z - cz).normalized;
+                float x = cx - up.x * 120f, z = cz - up.y * 120f;
+                return new Vector3(x, TerrainBuilder.Height(dem, x, z), z);
+            }
+            foreach (var q in WorldData.AscentRoute)
+                if (TerrainBuilder.Height(dem, q.x, q.z) >= elevation) return new Vector3(q.x, TerrainBuilder.Height(dem, q.x, q.z), q.z);
+            return new Vector3(WorldData.Tent.X, 0, WorldData.Tent.Z);
         }
 
         public static bool ToggleArchive()

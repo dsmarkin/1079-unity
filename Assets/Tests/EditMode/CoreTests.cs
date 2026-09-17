@@ -174,6 +174,39 @@ namespace Height1079.Tests
             Assert.Greater(near, 0, "the cedar stands in the canopy model");
             float tentTrees = 0; foreach (var t in trees) if (WorldData.Distance(t.X, t.Z, WorldData.Tent.X, WorldData.Tent.Z) < 300) tentTrees++;
             Assert.AreEqual(0f, tentTrees, "open slope around the tent");
+
+            // species grow in belts: no fir at the tree line, birch and larch gain with height; old taiga has snags
+            int[] low = new int[5], high = new int[5]; int snags = 0, lineForms = 0;
+            foreach (var t in trees)
+            {
+                float el = TestData.Dem.Sample(t.X, t.Z);
+                if (el < 600) low[(int)t.Species]++; else if (el > 740) high[(int)t.Species]++;
+                if (t.Form == TreeForm.Snag) { snags++; Assert.IsTrue(t.Species != TreeSpecies.Birch, "birch snags are not modelled"); }
+                if (t.Form == TreeForm.TreeLine) { lineForms++; Assert.Greater(el, 655f); }
+            }
+            Assert.Greater(low[0] + low[1], (low[2] + low[3] + low[4]) * 2, "dark spruce–fir taiga in the valleys");
+            Assert.Less(high[1], high[2] / 5, "fir hardly reaches the tree line, birch does");
+            Assert.Greater(high[4], low[4], "larch belongs to the upper belt");
+            Assert.Greater(snags, trees.Length / 60); Assert.Less(snags, trees.Length / 15);
+            Assert.Greater(lineForms, 1000);
+        }
+
+        [Test]
+        public void UnderstoryFillsTheForestAndLeavesTheTentSlopeOpen()
+        {
+            var under = Height1079.Core.Dem.LoadUnderstory(TestData.World("understory.f32"));
+            Assert.Greater(under.Length, 50000);
+            var counts = new int[10];
+            foreach (var u in under)
+            {
+                counts[(int)u.Kind]++;
+                Assert.IsTrue(u.Yaw >= 0 && u.Yaw < 360);
+                float el = TestData.Dem.Sample(u.X, u.Z);
+                if (u.Kind == UnderKind.YoungFir) Assert.Less(el, 700f, "young fir stays in the taiga");
+                if (u.Kind == UnderKind.DwarfBirch) Assert.Greater(el, 715f, "dwarf birch is a tree-line shrub");
+            }
+            foreach (var c in counts) Assert.Greater(c, 1000, "every layer is present");
+            Assert.Greater(counts[(int)UnderKind.YoungSpruce], counts[(int)UnderKind.Rowan], "spruce undergrowth dominates");
         }
     }
 

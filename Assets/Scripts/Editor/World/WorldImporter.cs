@@ -23,7 +23,7 @@ namespace Height1079.EditorTools.World
         public static void RebuildMenu() => Build(true);
 
         /// <summary>Bump when a factory changes so existing checkouts rebuild the generated world on next open/check.</summary>
-        public const int PipelineVersion = 23;
+        public const int PipelineVersion = 24;
         const string Stamp = WorldPaths.Generated + "/pipeline.version";
 
         public static bool IsBuilt => File.Exists(TerrainAsset) && File.Exists(HeightResource) && File.Exists(Stamp) && File.ReadAllText(Stamp).Trim() == PipelineVersion.ToString();
@@ -49,6 +49,8 @@ namespace Height1079.EditorTools.World
 
             EditorUtility.DisplayProgressBar("1079 world", "Tree and rock library", .1f);
             var protos = TreeFactory.BuildLibrary();
+            var underProtos = TreeFactory.BuildUnderstory();
+            var understory = File.Exists($"{WorldPaths.Source}/understory.f32") ? Dem.LoadUnderstory(File.ReadAllBytes($"{WorldPaths.Source}/understory.f32")) : new UnderRecord[0];
             var rocks = RockFactory.BuildLibrary();
 
             EditorUtility.DisplayProgressBar("1079 world", "Event sites", .3f);
@@ -97,7 +99,7 @@ namespace Height1079.EditorTools.World
             data.baseMapResolution = 1024;
 
             EditorUtility.DisplayProgressBar("1079 world", "Scattering trees and rocks", .8f);
-            Scatter(data, dem, trees, protos, rocks, rock);
+            Scatter(data, dem, trees, protos, rocks, rock, understory, underProtos);
 
             AssetDatabase.DeleteAsset(TerrainAsset);
             AssetDatabase.CreateAsset(data, TerrainAsset);
@@ -213,42 +215,77 @@ namespace Height1079.EditorTools.World
             return !WorldData.Inside(x, z, 3);
         }
 
-        static void Scatter(TerrainData data, HeightField dem, TreeRecord[] trees, List<TreeFactory.Prototype> protos, List<GameObject> rocks, byte[] rockMask)
+        static void Scatter(TerrainData data, HeightField dem, TreeRecord[] trees, List<TreeFactory.Prototype> protos, List<GameObject> rocks, byte[] rockMask,
+            UnderRecord[] understory, List<TreeFactory.UnderPrototype> underProtos)
         {
             var list = new List<TreePrototype>();
-            var bySpecies = new Dictionary<TreeSpecies, List<int>>();
+            var byKey = new Dictionary<(TreeSpecies, TreeForm), List<int>>();
+            var protoHeight = new List<float>();
             foreach (var p in protos)
             {
-                if (!bySpecies.TryGetValue(p.Species, out var l)) bySpecies[p.Species] = l = new List<int>();
+                var key = (p.Species, p.Form);
+                if (!byKey.TryGetValue(key, out var l)) byKey[key] = l = new List<int>();
                 l.Add(list.Count);
                 list.Add(new TreePrototype { prefab = p.Prefab, bendFactor = 0 });
+                protoHeight.Add(p.Height);
+            }
+            var byKind = new Dictionary<UnderKind, List<int>>();
+            foreach (var p in underProtos)
+            {
+                if (!byKind.TryGetValue(p.Kind, out var l)) byKind[p.Kind] = l = new List<int>();
+                l.Add(list.Count);
+                list.Add(new TreePrototype { prefab = p.Prefab, bendFactor = 0 });
+                protoHeight.Add(p.Size);
             }
             int rockBase = list.Count;
             foreach (var r in rocks) list.Add(new TreePrototype { prefab = r, bendFactor = 0 });
             data.treePrototypes = list.ToArray();
 
-            var inst = new List<TreeInstance>(trees.Length + 20000);
+            var inst = new List<TreeInstance>(trees.Length + understory.Length + 20000);
             var rnd = new System.Random(1959);
+            // tree-line forms are wind-flagged: their branches point downwind (+Z of the model → south-east, like the storm wind)
+            const float LeeYaw = 135f * Mathf.Deg2Rad;
             foreach (var tr in trees)
             {
                 if (Blocked(tr.X, tr.Z)) continue;
-                var variants = bySpecies[tr.Species];
+                if (!byKey.TryGetValue((tr.Species, tr.Form), out var variants)) variants = byKey[(tr.Species, TreeForm.Normal)];
                 int hash = (int)(Mathf.Abs(tr.X) * 7919f + Mathf.Abs(tr.Z) * 104729f);
                 int pi = variants[hash % variants.Count];
-                float protoH = protos[pi].Height;
-                float hs = Mathf.Clamp(tr.Height / protoH, .22f, 1.75f);
+                float hs = Mathf.Clamp(tr.Height / protoHeight[pi], .22f, 1.75f);
                 float ws = hs * (.85f + .3f * (float)rnd.NextDouble());
                 if (tr.Species == TreeSpecies.Birch && tr.Height < 7) ws *= .8f;
+                float yaw = tr.Form == TreeForm.TreeLine ? LeeYaw + ((float)rnd.NextDouble() - .5f) * .7f : (float)rnd.NextDouble() * Mathf.PI * 2;
                 inst.Add(new TreeInstance
                 {
                     prototypeIndex = pi,
                     position = new Vector3((tr.X + HeightField.Half) / WorldData.Size, 0, (tr.Z + HeightField.Half) / WorldData.Size),
                     heightScale = hs, widthScale = ws,
-                    rotation = (float)rnd.NextDouble() * Mathf.PI * 2,
+                    rotation = yaw,
+                    color = Color.Lerp(Color.white, new Color(.8f, .88f, .82f), (float)rnd.NextDouble()),
+                    lightmapColor = Color.white,
+                });
+            }
+            int canopyTrees = inst.Count;
+            foreach (var u in understory)
+            {
+                if (Blocked(u.X, u.Z)) continue;
+                // the open slope under the tent stays open (search photos, 1959)
+                if (WorldData.Distance(u.X, u.Z, WorldData.Tent.X, WorldData.Tent.Z) < 300f) continue;
+                if (!byKind.TryGetValue(u.Kind, out var variants)) continue;
+                int hash = (int)(Mathf.Abs(u.X) * 7919f + Mathf.Abs(u.Z) * 104729f);
+                int pi = variants[hash % variants.Count];
+                float s = Mathf.Clamp(u.Size / protoHeight[pi], .2f, 2.2f);
+                inst.Add(new TreeInstance
+                {
+                    prototypeIndex = pi,
+                    position = new Vector3((u.X + HeightField.Half) / WorldData.Size, 0, (u.Z + HeightField.Half) / WorldData.Size),
+                    heightScale = s, widthScale = s * (.85f + .3f * (float)rnd.NextDouble()),
+                    rotation = u.Yaw * Mathf.Deg2Rad,
                     color = Color.Lerp(Color.white, new Color(.85f, .9f, .85f), (float)rnd.NextDouble()),
                     lightmapColor = Color.white,
                 });
             }
+            Debug.Log($"1079 world: {canopyTrees} canopy trees, {inst.Count - canopyTrees} understory");
             int trees2 = inst.Count;
             // boulders on stone ridges and steep open ground
             const int n = Alpha;
