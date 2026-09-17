@@ -101,7 +101,7 @@ namespace Height1079.EditorTools.World
                 Ski(k, TRS(new Vector3(-W / 2 - 1.3f + i * .09f, .72f, L / 2 + 1.4f + i * .05f), Quaternion.Euler(0, 15 + i * 8, 0) * Quaternion.Euler(-90 + 4 - i * 7, 0, -3 + i * 5)), 720 + i, true, .015f);
 
             // walkable pad and the tent shell as colliders: side walls, roof slopes, rear end, doorway jambs; nothing across the doorway
-            AddBoxCollider(root, new Vector3(0, -.4f, .5f), new Vector3(W + 1.6f, .82f, L + 3.2f));
+            // (the ground under the pad is levelled in the terrain itself — no extra floor collider, it would make a step toward the lower fire circle)
             float wallH = Hr - Mathf.Sqrt(Sites.Tent.SlopeLength * Sites.Tent.SlopeLength - W * W / 4);
             float roofAngle = Mathf.Atan2(W / 2, Hr - wallH) * Mathf.Rad2Deg;
             foreach (int side in new[] { -1, 1 })

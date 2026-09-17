@@ -74,15 +74,15 @@ namespace Height1079.EditorTools.World
         /// <summary>Heavy cotton canvas: 2×2 weave, washed-out blotches, grime towards the bottom (v = 0), darker seams.</summary>
         public static Material RuckCanvas(string name, Color baseColor, int seed)
         {
-            float Weave(float u, float v) { float x = u * S / 3f, y = v * S / 3f; return (Mathf.Sin(x * Mathf.PI) * .5f + .5f) * ((int)y % 2 == 0 ? 1 : .6f) + (Mathf.Sin(y * Mathf.PI) * .5f + .5f) * ((int)x % 2 == 0 ? .6f : 1); }
+            float Weave(float u, float v) { float x = u * S / 2f, y = v * S / 2f; return (Mathf.Sin(x * Mathf.PI) * .5f + .5f) * ((int)y % 2 == 0 ? 1 : .6f) + (Mathf.Sin(y * Mathf.PI) * .5f + .5f) * ((int)x % 2 == 0 ? .6f : 1); }
             return Pair(name, (u, v) =>
             {
                 float blotch = Fbm(u, v, 4, seed), grime = Mathf.Clamp01(.35f - v) * 1.4f + (1 - blotch) * .25f;
                 float seam = (Mathf.Abs(u - .5f) < .006f || Mathf.Abs(v - .82f) < .005f) ? .72f : 1f;
-                float w = .92f + .08f * Weave(u, v);
+                float w = .97f + .03f * Weave(u, v);
                 var c = Color.Lerp(baseColor * (.82f + .36f * blotch), new Color(.2f, .18f, .15f), grime * .5f);
                 return Shade(c, w * seam);
-            }, (u, v) => Weave(u, v) * .35f + Fbm(u, v, 6, seed) * .6f, 3f, .08f);
+            }, (u, v) => Weave(u, v) * .12f + Fbm(u, v, 6, seed) * .8f, 2.5f, .08f);
         }
 
         /// <summary>Old leather: pebbled grain, creases, rubbed lighter edges.</summary>
