@@ -98,6 +98,30 @@ namespace Height1079.Runtime
             return sb.ToString();
         }
 
+        /// <summary>Site viewer (F3): orbit camera around the event sites in turn; the hiker keeps standing where it was. Index -1 = off.</summary>
+        public static int ViewIndex { get; private set; } = -1;
+        static readonly string[] ViewIds = { "tent", "cedar", "p4", "labaz", "dyatlov" };
+        static readonly float[] ViewRadius = { 9f, 14f, 8f, 7f, 10f };
+        public static string ViewName => ViewIndex < 0 ? "" : WorldData.Get(ViewIds[ViewIndex]).Label;
+
+        public static void NextView() { ViewIndex = ViewIndex + 1 >= ViewIds.Length ? -1 : ViewIndex + 1; }
+
+        /// <summary>Places the camera for the current site view; returns false when the viewer is off.</summary>
+        public static bool UpdateView(Camera cam, HeightField dem)
+        {
+            if (ViewIndex < 0 || cam == null || dem == null) return false;
+            var p = WorldData.Get(ViewIds[ViewIndex]);
+            float x = p.X, z = p.Z;
+            if (ViewIds[ViewIndex] == "p4") { x = WorldData.Den.x; z = WorldData.Den.z; }
+            var target = new Vector3(x, TerrainBuilder.Height(dem, x, z) + 1f, z);
+            float a = Time.unscaledTime * .12f, r = ViewRadius[ViewIndex];
+            var pos = target + new Vector3(Mathf.Cos(a) * r, 0, Mathf.Sin(a) * r);
+            pos.y = Mathf.Max(TerrainBuilder.Height(dem, pos.x, pos.z) + 1.6f, target.y + r * .35f);
+            cam.transform.position = pos;
+            cam.transform.LookAt(target);
+            return true;
+        }
+
         public static bool ToggleArchive()
         {
             if (Archive == null) return false;

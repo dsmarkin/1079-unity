@@ -22,7 +22,11 @@ namespace Height1079.EditorTools.World
         [MenuItem("1079/Rebuild world (terrain, trees, sites)")]
         public static void RebuildMenu() => Build(true);
 
-        public static bool IsBuilt => File.Exists(TerrainAsset) && File.Exists(HeightResource) && File.Exists(WorldPaths.Generated + "/Prefabs/Sites/Site_Tent_1959.prefab");
+        /// <summary>Bump when a factory changes so existing checkouts rebuild the generated world on next open/check.</summary>
+        public const int PipelineVersion = 2;
+        const string Stamp = WorldPaths.Generated + "/pipeline.version";
+
+        public static bool IsBuilt => File.Exists(TerrainAsset) && File.Exists(HeightResource) && File.Exists(Stamp) && File.ReadAllText(Stamp).Trim() == PipelineVersion.ToString();
 
         public static void Build(bool force)
         {
@@ -93,6 +97,7 @@ namespace Height1079.EditorTools.World
             AssetDatabase.CreateAsset(data, TerrainAsset);
             TerrainMaterial();
             AssetDatabase.SaveAssets();
+            File.WriteAllText(Stamp, PipelineVersion.ToString());
             EditorUtility.ClearProgressBar();
             Debug.Log($"1079 world rebuilt in {clock.Elapsed.TotalSeconds:0.0} s: {data.treeInstanceCount} trees+rocks, {protos.Count} tree prototypes");
         }

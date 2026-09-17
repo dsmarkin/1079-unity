@@ -160,6 +160,11 @@ namespace Height1079.Runtime
             {
                 if (Input.GetKeyDown(KeyCode.F2) && Hud != null)
                     Hud.SetStatus(WorldDressing.ToggleArchive() ? "Архивный слой: версии, ориентиры КАН, линия следов и подъём от лабаза (F2 — скрыть)." : "");
+                if (Input.GetKeyDown(KeyCode.F3) && Hud != null)
+                {
+                    WorldDressing.NextView();
+                    Hud.SetStatus(WorldDressing.ViewIndex < 0 ? "" : $"Осмотр места: {WorldDressing.ViewName} (F3 — дальше)");
+                }
                 var s = NightSession.Instance;
                 float night = s != null ? Mathf.Clamp01(s.Elapsed.Value / 220f) : 0f;
                 bool storm = s != null && s.Storm.Value;

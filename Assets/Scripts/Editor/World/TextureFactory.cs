@@ -108,7 +108,7 @@ namespace Height1079.EditorTools.World
             {
                 if (depth > 5 || len < 4) return;
                 Vector2 b = a + new Vector2(Mathf.Sin(ang), Mathf.Cos(ang)) * len;
-                Stroke(t, a, b, width, new Color(.29f + .05f * depth, .2f, .19f, 1));
+                Stroke(t, a, b, width, new Color(.33f + .03f * depth, .29f + .02f * depth, .27f + .02f * depth, 1));
                 int kids = 2 + rnd.Next(2);
                 for (int i = 0; i < kids; i++)
                 {
