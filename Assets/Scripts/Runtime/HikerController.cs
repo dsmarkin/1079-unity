@@ -175,6 +175,11 @@ namespace Height1079.Runtime
             // Ground probe: capsule cast a little below the feet.
             grounded = Physics.SphereCast(transform.position + Vector3.up * .5f, .3f, Vector3.down, out var hit, .45f, ~0, QueryTriggerInteraction.Ignore);
             groundNormal = grounded ? hit.normal : Vector3.up;
+            // the fat probe can graze a wall or a doorway jamb (tent): trust the floor right under the feet if it is walkable
+            if (grounded && Vector3.Angle(groundNormal, Vector3.up) > SlopeLimit
+                && Physics.Raycast(transform.position + Vector3.up * .3f, Vector3.down, out var under, .6f, ~0, QueryTriggerInteraction.Ignore)
+                && Vector3.Angle(under.normal, Vector3.up) <= SlopeLimit)
+                groundNormal = under.normal;
             var v = body.linearVelocity;
             if (grounded && lastVerticalSpeed < -HardLanding) { StumbleRpc(); stumbleUntil = Time.time + 1.2f; }
             lastVerticalSpeed = v.y;
