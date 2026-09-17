@@ -15,7 +15,9 @@ namespace Height1079.Runtime
         public static string Message = "";
         public static float MessageUntil;
 
-        static readonly List<ItemId> buffer = new List<ItemId>();
+        static readonly List<ItemStack> buffer = new List<ItemStack>();
+        /// <summary>Owner: work with the axe or the saw is being held down (E, or the HUD button).</summary>
+        public static bool Working;
 
         public static void Note(PackResult r)
         {
@@ -36,17 +38,17 @@ namespace Height1079.Runtime
         }
 
         /// <summary>Contents of a pack, in the order the host keeps them.</summary>
-        public static List<ItemId> Contents(int id)
+        public static List<ItemStack> Contents(int id)
         {
             buffer.Clear();
             var s = Session;
             if (s == null) return buffer;
-            for (int i = 0; i < s.PackItems.Count; i++) if (s.PackItems[i].Pack == id) buffer.Add((ItemId)s.PackItems[i].Item);
+            for (int i = 0; i < s.PackItems.Count; i++) if (s.PackItems[i].Pack == id) buffer.Add(s.PackItems[i].Item.Stack);
             return buffer;
         }
 
-        public static float Litres(int id) { float v = 0; foreach (var i in Contents(id)) v += Items.Spec(i).Litres; return v; }
-        public static float Kg(int id) { float v = Backpack.OwnKg; foreach (var i in Contents(id)) v += Items.Spec(i).Kg; return v; }
+        public static float Litres(int id) { float v = 0; foreach (var i in Contents(id)) v += i.Litres; return v; }
+        public static float Kg(int id) { float v = Backpack.OwnKg; foreach (var i in Contents(id)) v += i.Kg; return v; }
 
         /// <summary>Where a pack is: its wearer's back or the snow.</summary>
         public static Vector3 Position(PackNet p)
@@ -81,9 +83,9 @@ namespace Height1079.Runtime
             return best;
         }
 
-        public static int NearbyLooseId(HikerController me, out ItemId item)
+        public static int NearbyLooseId(HikerController me, out ItemStack item)
         {
-            item = ItemId.None;
+            item = ItemStack.Empty;
             var s = Session;
             if (s == null || me == null) return 0;
             int best = 0; float bd = PackWorld.Reach;
@@ -92,7 +94,7 @@ namespace Height1079.Runtime
             {
                 var l = s.LooseList[i];
                 float d = Vector2.Distance(new Vector2(p0.x, p0.z), new Vector2(l.Pos.x, l.Pos.z));
-                if (d <= bd) { bd = d; best = l.Id; item = (ItemId)l.Item; }
+                if (d <= bd) { bd = d; best = l.Id; item = l.Item.Stack; }
             }
             return best;
         }
@@ -102,7 +104,7 @@ namespace Height1079.Runtime
         {
             if (me == null) return 0f;
             int id = MyPackId(me);
-            return (id != 0 ? Kg(id) : 0f) + Items.Spec((ItemId)me.Carried.Value).Kg;
+            return (id != 0 ? Kg(id) : 0f) + me.Carried.Value.Stack.Kg;
         }
 
         public static void Close() => OpenPack = 0;
@@ -134,7 +136,7 @@ namespace Height1079.Runtime
             }
             if (Controls.PackGrab)
             {
-                if (me.Carried.Value != 0)
+                if (me.Carried.Value.Item != 0)
                 {
                     int id = UiOpen ? OpenPack : MyPackId(me);
                     if (id == 0) id = NearbyPackId(me);
@@ -146,7 +148,7 @@ namespace Height1079.Runtime
                     if (l != 0) s.RequestPack(PackAction.PickUp, l); else Note(PackResult.NoItem);
                 }
             }
-            if (Controls.PackDropHand && me.Carried.Value != 0) s.RequestPack(PackAction.DropHand);
+            if (Controls.PackDropHand && me.Carried.Value.Item != 0) s.RequestPack(PackAction.DropHand);
 
             // the window closes when the pack goes out of reach or disappears
             if (UiOpen)
@@ -165,15 +167,48 @@ namespace Height1079.Runtime
         {
             if (Time.time < MessageUntil && Message.Length > 0) return Message;
             if (me == null) return "";
-            var carried = (ItemId)me.Carried.Value;
-            if (carried != ItemId.None) return $"В руках: {Items.Spec(carried).Name} · R — в рюкзак · X — бросить";
+            var carried = me.Carried.Value.Stack;
+            var work = WorkHere(me);
+            if (work != WorkKind.None) return $"{Woodwork.Title(work, carried.Spec.Tool)} · держите E";
+            if (!carried.IsEmpty) return $"В руках: {carried.Describe()} · R — в рюкзак · X — бросить";
             int l = NearbyLooseId(me, out var item);
-            if (l != 0) return $"{Items.Spec(item).Name} · R — поднять";
+            if (l != 0) return $"{item.Describe()} · R — поднять";
             int ground = NearbyPackId(me, true);
             if (ground != 0) return "Рюкзак в снегу · G — надеть · Tab — открыть";
             int other = NearbyPackId(me);
             if (other != 0) return "Рюкзак напарника · Tab — открыть";
             return "";
         }
+
+        /// <summary>A tree trunk right in front (a horizontal ray at chest height; the ground is the same collider, but faces up).</summary>
+        public static bool TreeInFront(Vector3 pos, float yaw, out Vector3 point)
+        {
+            point = pos;
+            var dir = Quaternion.Euler(0, yaw, 0) * Vector3.forward;
+            if (!Physics.Raycast(pos + Vector3.up * 1.25f, dir, out var hit, Woodwork.Reach, ~0, QueryTriggerInteraction.Ignore)) return false;
+            if (Mathf.Abs(hit.normal.y) > .6f) return false;           // ground or a snow bank
+            if (hit.collider.attachedRigidbody != null) return false;  // another hiker
+            point = hit.point;
+            return true;
+        }
+
+        /// <summary>What E would do here (the host decides for real; this is for the prompt and the HUD button).</summary>
+        public static WorkKind WorkHere(HikerController me)
+        {
+            var s = Session;
+            if (s == null || me == null) return WorkKind.None;
+            return s.ChooseWork("c" + me.OwnerClientId, me.transform.position, me.Yaw, out _, out _);
+        }
+
+        /// <summary>Owner: hold E (or the HUD button) to work; the host is told when it starts and when it is let go.</summary>
+        public static void HandleWork(HikerController me, bool wants)
+        {
+            var s = Session;
+            if (s == null || me == null) return;
+            if (wants == Working) return;
+            Working = wants;
+            s.RequestWork(wants);
+        }
+
     }
 }

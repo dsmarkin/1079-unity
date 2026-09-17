@@ -81,10 +81,16 @@ namespace Height1079.Core
             if (p.KindlingStarted.HasValue && WorldData.Distance(x, z, p.KindlingX, p.KindlingZ) > .5f) p.KindlingStarted = null;
         }
 
+        /// <summary>Does this participant have what it takes to light the fire — a dry match and something to burn? (Set by the host from the packs.)</summary>
+        public Func<string, bool> KindleSupplies = _ => true;
+        /// <summary>Called when the fire catches: the match and the firewood are spent here.</summary>
+        public Action<string> KindleSpent = _ => { };
+
         public bool BeginKindling(string token, double now)
         {
             if (!Players.TryGetValue(token, out var p) || p.Outcome != Outcome.None || FireUntil > now || Outcome != Outcome.None) return false;
             if (!WorldData.NearCamp(p.X, p.Z)) return false;
+            if (!KindleSupplies(token)) return false;
             p.KindlingStarted = now; p.KindlingX = p.X; p.KindlingZ = p.Z;
             return true;
         }
@@ -92,6 +98,17 @@ namespace Height1079.Core
         public void StopKindling(string token)
         {
             if (Players.TryGetValue(token, out var p)) p.KindlingStarted = null;
+        }
+
+        /// <summary>Logs go into the burning fire: each buys <see cref="Woodwork.SecondsPerLog"/> more of it.</summary>
+        public bool FeedFire(string token, int logs, double now)
+        {
+            if (logs <= 0 || Outcome != Outcome.None) return false;
+            if (!Players.TryGetValue(token, out var p) || p.Outcome != Outcome.None) return false;
+            if (!WorldData.NearCamp(p.X, p.Z) || FireUntil <= now) return false;
+            FireUntil += logs * Woodwork.SecondsPerLog;
+            Record($"{p.Name} подкладывает дров в костёр.");
+            return true;
         }
 
         static Outcome PairOutcome(List<Participant> players)
@@ -132,6 +149,7 @@ namespace Height1079.Core
                     {
                         p.KindlingStarted = null;
                         FireUntil = now + FireDurationSeconds;
+                        KindleSpent(token);
                         Record($"{p.Name} разжигает общий костёр{(p.Hands < 55f ? " окоченевшими руками" : "")}.");
                     }
                 }

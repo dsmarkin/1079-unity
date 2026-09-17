@@ -96,7 +96,7 @@ namespace Height1079.Runtime
                     t.SetPositionAndRotation(l.Pos, Quaternion.Euler(0, l.Yaw, 0));
                     continue;
                 }
-                t = Spawn(Cargo((ItemId)l.Item), "Loose" + l.Id);
+                t = Spawn(Cargo((ItemId)l.Item.Item), "Loose" + l.Id);
                 if (t == null) continue;
                 t.SetPositionAndRotation(l.Pos, Quaternion.Euler(0, l.Yaw, 0));
                 loose[l.Id] = t;
@@ -111,7 +111,7 @@ namespace Height1079.Runtime
             foreach (var h in HikerController.All)
             {
                 if (h == null) continue;
-                var id = (ItemId)h.Carried.Value;
+                var id = (ItemId)h.Carried.Value.Item;
                 ulong key = h.OwnerClientId;
                 if (handKind.TryGetValue(key, out var was) && was != id && hands.TryGetValue(key, out var old))
                 {

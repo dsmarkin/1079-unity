@@ -116,6 +116,36 @@ namespace Height1079.EditorTools.World
                     Surf.Lump(b, 0, new Vector3(.02f, .04f, .05f), new Vector3(.03f, .02f, .04f), 41, .2f, null, 0f, true);
                     ma = wool; mb = wool;
                     break;
+                case ItemId.Axe:
+                    // felling axe: a long curved helve and a broad head
+                    a.Tube(0, new Vector3(0, .03f, -.34f), new Vector3(0, .03f, .3f), .019f, .016f, 8, 1f, 0, true);
+                    b.Box(0, new Vector3(0, .03f, .3f), new Vector3(.022f, .05f, .09f), Quaternion.identity);
+                    b.Box(0, new Vector3(.075f, .03f, .3f), new Vector3(.13f, .035f, .12f), Quaternion.identity);
+                    b.Box(0, new Vector3(.14f, .03f, .3f), new Vector3(.012f, .026f, .14f), Quaternion.identity);
+                    ma = wood; mb = steel;
+                    break;
+                case ItemId.Saw:
+                    // two-handed saw: a long toothed blade with a wooden grip at each end
+                    b.Box(0, new Vector3(0, .12f, 0), new Vector3(.004f, .16f, 1.1f), Quaternion.identity);
+                    for (int k = 0; k < 44; k++)
+                    {
+                        float z = -.54f + k * .025f;
+                        b.Box(0, new Vector3(0, .038f, z), new Vector3(.004f, .022f, .012f), Quaternion.Euler(20, 0, 0));
+                    }
+                    foreach (int side in new[] { -1, 1 })
+                        a.Tube(0, new Vector3(0, .2f, side * .6f), new Vector3(0, .04f, side * .62f), .018f, .018f, 8, 1f, 0, true);
+                    ma = wood; mb = steel;
+                    break;
+                case ItemId.Branch:
+                    // a dry branch with a few side twigs
+                    a.Tube(0, new Vector3(0, .06f, -.75f), new Vector3(.05f, .06f, .75f), .035f, .022f, 7, 1f, 0, true);
+                    for (int k = 0; k < 4; k++)
+                    {
+                        float z = -.5f + k * .35f, dir = k % 2 == 0 ? 1f : -1f;
+                        b.Tube(0, new Vector3(.02f, .06f, z), new Vector3(.02f + dir * .22f, .12f + .05f * k, z + .18f), .012f, .004f, 5, 1f, 0, true);
+                    }
+                    ma = Materials.Bark; mb = Materials.Bark;
+                    break;
                 case ItemId.Firewood:
                     for (int k = 0; k < 6; k++)
                     {

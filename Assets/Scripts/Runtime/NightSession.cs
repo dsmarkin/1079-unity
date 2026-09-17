@@ -139,6 +139,8 @@ namespace Height1079.Runtime
             if (Controls.MenkWake) menk.WakeNow();
             if (Controls.SkipMinute) run.SkipAhead(60);
             TickMenk();
+            TickWork();
+            TickWeatherOnItems(Time.deltaTime);
             SyncPacks();
             double now = Time.timeAsDouble;
             if (now - lastTick < TickSeconds) return;

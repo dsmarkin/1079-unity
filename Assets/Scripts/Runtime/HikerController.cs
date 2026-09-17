@@ -26,7 +26,7 @@ namespace Height1079.Runtime
         public readonly NetworkVariable<byte> Action = new NetworkVariable<byte>(0, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Owner); // 0 idle, 1 cold, 2 kindle
 
         /// <summary>What the hiker carries in the hands out of a rucksack (Core.ItemId); written by the host's PackWorld.</summary>
-        public readonly NetworkVariable<byte> Carried = new NetworkVariable<byte>(0);
+        public readonly NetworkVariable<StackNet> Carried = new NetworkVariable<StackNet>();
         public static readonly System.Collections.Generic.List<HikerController> All = new System.Collections.Generic.List<HikerController>();
 
         public static HikerController ByClient(ulong clientId)
@@ -174,8 +174,14 @@ namespace Height1079.Runtime
             }
             orbit = Mathf.Clamp(orbit - Input.mouseScrollDelta.y * .6f, 3f, 14f);
 
-            bool wantKindle = !paused && !finished && WorldData.NearCamp(transform.position.x, transform.position.z)
-                && (Controls.Kindle || Bootstrap.AutoKindle) && session != null && session.FireRemaining.Value <= 0f
+            // E works on whatever is in reach: the saw and the axe on a tree or a branch, firewood into the fire, otherwise kindling
+            bool holdE = !paused && !finished && (Controls.Kindle || Bootstrap.AutoWork || Bootstrap.AutoKindle);
+            var job = Backpacks.WorkHere(this);
+            Backpacks.HandleWork(this, holdE && job != WorkKind.None);
+            if (job != WorkKind.None) Bootstrap.AutoKindle = false;
+
+            bool wantKindle = job == WorkKind.None && holdE && WorldData.NearCamp(transform.position.x, transform.position.z)
+                && session != null && session.FireRemaining.Value <= 0f
                 && new Vector2(body.linearVelocity.x, body.linearVelocity.z).magnitude < .3f;
             if (wantKindle != kindling)
             {
@@ -183,7 +189,7 @@ namespace Height1079.Runtime
                 session?.KindleRpc(kindling);
                 if (!kindling) Bootstrap.AutoKindle = false;
             }
-            Action.Value = (byte)(kindling ? 2 : session != null && session.Heat < 40f ? 1 : 0);
+            Action.Value = (byte)(kindling || Backpacks.Working ? 2 : session != null && session.Heat < 40f ? 1 : 0);
             short look = (short)Mathf.RoundToInt(Mathf.Repeat(yaw, 360f));
             if (Mathf.Abs(look - LookYaw.Value) > 1) LookYaw.Value = look;
             impact = Mathf.MoveTowards(impact, 0f, Time.deltaTime * 1.4f);

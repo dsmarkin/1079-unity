@@ -65,7 +65,7 @@ namespace Height1079.Runtime
         public void HandleInput()
         {
             // a thing out of the rucksack fills the hands: no compass, map or torch until it is stowed or dropped
-            if (hiker.Carried.Value != 0)
+            if (hiker.Carried.Value.Item != 0)
             {
                 if (hiker.Held.Value != (byte)HeldItem.None) hiker.Held.Value = (byte)HeldItem.None;
                 if (hiker.TorchOn.Value) hiker.TorchOn.Value = false;

@@ -9,9 +9,13 @@ namespace Height1079.Core
         None = 0,
         Rusks, Lard, Stew, CondensedMilk, Sugar, Oatmeal, Chocolate,
         Matches, Candles, Batteries, Hatchet, Flask, Pot, Mittens, Socks, Firewood,
+        Axe, Saw, Branch,
     }
 
     public enum ItemKind : byte { Food, Gear, Clothes, Fuel }
+
+    /// <summary>What an item can be used for: a big axe chops, a hatchet does the same slowly, the saw cuts.</summary>
+    public enum ToolKind : byte { None, Axe, Hatchet, Saw }
 
     public readonly struct ItemSpec
     {
@@ -19,12 +23,64 @@ namespace Height1079.Core
         public readonly string Name;
         public readonly float Kg, Litres;
         public readonly ItemKind Kind;
-        public ItemSpec(ItemId id, string name, float kg, float litres, ItemKind kind) { Id = id; Name = name; Kg = kg; Litres = litres; Kind = kind; }
+        public readonly ToolKind Tool;
+        /// <summary>How many go in one item: logs in an armful, matches in a box. 1 for everything else.</summary>
+        public readonly byte MaxAmount;
+        /// <summary>Weight and volume scale with the count (an armful of firewood) or not (a box of matches).</summary>
+        public readonly bool PerUnit;
+        /// <summary>Damp matches do not strike; only these items track it.</summary>
+        public readonly bool Soaks;
+
+        public ItemSpec(ItemId id, string name, float kg, float litres, ItemKind kind, ToolKind tool = ToolKind.None, byte maxAmount = 1, bool perUnit = false, bool soaks = false)
+        { Id = id; Name = name; Kg = kg; Litres = litres; Kind = kind; Tool = tool; MaxAmount = maxAmount; PerUnit = perUnit; Soaks = soaks; }
+    }
+
+    /// <summary>One item with its state: an armful of so many logs, a box with so many matches left, dry or damp.</summary>
+    public readonly struct ItemStack : IEquatable<ItemStack>
+    {
+        public readonly ItemId Id;
+        public readonly byte Amount;
+        /// <summary>0 dry … 100 soaked; only matches care.</summary>
+        public readonly byte Wet;
+
+        public ItemStack(ItemId id, byte amount = 1, byte wet = 0)
+        {
+            Id = id;
+            Amount = id == ItemId.None ? (byte)0 : Math.Max((byte)1, Math.Min(amount, Items.Spec(id).MaxAmount));
+            Wet = wet;
+        }
+
+        public static readonly ItemStack Empty = default;
+        public bool IsEmpty => Id == ItemId.None;
+        public ItemSpec Spec => Items.Spec(Id);
+        public float Kg => Spec.PerUnit ? Spec.Kg * Amount : Spec.Kg;
+        public float Litres => Spec.PerUnit ? Spec.Litres * Amount : Spec.Litres;
+        /// <summary>Damp matches (60 and up) do not light.</summary>
+        public bool Damp => Spec.Soaks && Wet >= Items.DampAt;
+        public ItemStack With(int amount) => amount <= 0 ? Empty : new ItemStack(Id, (byte)Math.Min(amount, Spec.MaxAmount), Wet);
+        public ItemStack Wetter(float delta) => new ItemStack(Id, Amount, (byte)Math.Max(0, Math.Min(100, Wet + delta)));
+        public bool Equals(ItemStack o) => Id == o.Id && Amount == o.Amount && Wet == o.Wet;
+        public override bool Equals(object o) => o is ItemStack s && Equals(s);
+        public override int GetHashCode() => (int)Id << 16 | Amount << 8 | Wet;
+
+        public string Describe()
+        {
+            var spec = Spec;
+            string name = spec.Name;
+            if (spec.MaxAmount > 1) name += " ×" + Amount;
+            if (Damp) name += " (отсырели)";
+            else if (spec.Soaks && Wet > 20) name += " (влажные)";
+            return name;
+        }
     }
 
     /// <summary>Item catalogue: name, weight (kg) and volume (litres) of one piece.</summary>
     public static class Items
     {
+        /// <summary>Matches this damp or worse will not strike.</summary>
+        public const byte DampAt = 60;
+        public const byte MatchesInBox = 24, LogsInArmful = 6;
+
         static readonly ItemSpec[] specs =
         {
             new ItemSpec(ItemId.None, "—", 0f, 0f, ItemKind.Gear),
@@ -35,26 +91,42 @@ namespace Height1079.Core
             new ItemSpec(ItemId.Sugar, "Сахар", 1f, 1.2f, ItemKind.Food),
             new ItemSpec(ItemId.Oatmeal, "Овсянка", 1f, 1.8f, ItemKind.Food),
             new ItemSpec(ItemId.Chocolate, "Шоколад", .1f, .1f, ItemKind.Food),
-            new ItemSpec(ItemId.Matches, "Спички", .05f, .05f, ItemKind.Gear),
+            new ItemSpec(ItemId.Matches, "Спички", .05f, .05f, ItemKind.Gear, ToolKind.None, MatchesInBox, false, true),
             new ItemSpec(ItemId.Candles, "Свечи", .3f, .3f, ItemKind.Gear),
             new ItemSpec(ItemId.Batteries, "Батарейки", .2f, .1f, ItemKind.Gear),
-            new ItemSpec(ItemId.Hatchet, "Топорик", 1.1f, 1.5f, ItemKind.Gear),
+            new ItemSpec(ItemId.Hatchet, "Топорик", 1.1f, 1.5f, ItemKind.Gear, ToolKind.Hatchet),
             new ItemSpec(ItemId.Flask, "Фляга", .9f, 1f, ItemKind.Gear),
             new ItemSpec(ItemId.Pot, "Котелок", .7f, 4f, ItemKind.Gear),
             new ItemSpec(ItemId.Mittens, "Рукавицы", .3f, 1.5f, ItemKind.Clothes),
             new ItemSpec(ItemId.Socks, "Шерстяные носки", .2f, .8f, ItemKind.Clothes),
-            new ItemSpec(ItemId.Firewood, "Охапка дров", 6f, 18f, ItemKind.Fuel),
+            new ItemSpec(ItemId.Firewood, "Дрова", 2.2f, 5f, ItemKind.Fuel, ToolKind.None, LogsInArmful, true),
+            new ItemSpec(ItemId.Axe, "Топор", 2.2f, 4f, ItemKind.Gear, ToolKind.Axe),
+            new ItemSpec(ItemId.Saw, "Двуручная пила", 2.6f, 7f, ItemKind.Gear, ToolKind.Saw),
+            new ItemSpec(ItemId.Branch, "Сухая ветка", 5f, 16f, ItemKind.Fuel),
         };
 
         public static ItemSpec Spec(ItemId id) => (int)id < specs.Length ? specs[(int)id] : specs[0];
         public static int Count => specs.Length;
 
-        /// <summary>What every participant starts the night with (about 11 kg with the rucksack).</summary>
+        /// <summary>What every participant starts the night with, plus one heavy tool each (Tool below).</summary>
         public static readonly ItemId[] Starter =
         {
             ItemId.Rusks, ItemId.Lard, ItemId.Stew, ItemId.Stew, ItemId.CondensedMilk, ItemId.Sugar, ItemId.Chocolate,
-            ItemId.Matches, ItemId.Candles, ItemId.Batteries, ItemId.Flask, ItemId.Pot, ItemId.Mittens, ItemId.Socks,
+            ItemId.Candles, ItemId.Batteries, ItemId.Flask, ItemId.Pot, ItemId.Mittens, ItemId.Socks,
         };
+
+        /// <summary>The heavy tool of the n-th participant: the group carried three axes and a saw, so the first two take the axe and the saw.</summary>
+        public static ItemId Tool(int index) => index == 0 ? ItemId.Axe : index == 1 ? ItemId.Saw : ItemId.Hatchet;
+
+        /// <summary>The starting kit of the n-th participant: food, gear, a box of matches and one heavy tool.</summary>
+        public static List<ItemStack> StarterFor(int index)
+        {
+            var list = new List<ItemStack>();
+            foreach (var id in Starter) list.Add(new ItemStack(id));
+            list.Add(new ItemStack(ItemId.Matches, MatchesInBox));
+            list.Add(new ItemStack(Tool(index)));
+            return list;
+        }
     }
 
     /// <summary>A soft canvas rucksack of the 1950s: fixed volume, its own weight, an ordered list of contents.
@@ -65,28 +137,48 @@ namespace Height1079.Core
         public readonly int Id;
         public string Wearer;
         public float X, Y, Z, Yaw;
-        readonly List<ItemId> items = new List<ItemId>();
+        readonly List<ItemStack> items = new List<ItemStack>();
 
         public Backpack(int id) { Id = id; }
 
-        public IReadOnlyList<ItemId> Contents => items;
-        public float Litres { get { float s = 0; foreach (var i in items) s += Items.Spec(i).Litres; return s; } }
-        public float Kg { get { float s = OwnKg; foreach (var i in items) s += Items.Spec(i).Kg; return s; } }
-        public bool Fits(ItemId id) => id != ItemId.None && Litres + Items.Spec(id).Litres <= CapacityLitres + 1e-4f;
+        public IReadOnlyList<ItemStack> Contents => items;
+        public float Litres { get { float s = 0; foreach (var i in items) s += i.Litres; return s; } }
+        public float Kg { get { float s = OwnKg; foreach (var i in items) s += i.Kg; return s; } }
+        public bool Fits(ItemStack stack) => !stack.IsEmpty && Litres + stack.Litres <= CapacityLitres + 1e-4f;
 
-        public bool Put(ItemId id)
+        public bool Put(ItemStack stack)
         {
-            if (!Fits(id)) return false;
-            items.Add(id);
+            if (!Fits(stack)) return false;
+            items.Add(stack);
             return true;
         }
 
-        public ItemId TakeAt(int index)
+        public bool Put(ItemId id) => Put(new ItemStack(id));
+
+        public ItemStack TakeAt(int index)
         {
-            if (index < 0 || index >= items.Count) return ItemId.None;
-            var id = items[index];
+            if (index < 0 || index >= items.Count) return ItemStack.Empty;
+            var s = items[index];
             items.RemoveAt(index);
-            return id;
+            return s;
+        }
+
+        /// <summary>Index of the first item of this kind that is usable (matches: a box that still has dry matches), or -1.</summary>
+        public int IndexOf(ItemId id, bool usable = false)
+        {
+            for (int i = 0; i < items.Count; i++)
+            {
+                if (items[i].Id != id) continue;
+                if (usable && items[i].Damp) continue;
+                return i;
+            }
+            return -1;
+        }
+
+        public void SetAt(int index, ItemStack stack)
+        {
+            if (index < 0 || index >= items.Count) return;
+            if (stack.IsEmpty) items.RemoveAt(index); else items[index] = stack;
         }
     }
 
@@ -94,7 +186,7 @@ namespace Height1079.Core
     public sealed class LooseItem
     {
         public int Id;
-        public ItemId Item;
+        public ItemStack Stack;
         public float X, Y, Z, Yaw;
     }
 
@@ -107,7 +199,8 @@ namespace Height1079.Core
         public const float Reach = 2.2f;
         public readonly Dictionary<int, Backpack> Packs = new Dictionary<int, Backpack>();
         public readonly Dictionary<int, LooseItem> Loose = new Dictionary<int, LooseItem>();
-        readonly Dictionary<string, ItemId> hands = new Dictionary<string, ItemId>();
+        readonly Dictionary<string, ItemStack> hands = new Dictionary<string, ItemStack>();
+        readonly Dictionary<string, float> soak = new Dictionary<string, float>();   // fraction of a wetness point not yet applied
         public int Version { get; private set; }
         /// <summary>Ground position of a participant (x, z), or null if unknown.</summary>
         public Func<string, (float x, float z)?> Locate = _ => null;
@@ -115,7 +208,13 @@ namespace Height1079.Core
 
         void Changed() => Version++;
 
-        public ItemId Hand(string token) => hands.TryGetValue(token, out var i) ? i : ItemId.None;
+        public ItemStack Hand(string token) => hands.TryGetValue(token, out var i) ? i : ItemStack.Empty;
+
+        void SetHand(string token, ItemStack stack)
+        {
+            if (stack.IsEmpty) hands.Remove(token); else hands[token] = stack;
+            Changed();
+        }
 
         public Backpack Worn(string token)
         {
@@ -124,7 +223,7 @@ namespace Height1079.Core
         }
 
         /// <summary>A new rucksack on <paramref name="wearer"/>'s back (or in the snow if null), filled with <paramref name="contents"/>.</summary>
-        public Backpack AddPack(string wearer, float x, float y, float z, IEnumerable<ItemId> contents = null)
+        public Backpack AddPack(string wearer, float x, float y, float z, IEnumerable<ItemStack> contents = null)
         {
             var p = new Backpack(nextPack++) { Wearer = wearer, X = x, Y = y, Z = z };
             if (contents != null) foreach (var i in contents) p.Put(i);
@@ -133,9 +232,9 @@ namespace Height1079.Core
             return p;
         }
 
-        public LooseItem AddLoose(ItemId item, float x, float y, float z, float yaw = 0f)
+        public LooseItem AddLoose(ItemStack stack, float x, float y, float z, float yaw = 0f)
         {
-            var l = new LooseItem { Id = nextLoose++, Item = item, X = x, Y = y, Z = z, Yaw = yaw };
+            var l = new LooseItem { Id = nextLoose++, Stack = stack, X = x, Y = y, Z = z, Yaw = yaw };
             Loose[l.Id] = l;
             Changed();
             return l;
@@ -209,13 +308,22 @@ namespace Height1079.Core
         /// <summary>Take item <paramref name="index"/> out of a pack into the hands (own pack, one in the snow, or a companion's back).</summary>
         public PackResult Take(string token, int packId, int index, float x, float z)
         {
-            if (Hand(token) != ItemId.None) return PackResult.HandsFull;
             if (!Packs.TryGetValue(packId, out var p)) return PackResult.NoPack;
             if (!InReach(token, p, x, z)) return PackResult.TooFar;
-            var item = p.TakeAt(index);
-            if (item == ItemId.None) return PackResult.NoItem;
-            hands[token] = item;
-            Changed();
+            if (index < 0 || index >= p.Contents.Count) return PackResult.NoItem;
+            var wanted = p.Contents[index];
+            var held = Hand(token);
+            if (!held.IsEmpty)
+            {
+                // an armful grows in the arms: logs join logs, matches join a half-empty box
+                int room = held.Spec.MaxAmount - held.Amount;
+                if (held.Id != wanted.Id || room <= 0) return PackResult.HandsFull;
+                int moved = Math.Min(room, wanted.Amount);
+                SetHand(token, held.With(held.Amount + moved));
+                p.SetAt(index, wanted.With(wanted.Amount - moved));
+                return PackResult.Ok;
+            }
+            SetHand(token, p.TakeAt(index));
             return PackResult.Ok;
         }
 
@@ -223,12 +331,11 @@ namespace Height1079.Core
         public PackResult Stow(string token, int packId, float x, float z)
         {
             var item = Hand(token);
-            if (item == ItemId.None) return PackResult.HandsEmpty;
+            if (item.IsEmpty) return PackResult.HandsEmpty;
             if (!Packs.TryGetValue(packId, out var p)) return PackResult.NoPack;
             if (!InReach(token, p, x, z)) return PackResult.TooFar;
             if (!p.Put(item)) return PackResult.NoRoom;
-            hands.Remove(token);
-            Changed();
+            SetHand(token, ItemStack.Empty);
             return PackResult.Ok;
         }
 
@@ -236,22 +343,117 @@ namespace Height1079.Core
         public PackResult DropHand(string token, float x, float y, float z, float yaw)
         {
             var item = Hand(token);
-            if (item == ItemId.None) return PackResult.HandsEmpty;
-            hands.Remove(token);
+            if (item.IsEmpty) return PackResult.HandsEmpty;
+            SetHand(token, ItemStack.Empty);
             AddLoose(item, x, y, z, yaw);
             return PackResult.Ok;
         }
 
-        /// <summary>Pick a loose item up into the hands.</summary>
+        /// <summary>Pick a loose item up into the hands; another armful of firewood joins the one already carried.</summary>
         public PackResult PickUp(string token, int looseId, float x, float z)
         {
-            if (Hand(token) != ItemId.None) return PackResult.HandsFull;
             if (!Loose.TryGetValue(looseId, out var l)) return PackResult.NoItem;
             if (Dist(x, z, l.X, l.Z) > Reach) return PackResult.TooFar;
+            var held = Hand(token);
+            if (!held.IsEmpty)
+            {
+                int room = held.Spec.MaxAmount - held.Amount;
+                if (held.Id != l.Stack.Id || room <= 0) return PackResult.HandsFull;
+                int moved = Math.Min(room, l.Stack.Amount);
+                SetHand(token, held.With(held.Amount + moved));
+                var left = l.Stack.With(l.Stack.Amount - moved);
+                if (left.IsEmpty) Loose.Remove(looseId); else l.Stack = left;
+                Changed();
+                return PackResult.Ok;
+            }
             Loose.Remove(looseId);
-            hands[token] = l.Item;
-            Changed();
+            SetHand(token, l.Stack);
             return PackResult.Ok;
+        }
+
+        /// <summary>Force something into the hands (the result of work: a branch just cut off, logs just split).</summary>
+        public PackResult GiveHand(string token, ItemStack stack)
+        {
+            if (stack.IsEmpty) return PackResult.NoItem;
+            var held = Hand(token);
+            if (held.IsEmpty) { SetHand(token, stack); return PackResult.Ok; }
+            int room = held.Spec.MaxAmount - held.Amount;
+            if (held.Id != stack.Id || room <= 0) return PackResult.HandsFull;
+            SetHand(token, held.With(held.Amount + Math.Min(room, stack.Amount)));
+            return PackResult.Ok;
+        }
+
+        /// <summary>The usable item of this kind the participant has at hand: in the hands first, then in the worn rucksack.
+        /// <paramref name="usable"/> skips damp matches.</summary>
+        public bool Has(string token, ItemId id, bool usable = false)
+        {
+            var held = Hand(token);
+            if (held.Id == id && (!usable || !held.Damp)) return true;
+            var pack = Worn(token);
+            return pack != null && pack.IndexOf(id, usable) >= 0;
+        }
+
+        /// <summary>The tool the participant holds (a saw and an axe are used with both hands, so only what is in the hands counts).</summary>
+        public ToolKind HeldTool(string token) => Hand(token).Spec.Tool;
+
+        /// <summary>Spend <paramref name="amount"/> of an item: out of the hands first, then out of the worn rucksack.</summary>
+        public bool Spend(string token, ItemId id, int amount = 1, bool usable = false)
+        {
+            var held = Hand(token);
+            if (held.Id == id && (!usable || !held.Damp))
+            {
+                int take = Math.Min(amount, held.Amount);
+                SetHand(token, held.With(held.Amount - take));
+                amount -= take;
+            }
+            var pack = Worn(token);
+            while (amount > 0 && pack != null)
+            {
+                int i = pack.IndexOf(id, usable);
+                if (i < 0) break;
+                var s = pack.Contents[i];
+                int take = Math.Min(amount, s.Amount);
+                pack.SetAt(i, s.With(s.Amount - take));
+                amount -= take;
+                Changed();
+            }
+            return amount == 0;
+        }
+
+        /// <summary>Matches carried in the hands take the weather: a blizzard drives snow into the box, open water on the brook soaks it at once.
+        /// What lies in the rucksack stays dry; by the fire everything dries out.</summary>
+        public void Weather(string token, float dt, bool storm, bool water, bool fire)
+        {
+            var held = Hand(token);
+            float delta = 0f;
+            if (held.Spec.Soaks)
+            {
+                if (water) delta += 30f * dt;
+                else if (storm) delta += 3.5f * dt;
+            }
+            if (fire) delta -= 9f * dt;
+            if (!held.IsEmpty && held.Spec.Soaks && Math.Abs(delta) > 1e-6f)
+            {
+                // wetness is stored as a byte, so keep the fraction until it adds up to a whole point
+                float carry = (soak.TryGetValue(token, out var c) ? c : 0f) + delta;
+                int whole = (int)(carry > 0 ? Math.Floor(carry) : Math.Ceiling(carry));
+                soak[token] = carry - whole;
+                if (whole != 0)
+                {
+                    var next = held.Wetter(whole);
+                    if (next.Wet != held.Wet) SetHand(token, next);
+                }
+            }
+            if (!fire) return;
+            var pack = Worn(token);
+            if (pack == null) return;
+            for (int i = 0; i < pack.Contents.Count; i++)
+            {
+                var s = pack.Contents[i];
+                if (!s.Spec.Soaks || s.Wet == 0) continue;
+                var next = s.Wetter(Math.Min(-1f, -9f * dt));
+                if (next.Wet != s.Wet) { pack.SetAt(i, next); Changed(); }
+            }
         }
 
         /// <summary>A participant leaves: whatever they carry stays on the slope where they were.</summary>
@@ -259,14 +461,14 @@ namespace Height1079.Core
         {
             var p = Worn(token);
             if (p != null) { p.Wearer = null; p.X = x; p.Y = y; p.Z = z; Changed(); }
-            if (Hand(token) != ItemId.None) DropHand(token, x + .4f, y, z, 0f);
+            if (!Hand(token).IsEmpty) DropHand(token, x + .4f, y, z, 0f);
         }
 
-        /// <summary>Everything a participant carries: the worn pack with its contents and the item in the hands.</summary>
+        /// <summary>Everything a participant carries: the worn pack with its contents and what is in the hands.</summary>
         public float CarriedKg(string token)
         {
             var p = Worn(token);
-            return (p != null ? p.Kg : 0f) + Items.Spec(Hand(token)).Kg;
+            return (p != null ? p.Kg : 0f) + Hand(token).Kg;
         }
 
         public static string Describe(PackResult r) => r switch

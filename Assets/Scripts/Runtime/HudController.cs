@@ -16,7 +16,9 @@ namespace Height1079.Runtime
         InputField nameField, addressField;
         Text status, clock, direction, party, hint, outcomeTitle, outcomeNote, summary, pairOutcome, events;
         Slider heat, hands, clarity;
-        Button fireButton;
+        Button fireButton, workButton;
+        float workStarted, workNeeded;
+        WorkKind workKind;
         Text debug;
         // navigation
         RectTransform miniRoot, miniMap, miniArrow, bigRoot, bigMark;
@@ -148,6 +150,7 @@ namespace Height1079.Runtime
             party = Label("Party", box, new Vector2(22, -82), new Vector2(320, 20), 12, new Color(.69f, .76f, .8f));
             hint = Label("Hint", box, new Vector2(22, -106), new Vector2(320, 26), 15, Amber);
             fireButton = ButtonUi("Fire", box, new Vector2(22, -136), new Vector2(150, 30), "Разжечь костёр", new Color(.67f, .47f, .29f), Color.white, () => Bootstrap.AutoKindle = !Bootstrap.AutoKindle);
+            workButton = ButtonUi("Work", box, new Vector2(182, -136), new Vector2(156, 30), "Работать", new Color(.32f, .45f, .5f), Color.white, () => Bootstrap.AutoWork = !Bootstrap.AutoWork);
             heat = Meter("ТЕПЛО", box, new Vector2(22, -178));
             hands = Meter("РУКИ", box, new Vector2(132, -178));
             clarity = Meter("ЯСНОСТЬ", box, new Vector2(242, -178));
@@ -272,6 +275,29 @@ namespace Height1079.Runtime
                 : Backpacks.Prompt(me);
         }
 
+        /// <summary>The E-work button: it shows what E would do here and how far along the job is.</summary>
+        void UpdateWorkButton(HikerController me, NightSession s)
+        {
+            var kind = Backpacks.WorkHere(me);
+            bool show = kind != WorkKind.None;
+            if (workButton.gameObject.activeSelf != show) workButton.gameObject.SetActive(show);
+            if (!show) { Bootstrap.AutoWork = false; workKind = WorkKind.None; return; }
+            var tool = me.Carried.Value.Stack.Spec.Tool;
+            if (kind != workKind || !Backpacks.Working)
+            {
+                workKind = kind;
+                workStarted = Time.time;
+                workNeeded = Woodwork.Seconds(kind, tool, s.Hands);
+            }
+            string label = Woodwork.Title(kind, tool);
+            if (Backpacks.Working && workNeeded > 0f)
+            {
+                int percent = Mathf.Clamp(Mathf.RoundToInt((Time.time - workStarted) / workNeeded * 100f), 0, 99);
+                label += $" {percent}%";
+            }
+            workButton.GetComponentInChildren<Text>().text = label;
+        }
+
         Slider Meter(string title, Transform parent, Vector2 pos)
         {
             Label(title, parent, pos, new Vector2(100, 14), 10, new Color(.69f, .76f, .8f)).text = title;
@@ -344,22 +370,22 @@ namespace Height1079.Runtime
             packTitle.text = mine ? "Ваш рюкзак" : ground ? "Рюкзак в снегу" : owner;
             var contents = Backpacks.Contents(Backpacks.OpenPack);
             float litres = 0f, kg = Backpack.OwnKg;
-            foreach (var i in contents) { litres += Items.Spec(i).Litres; kg += Items.Spec(i).Kg; }
+            foreach (var i in contents) { litres += i.Litres; kg += i.Kg; }
             packLoad.text = $"{litres:0.#} из {Backpack.CapacityLitres:0} л · {kg:0.0} кг · вместе с руками {Backpacks.CarriedKg(me):0.0} кг";
-            var carried = (ItemId)me.Carried.Value;
-            packHandLine.text = carried != ItemId.None ? "В руках: " + Items.Spec(carried).Name : "Руки свободны · Tab — закрыть";
-            packStowButton.gameObject.SetActive(carried != ItemId.None);
-            packDropButton.gameObject.SetActive(carried != ItemId.None);
+            var carried = me.Carried.Value.Stack;
+            packHandLine.text = !carried.IsEmpty ? "В руках: " + carried.Describe() : "Руки свободны · Tab — закрыть";
+            packStowButton.gameObject.SetActive(!carried.IsEmpty);
+            packDropButton.gameObject.SetActive(!carried.IsEmpty);
             int nearby = Backpacks.NearbyLooseId(me, out var nearbyItem);
-            packPickButton.gameObject.SetActive(nearby != 0 && carried == ItemId.None);
-            if (nearby != 0) packPickButton.GetComponentInChildren<Text>().text = "Поднять: " + Items.Spec(nearbyItem).Name;
+            packPickButton.gameObject.SetActive(nearby != 0);
+            if (nearby != 0) packPickButton.GetComponentInChildren<Text>().text = "Поднять: " + nearbyItem.Describe();
             bool canWear = Backpacks.MyPackId(me) == Backpacks.OpenPack || ground;
             packWearButton.gameObject.SetActive(canWear);
             packWearButton.GetComponentInChildren<Text>().text = mine ? "Снять рюкзак" : "Надеть";
 
             // rows are rebuilt only when the contents change
             var key = new StringBuilder().Append(Backpacks.OpenPack).Append(':');
-            foreach (var i in contents) key.Append((int)i).Append(',');
+            foreach (var i in contents) key.Append((int)i.Id).Append('/').Append(i.Amount).Append('/').Append(i.Wet).Append(',');
             if (key.ToString() == packShown) return;
             packShown = key.ToString();
             for (int i = packRowPool.Count; i < contents.Count; i++)
@@ -381,8 +407,8 @@ namespace Height1079.Runtime
                 bool show = i < contents.Count;
                 if (packRowPool[i].gameObject.activeSelf != show) packRowPool[i].gameObject.SetActive(show);
                 if (!show) continue;
-                var spec = Items.Spec(contents[i]);
-                packRowPool[i].GetComponentInChildren<Text>().text = $"{spec.Name}   {spec.Kg:0.0#} кг · {spec.Litres:0.#} л";
+                var stack = contents[i];
+                packRowPool[i].GetComponentInChildren<Text>().text = $"{stack.Describe()}   {stack.Kg:0.0#} кг · {stack.Litres:0.#} л";
             }
         }
 
@@ -433,6 +459,7 @@ namespace Height1079.Runtime
             float fire = s.FireRemaining.Value;
             fireButton.gameObject.SetActive(nearFire && fire <= 0f);
             fireButton.GetComponentInChildren<Text>().text = Bootstrap.AutoKindle ? "Прекратить розжиг" : "Разжечь костёр";
+            UpdateWorkButton(me, s);
             string kindle = s.KindleNeeded > 0 ? $" {Mathf.Min(99, Mathf.RoundToInt(s.KindleProgress / s.KindleNeeded * 100f))}%" : "";
             hint.text = !NetworkManager.Singleton.IsConnectedClient && !NetworkManager.Singleton.IsHost ? "Связь потеряна · ночь идёт на сервере"
                 : me.Paused ? "Пауза · ночь продолжается, нажмите на сцену"

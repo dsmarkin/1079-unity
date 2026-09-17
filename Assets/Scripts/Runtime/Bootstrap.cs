@@ -13,6 +13,8 @@ namespace Height1079.Runtime
         public static HeightField Dem { get; private set; }
         public static string PlayerName = "Путник";
         public static bool AutoKindle;
+        /// <summary>HUD button: keep working with the axe or the saw (the same as holding E).</summary>
+        public static bool AutoWork;
         /// <summary>Set by the optional Steam assembly; null when the game runs with plain Unity Transport.</summary>
         public static ILobbyProvider Lobby;
         public static HudController Hud { get; private set; }
