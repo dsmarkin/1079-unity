@@ -24,6 +24,7 @@ Shader "Height1079/SkyClouds"
             fixed4 frag(v2f i) : SV_Target
             {
                 float3 dir = normalize(i.dir);
+                if (_CloudCover < .02 && dir.y > .16) return 0;
                 float2 p = dir.xz / (max(dir.y, 0) + .09) * .9 + _CloudWind * _CloudTime;
                 float n = h1079_fbm(p) * .8 + h1079_noise(p * 6.3 + 9.2) * .2;
                 float cover = _CloudCover;

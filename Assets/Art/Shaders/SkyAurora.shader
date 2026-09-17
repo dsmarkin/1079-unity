@@ -28,7 +28,8 @@ Shader "Height1079/SkyAurora"
                 float az = atan2(dir.x, dir.z);           // 0 = north
                 float alt = asin(saturate(dir.y));
                 float t = _AuroraTime;
-                float spread = exp(-az * az / 1.8);        // centred on the north
+                float spread = exp(-az * az / 1.8);
+                if (dir.y < .02 || spread < .03 || alt > 1.2) return 0;        // centred on the north
                 float fold = sin(az * 2.3 + t * .05) * .07 + sin(az * 5.1 - t * .09) * .03 + h1079_noise(float2(az * 3, t * .04)) * .05;
                 float base = .2 + fold;                    // lower edge ≈ 11° with folds
                 float above = alt - base;
@@ -37,7 +38,7 @@ Shader "Height1079/SkyAurora"
                 float bands = .6 + .4 * h1079_noise(float2(az * 9 - t * .15, 3.3));
                 float3 green = float3(.25, 1, .45), top = float3(.75, .25, .55);
                 float3 col = lerp(green, top, saturate(above / .45)) * curtain * rays * bands * spread;
-                return fixed4(col * _Aurora * .75 * _StarVis, 0);
+                return fixed4(col * _Aurora * 1.0 * _StarVis, 0);
             }
             ENDCG
         }

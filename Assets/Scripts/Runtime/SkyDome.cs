@@ -150,7 +150,7 @@ namespace Height1079.Runtime
                 const float R = 2500f;
                 moon.position = p + MoonDir * R;
                 moon.rotation = Quaternion.LookRotation(MoonDir, Vector3.up);
-                moon.localScale = Vector3.one * (R * Mathf.Tan(.42f * Mathf.Deg2Rad) * 8f);   // the disc is 1/8 of the quad; drawn ×1.6 of its true size
+                moon.localScale = Vector3.one * (R * Mathf.Tan(.6f * Mathf.Deg2Rad) * 8f);   // the disc is 1/8 of the quad; drawn ×2.3 of its true size, as the eye sees a low moon
                 moon.gameObject.SetActive(MoonAlt > -3f);
             }
             if (aurora != null) aurora.gameObject.SetActive(Aurora > .001f);
