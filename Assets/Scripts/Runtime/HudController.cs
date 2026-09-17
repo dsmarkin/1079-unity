@@ -166,6 +166,26 @@ namespace Height1079.Runtime
             return circle;
         }
 
+        static Sprite triangle;
+        /// <summary>Heading marker pointing up (+y) in its own space; the HUD rotates it by the hiker's yaw.</summary>
+        static Sprite Triangle()
+        {
+            if (triangle != null) return triangle;
+            const int S = 64;
+            var t = new Texture2D(S, S, TextureFormat.RGBA32, false);
+            for (int y = 0; y < S; y++) for (int x = 0; x < S; x++)
+                {
+                    float v = (y + .5f) / S, u = Mathf.Abs((x + .5f) / S - .5f) * 2f;
+                    float edge = (1f - v) * .9f - u;          // apex at the top
+                    float notch = v < .25f ? Mathf.Abs(u) - (.25f - v) * 2.2f : 1f;
+                    float a = Mathf.Clamp01(edge * 40f) * Mathf.Clamp01(notch * 40f);
+                    t.SetPixel(x, y, new Color(1, 1, 1, a));
+                }
+            t.Apply();
+            triangle = Sprite.Create(t, new Rect(0, 0, S, S), new Vector2(.5f, .5f));
+            return triangle;
+        }
+
         static Font handFont;
         static Font Hand
         {
@@ -192,8 +212,8 @@ namespace Height1079.Runtime
             miniImage.texture = mapTex; miniImage.color = mapTex != null ? Color.white : new Color(.8f, .82f, .8f);
             miniArrow = Rect("You", miniRoot, new Vector2(.5f, .5f), new Vector2(.5f, .5f), Vector2.zero, new Vector2(30, 30));
             miniArrow.pivot = new Vector2(.5f, .5f);
-            var arrow = Label("Arrow", miniArrow, Vector2.zero, new Vector2(30, 30), 26, new Color(.65f, .1f, .08f), TextAnchor.MiddleCenter, FontStyle.Bold, new Vector2(.5f, .5f));
-            arrow.rectTransform.pivot = new Vector2(.5f, .5f); arrow.text = "▲";
+            var arrow = miniArrow.gameObject.AddComponent<Image>();
+            arrow.sprite = Triangle(); arrow.color = new Color(.65f, .1f, .08f); arrow.raycastTarget = false;
             var n = Label("N", miniRoot, new Vector2(0, -2), new Vector2(40, 30), 24, new Color(.93f, .9f, .82f), TextAnchor.MiddleCenter, FontStyle.Bold, new Vector2(.5f, 1f));
             n.rectTransform.pivot = new Vector2(.5f, 1f); n.font = Hand; n.text = "С";
             var scale = Label("Scale", miniRoot, new Vector2(0, -8), new Vector2(200, 20), 12, new Color(.75f, .8f, .82f), TextAnchor.UpperCenter, FontStyle.Normal, new Vector2(.5f, 0f));

@@ -90,7 +90,7 @@ namespace Height1079.Runtime
                 if (compass.gameObject.activeSelf != show) compass.gameObject.SetActive(show);
                 if (show)
                 {
-                    if (firstPerson) Place(compass, cam.transform, new Vector3(-.02f, -.16f + bob, .34f), Quaternion.Euler(-58f, 0, 0));
+                    if (firstPerson) Place(compass, cam.transform, new Vector3(-.03f, -.105f + bob, .26f), Quaternion.Euler(-62f, 0, 0));
                     else Place(compass, transform, new Vector3(.12f, 1.12f, .32f), Quaternion.Euler(-35f, 0, 0));
                     UpdateNeedle();
                 }
