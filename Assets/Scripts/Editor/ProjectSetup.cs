@@ -163,10 +163,11 @@ namespace Height1079.EditorTools
             ProjectSetup.EnsureAll(false);
             PlayerSettings.productName = "1079 · Высота";
             PlayerSettings.companyName = "1079";
-            // a "clean.build" file in the project root forces a full rebuild (the incremental player data cache can go stale)
-            bool clean = File.Exists("clean.build");
-            var report = BuildPipeline.BuildPlayer(new BuildPlayerOptions { scenes = Scenes, target = target, locationPathName = location, options = clean ? BuildOptions.CleanBuildCache : BuildOptions.None });
-            if (clean && report.summary.result == UnityEditor.Build.Reporting.BuildResult.Succeeded) File.Delete("clean.build");
+            // always a clean player build: the incremental data cache goes stale whenever the generated world changes and the game then
+            // starts with the default skybox and no terrain ("Mismatched serialization in the builtin class 'TextAsset'" in player.log).
+            // A full build of this project takes about half a minute, so there is nothing to save.
+            var report = BuildPipeline.BuildPlayer(new BuildPlayerOptions { scenes = Scenes, target = target, locationPathName = location, options = BuildOptions.CleanBuildCache });
+            if (File.Exists("clean.build")) File.Delete("clean.build");
             Debug.Log($"Build {target}: {report.summary.result}, {report.summary.totalSize / 1048576} MB, {report.summary.totalErrors} errors");
             if (report.summary.result != UnityEditor.Build.Reporting.BuildResult.Succeeded) EditorApplication.Exit(1);
         }
