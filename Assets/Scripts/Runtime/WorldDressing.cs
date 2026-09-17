@@ -180,8 +180,15 @@ namespace Height1079.Runtime
                 float x = cx - up.x * 120f, z = cz - up.y * 120f;
                 return new Vector3(x, TerrainBuilder.Height(dem, x, z), z);
             }
-            foreach (var q in WorldData.AscentRoute)
-                if (TerrainBuilder.Height(dem, q.x, q.z) >= elevation) return new Vector3(q.x, TerrainBuilder.Height(dem, q.x, q.z), q.z);
+            var route = WorldData.AscentRoute;
+            for (int i = 1; i < route.Length; i++)
+                if (TerrainBuilder.Height(dem, route[i].x, route[i].z) >= elevation)
+                {
+                    // 35 m to the side of the route, away from its markers
+                    var d = new Vector2(route[i].x - route[i - 1].x, route[i].z - route[i - 1].z).normalized;
+                    float x = route[i].x - d.y * 35f, z = route[i].z + d.x * 35f;
+                    return new Vector3(x, TerrainBuilder.Height(dem, x, z), z);
+                }
             return new Vector3(WorldData.Tent.X, 0, WorldData.Tent.Z);
         }
 

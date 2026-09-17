@@ -33,7 +33,7 @@ namespace Height1079.EditorTools.World
             twigsWillow = Materials.Get("WillowTwigs", Color.white, TextureFactory.Twigs("willow_twigs", 33, new Color(.42f, .22f, .14f), 1, 0f), null, .05f, true, .35f);
             twigsRowan = Materials.Get("RowanTwigs", Color.white, TextureFactory.Twigs("rowan_twigs", 35, new Color(.34f, .3f, .29f), 1, .15f), null, .05f, true, .35f);
             snowCard = Materials.Get("SnowOnBranches", Color.white, TextureFactory.SnowCard("snow_card", 17), null, .3f, true, .5f);
-            snowLumps = Materials.Get("SnowOnTrees", new Color(.93f, .95f, 1f), smoothness: .2f);
+            snowLumps = Materials.PH("SnowOnTrees", "snow_02", new Color(.86f, .88f, .93f), 1f, .15f, .5f);
             lichen = Materials.Get("BeardLichen", Color.white, TextureFactory.Beard("beard_lichen", 41), null, .02f, true, .4f);
             farSpruce = Materials.Get("FarConifer", new Color(.1f, .15f, .13f), smoothness: .02f);
             farBirch = Materials.Get("FarBirch", new Color(.36f, .33f, .33f), smoothness: .02f);
@@ -163,7 +163,7 @@ namespace Height1079.EditorTools.World
                         bool inSkirt = y < s.Buried + 1.2f;
                         if (!inSkirt && windward < -.1f) broken = R() < .75f;
                         if (!inSkirt) len *= Mathf.Lerp(.35f, 1.15f, (windward + 1) * .5f) * Mathf.Lerp(1f, .6f, rel);
-                        else len *= 1.35f;
+                        else len *= 1.15f;
                     }
                     if (broken)
                     {
@@ -232,9 +232,6 @@ namespace Height1079.EditorTools.World
                     Vector3 lead = top + new Vector3((R() - .5f) * (l > 0 ? 1.4f : .1f), 1.1f, (R() - .5f) * (l > 0 ? 1.4f : .1f));
                     Card(mb, top - Vector3.up * .5f, lead, s.CardWidth * .6f, detail, true);
                 }
-                // snow cap on the top whorls
-                if (s.SnowAmount > .3f && s.Form != Form.Larch)
-                    Surf.Lump(mb, SubSnow, TrunkAt(H * .9f), new Vector3(.3f, .35f, .3f) * Mathf.Min(1f, s.MaxBranch / 2f) * s.SnowAmount, s.Seed, .35f, full: true);
                 // snow skirt over the buried lower branches (not on larch: it has no skirt of evergreen boughs)
                 if (s.Buried > 0 && s.Form != Form.Larch)
                 {
