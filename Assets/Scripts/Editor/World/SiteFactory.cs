@@ -78,7 +78,8 @@ namespace Height1079.EditorTools.World
 
             // levelled platform: the snow bank below, the cut wall above (uphill = -X)
             var snow = new MeshBuilder(1);
-            snow.Box(0, new Vector3(.5f, -.62f, 0), new Vector3(W + 2.2f, 1.3f, Sites.Tent.CutLength + 1.6f), Quaternion.identity, .5f);
+            snow.Box(0, new Vector3(0, -.14f, 0), new Vector3(W + .5f, .3f, L + .5f), Quaternion.identity, .5f);
+            for (int k = 0; k < 6; k++) Mound(snow, 0, new Vector3(W / 2 + .55f, -.25f, -2.5f + k * 1.0f), new Vector3(.95f, .32f, .85f), 30 + k); // spoil on the downslope side
             snow.Box(0, new Vector3(-W / 2 - .75f, Sites.Tent.CutDepth / 2 - .1f, 0), new Vector3(.6f, Sites.Tent.CutDepth + .2f, Sites.Tent.CutLength + 1.2f), Quaternion.Euler(0, 0, -12), .5f);
             for (int k = 0; k < 5; k++) Mound(snow, 0, new Vector3(-W / 2 - 1.2f, .15f, -2.2f + k * 1.1f), new Vector3(.9f, .35f, .8f), 10 + k);
             Mound(snow, 0, new Vector3(-.3f, .05f, -L / 2 - .9f), new Vector3(1.4f, .3f, .7f), 20);
@@ -205,7 +206,7 @@ namespace Height1079.EditorTools.World
             for (int k = 0; k < 10; k++)
             {
                 float a = k / 10f * Mathf.PI * 2;
-                Mound(snow, 0, new Vector3(Mathf.Cos(a) * (Lf * .5f + .55f), 0, Mathf.Sin(a) * (Wf * .5f + .55f)), new Vector3(.55f, D, .5f), 40 + k);
+                Mound(snow, 0, new Vector3(Mathf.Cos(a) * (Lf * .5f + .75f), -.1f, Mathf.Sin(a) * (Wf * .5f + .75f)), new Vector3(.9f, D * .75f, .8f), 40 + k);
             }
             Part(t, "SnowPit", snow, Materials.Snow);
             var floor = new MeshBuilder(1);
@@ -283,7 +284,7 @@ namespace Height1079.EditorTools.World
 
             // fire pit melted into the snow
             var pit = new MeshBuilder(1);
-            for (int k = 0; k < 9; k++) { float a = k / 9f * Mathf.PI * 2; Mound(pit, 0, fire + new Vector3(Mathf.Cos(a) * .75f, -.05f, Mathf.Sin(a) * .75f), new Vector3(.35f, .28f, .3f), 80 + k); }
+            for (int k = 0; k < 9; k++) { float a = k / 9f * Mathf.PI * 2; Mound(pit, 0, fire + new Vector3(Mathf.Cos(a) * .85f, -.08f, Mathf.Sin(a) * .85f), new Vector3(.55f, .18f, .5f), 80 + k); }
             Part(t, "FirePitSnow", pit, Materials.Snow);
             var ash = new MeshBuilder(2);
             ash.Quad(0, fire + new Vector3(-.45f, -.12f, -.45f), fire + new Vector3(-.45f, -.12f, .45f), fire + new Vector3(.45f, -.12f, .45f), fire + new Vector3(.45f, -.12f, -.45f), Vector2.zero, Vector2.up, Vector2.one, Vector2.right);
@@ -327,7 +328,7 @@ namespace Height1079.EditorTools.World
             var t = root.transform;
             float L = Sites.Den.Length, W = Sites.Den.Width;
             var walls = new MeshBuilder(1);
-            for (int k = 0; k < 10; k++) { float a = k / 10f * Mathf.PI * 2; Mound(walls, 0, new Vector3(Mathf.Cos(a) * (W * .5f + .7f), -.1f, Mathf.Sin(a) * (L * .5f + .7f)), new Vector3(.7f, 1.3f, .7f), 100 + k); }
+            for (int k = 0; k < 12; k++) { float a = k / 12f * Mathf.PI * 2; Mound(walls, 0, new Vector3(Mathf.Cos(a) * (W * .5f + 1.1f), -.2f, Mathf.Sin(a) * (L * .5f + 1.1f)), new Vector3(1.3f, .9f, 1.2f), 100 + k); }
             Part(t, "DugSnowWalls", walls, Materials.Snow);
             var trunks = new MeshBuilder(2);
             var rnd = new System.Random(15);

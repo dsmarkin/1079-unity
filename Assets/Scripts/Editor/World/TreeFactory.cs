@@ -26,7 +26,7 @@ namespace Height1079.EditorTools.World
             twigs = Materials.Get("BirchTwigs", Color.white, TextureFactory.Twigs("birch_twigs", 13), null, .02f, true, .35f);
             snowCard = Materials.Get("SnowOnBranches", Color.white, TextureFactory.SnowCard("snow_card", 17), null, .3f, true, .5f);
             farSpruce = Materials.Get("FarConifer", new Color(.13f, .2f, .17f), smoothness: .02f);
-            farBirch = Materials.Get("FarBirch", new Color(.42f, .36f, .34f), smoothness: .02f);
+            farBirch = Materials.Get("FarBirch", new Color(.38f, .37f, .36f), smoothness: .02f);
         }
 
         public enum Form { Spruce, Fir, SiberianPine }
