@@ -348,9 +348,9 @@ namespace Height1079.EditorTools.World
             // side pockets with their own little flaps
             foreach (int s in new[] { -1, 1 })
             {
-                var pc = new Vector3(s * W / 2 * Prof(.3f) * .95f, H * .28f, -.01f);
-                Lump(sack, 0, pc, new Vector3(.05f, .11f, .085f), seed * 3 + s, .12f, k.Snow, snow * .7f, true, m);
-                Lump(sack, 0, pc + new Vector3(s * .012f, .1f, 0), new Vector3(.045f, .025f, .09f), seed * 5 + s, .1f, null, 0f, true, m);
+                var pc = new Vector3(s * W / 2 * Prof(.38f) * .9f, H * .36f, -.015f);
+                Lump(sack, 0, pc, new Vector3(.032f, .1f, .075f), seed * 3 + s, .1f, k.Snow, snow * .7f, true, m);
+                Lump(sack, 0, pc + new Vector3(s * .008f, .09f, 0), new Vector3(.03f, .018f, .08f), seed * 5 + s, .08f, null, 0f, true, m);
             }
             // drawstring round the neck
             var neck = new Vector3[17];
@@ -403,16 +403,18 @@ namespace Height1079.EditorTools.World
         {
             var upper = k.B("BootUpper", LeatherBrown); var sole = k.B("BootSole", LeatherDark);
             var off = new Vector3(seed * .5f, 0, seed);
-            Emit(upper, 0, 18, 16, (u, v) =>
+            Emit(upper, 0, 20, 20, (u, v) =>
             {
-                float a = u * Mathf.PI * 2, env = Mathf.Pow(Mathf.Sin(Mathf.PI * Mathf.Lerp(.02f, .98f, v)), .4f);
-                float z = Mathf.Lerp(-.14f, .15f, v);
-                float hw = .05f * env * (v > .55f ? 1f + .1f * Mathf.Sin((v - .55f) * 5f) : .92f);
-                float top = Mathf.Lerp(.115f, .045f, Noise.Smooth(.2f, 1f, v)) * env;
-                float x = hw * SPow(Mathf.Cos(a), .8f);
-                float yb = Mathf.Sin(a) >= 0 ? Mathf.Pow(Mathf.Sin(a), .9f) * top : Mathf.Sin(a) * .006f;
-                float crease = .004f * Noise.Fbm(new Vector3(u * 4, v * 6, 0) + off, 2);
-                return new Vector3(x * (1 + crease * 8), .018f + yb + crease, z);
+                float ang = u * Mathf.PI * 2, ez = Mathf.Abs(2 * v - 1);
+                float round = Mathf.Sqrt(Mathf.Max(0, 1 - Mathf.Pow(ez, 5)));
+                float z = Mathf.Lerp(-.135f, .15f, v);
+                float hw = .047f * round * (v > .5f ? 1f + .1f * Mathf.Sin((v - .5f) * Mathf.PI) : .93f);
+                float top = (v < .32f ? .115f : Mathf.Lerp(.115f, .048f, Noise.Smooth(.32f, 1f, v))) * Mathf.Sqrt(round);
+                float sn = Mathf.Sin(ang);
+                float crease = .003f * Noise.Fbm(new Vector3(u * 4, v * 6, 0) + off, 2);
+                float x = hw * SPow(Mathf.Cos(ang), .6f) * (1 + crease * 6);
+                float y = sn >= 0 ? .018f + Mathf.Pow(sn, .8f) * top + crease : .018f + sn * .016f * round;
+                return new Vector3(x, y, z);
             }, new Options { M = m, ClosedU = true, UvScale = new Vector2(2, 2) });
             var outline = new Vector2[20];
             for (int i = 0; i < 20; i++)
@@ -422,8 +424,11 @@ namespace Height1079.EditorTools.World
                 outline[i] = new Vector2(Mathf.Cos(a) * w, zz > 0 ? zz * .16f : zz * .15f);
             }
             Extrude(sole, 0, outline, p => .018f, m * Matrix4x4.TRS(new Vector3(0, .009f, 0), Quaternion.Euler(90, 0, 0), Vector3.one));
-            Sweep(upper, 0, new[] { new Vector3(0, .1f, -.1f), new Vector3(0, .165f, -.105f) }, (t, a) => .04f * (1f + .06f * Noise.N(a, t * 3, seed)), 12, 2, new Options { M = m, DoubleSided = true }, false, false,
-                -1, (t, a) => new Vector2(Mathf.Cos(a) * .85f, Mathf.Sin(a) * 1.15f));
+            Sweep(upper, 0, new[] { new Vector3(0, .1f, -.095f), new Vector3(0, .158f, -.1f) }, (t, a) => .036f, 12, 2, new Options { M = m, DoubleSided = true }, false, false,
+                -1, (t, a) => new Vector2(Mathf.Cos(a) * .9f, Mathf.Sin(a) * 1.2f));
+            var inner = new Vector3[12];
+            for (int i = 0; i < 12; i++) { float a = i / 12f * Mathf.PI * 2; inner[i] = new Vector3(Mathf.Cos(a) * .032f, .135f, -.1f + Mathf.Sin(a) * .04f); }
+            Fan(k.B("BootInside", LeatherDark), 0, m, inner, Vector3.up);
             var lace = k.B("Laces", Materials.Rope);
             for (int i = 0; i < 4; i++)
             {
@@ -473,11 +478,19 @@ namespace Height1079.EditorTools.World
             {
                 float th = u * Mathf.PI * 2;
                 float R = radius * (1f + .35f * Noise.Fbm(new Vector3(Mathf.Cos(th), Mathf.Sin(th), 0) + off, 2));
-                float r = v * R;
+                float r = Mathf.Lerp(.05f, 1f, v) * R;
                 float y = height * Mathf.Pow(Mathf.Max(0, 1 - v * v), .8f) * (1f + .3f * Noise.N(new Vector3(Mathf.Cos(th) * 2, v * 2, Mathf.Sin(th) * 2) + off))
                         + .035f * Mathf.Sin(th * 6 + v * 9 + seed) * v * (1 - v) * 2 + .008f;
                 return new Vector3(Mathf.Cos(th) * r, y, Mathf.Sin(th) * r);
             }, new Options { M = m, ClosedU = true, UvScale = new Vector2(radius * 6, radius * 2) });
+            var capRing = new Vector3[30];
+            for (int i = 0; i < 30; i++)
+            {
+                float th = i / 30f * Mathf.PI * 2;
+                float R = radius * (1f + .35f * Noise.Fbm(new Vector3(Mathf.Cos(th), Mathf.Sin(th), 0) + off, 2)) * .05f;
+                capRing[i] = new Vector3(Mathf.Cos(th) * R, height * Mathf.Pow(1 - .0025f, .8f) * (1f + .3f * Noise.N(new Vector3(Mathf.Cos(th) * 2, 0, Mathf.Sin(th) * 2) + off)) + .008f, Mathf.Sin(th) * R);
+            }
+            Fan(mb, 0, m, capRing, Vector3.up, 2f);
             BlanketSpread(k, m * Matrix4x4.TRS(new Vector3(radius * .9f, 0, 0), Yaw(10), Vector3.one), radius * 1.3f, radius * 1.6f, seed + 5, quilt);
         }
 

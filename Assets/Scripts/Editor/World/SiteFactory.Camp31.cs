@@ -84,7 +84,7 @@ namespace Height1079.EditorTools.World
             var m0 = RuckMatrix(poses[0], .02f);
             float h0 = RuckH * Mathf.Lerp(.78f, 1f, poses[0].Full);
             FeltBoot(k, m0 * TRS(new Vector3(.22f, h0 + .045f, .04f), Quaternion.Euler(0, 0, 90)), 610, FeltBlack, .01f);
-            FeltBoot(k, m0 * TRS(new Vector3(.2f, h0 + .1f, -.06f), Quaternion.Euler(0, 180, 0) * Quaternion.Euler(0, 0, -90) * Quaternion.Euler(0, 0, 0)), 611, FeltBlack, .012f);
+            FeltBoot(k, m0 * TRS(new Vector3(.24f, h0 + .045f, -.085f), Quaternion.Euler(0, 0, 90)), 611, FeltBlack, .012f);
             Axe(k, m0 * TRS(new Vector3(-.02f, h0 * .98f, RuckD * .42f), Quaternion.Euler(0, 90, 6)), .5f, false);
             var cord = k.B("RuckCord", Materials.Rope);
             Sweep(cord, 0, new[] { new Vector3(-.2f, h0 + .05f, .02f), new Vector3(0, h0 + .13f, 0), new Vector3(.2f, h0 + .05f, -.02f) }, (tt, a) => .004f, 4, 8, new Options { M = m0 }, false, false);
@@ -251,14 +251,14 @@ namespace Height1079.EditorTools.World
 
             // raft of green logs, the burnt stack on it, ash and embers
             for (int i = 0; i < 5; i++)
-                Log(k, id, new Vector3(-.75f, .09f, -.4f + i * .2f), new Vector3(.75f, .09f + (i % 2) * .01f, -.38f + i * .2f), .09f + R() * .015f, 1000 + i, false, .01f, 2);
+                Log(k, id, new Vector3(-.75f, .09f, -.4f + i * .2f), new Vector3(.75f, .09f + (i % 2) * .01f, -.38f + i * .2f), .09f + R() * .015f, 1000 + i, false, i == 0 || i == 4 ? .004f : 0f, 2);
             for (int i = 0; i < 6; i++)
             {
                 float a = i / 6f * Mathf.PI * 2 + R() * .4f;
                 var outer = new Vector3(Mathf.Cos(a) * .62f, .2f, Mathf.Sin(a) * .5f);
                 Log(k, id, outer, new Vector3(Mathf.Cos(a) * .06f, .5f + R() * .08f, Mathf.Sin(a) * .06f), .045f + R() * .015f, 1010 + i, true, 0f, 0, .03f);
             }
-            Lump(k.B("Ash", Materials.Get("Ash", new Color(.4f, .39f, .38f), smoothness: .02f)), 0, new Vector3(0, .19f, 0), new Vector3(.4f, .05f, .32f), 1020, .3f, null, 0, false, null, .02f);
+            Lump(k.B("Ash", Materials.Get("Ash", new Color(.22f, .21f, .2f), smoothness: .02f)), 0, new Vector3(0, .19f, 0), new Vector3(.4f, .05f, .32f), 1020, .3f, null, 0, false, null, .02f);
             var embers = k.B("Embers", Embers);
             for (int i = 0; i < 7; i++) Lump(embers, 0, new Vector3((R() - .5f) * .35f, .21f, (R() - .5f) * .3f), new Vector3(.05f, .02f, .04f), 1030 + i, .3f, null, 0, true);
 

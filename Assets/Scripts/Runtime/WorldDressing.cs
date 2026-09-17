@@ -109,13 +109,14 @@ namespace Height1079.Runtime
         /// <summary>Site viewer (F3): orbit camera around the event sites in turn; the hiker keeps standing where it was. Index -1 = off.</summary>
         public static int ViewIndex { get; private set; } = -1;
         static Transform campTent, campFire;
-        static readonly string[] ViewIds = { "tent", "cedar", "p4", "labaz", "camp-gear", "camp-inside", "camp-kitchen", "dyatlov" };
-        static readonly float[] ViewRadius = { 9f, 14f, 8f, 13f, 2.4f, .7f, 2.6f, 10f };
+        static readonly string[] ViewIds = { "tent", "cedar", "p4", "labaz", "camp-gear", "camp-inside", "camp-things", "camp-kitchen", "dyatlov" };
+        static readonly float[] ViewRadius = { 9f, 14f, 8f, 13f, 2.4f, .7f, .42f, 2.6f, 10f };
         public static string ViewName => ViewIndex < 0 ? "" : ViewIds[ViewIndex] switch
         {
             "labaz" => "Стоянка 31 января и лабаз",
             "camp-gear" => "Стоянка 31 января · рюкзаки, лыжи, палки",
             "camp-inside" => "Стоянка 31 января · в палатке",
+            "camp-things" => "Стоянка 31 января · фотоаппарат «Зоркий», дневник, ботинки",
             "camp-kitchen" => "Стоянка 31 января · костёр на брёвнах",
             _ => WorldData.Get(ViewIds[ViewIndex]).Label,
         };
@@ -132,10 +133,11 @@ namespace Height1079.Runtime
             {
                 var anchor = vid == "camp-kitchen" ? campFire : campTent;
                 if (anchor == null) return false;
-                Vector3 local = vid == "camp-gear" ? new Vector3(.9f, .35f, 3.4f) : vid == "camp-inside" ? new Vector3(0, .35f, .4f) : new Vector3(0, .5f, .3f);
-                float h = vid == "camp-gear" ? 1.1f : vid == "camp-inside" ? .22f : 1.3f;
+                Vector3 local = vid == "camp-gear" ? new Vector3(.9f, .35f, 3.4f) : vid == "camp-inside" ? new Vector3(0, .35f, .4f) : vid == "camp-things" ? new Vector3(.35f, .07f, 1.42f) : new Vector3(0, .5f, .3f);
+                float h = vid == "camp-gear" ? 1.1f : vid == "camp-inside" ? .22f : vid == "camp-things" ? .22f : 1.3f;
                 var c = anchor.TransformPoint(local);
                 var eye = c + new Vector3(Mathf.Cos(a) * r, h, Mathf.Sin(a) * r);
+                if (vid == "camp-things") eye = anchor.TransformPoint(local + new Vector3(Mathf.Cos(a * 2f) * r, h, Mathf.Sin(a * 2f) * r * .8f));
                 if (vid == "camp-inside") eye = anchor.TransformPoint(local + new Vector3(Mathf.Cos(a * 1.5f) * .55f, h, Mathf.Sin(a * 1.5f) * 1.2f));
                 cam.transform.position = eye;
                 cam.transform.LookAt(c);
