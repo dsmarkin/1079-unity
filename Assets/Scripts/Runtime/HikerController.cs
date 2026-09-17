@@ -94,7 +94,9 @@ namespace Height1079.Runtime
             head = new GameObject("Head").transform; head.SetParent(transform, false); head.localPosition = new Vector3(0, 1.72f, 0);
             cam = Camera.main != null ? Camera.main : new GameObject("Main Camera", typeof(Camera), typeof(AudioListener)).GetComponent<Camera>();
             cam.tag = "MainCamera"; cam.nearClipPlane = .1f; cam.farClipPlane = 4500f; cam.fieldOfView = 60f;
-            yaw = Mathf.Atan2(transform.position.x - WorldData.Tent.X, transform.position.z - WorldData.Tent.Z) * Mathf.Rad2Deg + 180f;
+            float goalX = Height1079.Core.World.IsElbrus ? Elbrus.WestSummit.X : WorldData.Tent.X;
+            float goalZ = Height1079.Core.World.IsElbrus ? Elbrus.WestSummit.Z : WorldData.Tent.Z;
+            yaw = Mathf.Atan2(transform.position.x - goalX, transform.position.z - goalZ) * Mathf.Rad2Deg + 180f;
             SetCursor(true);
             if (IsServer) NightSession.Instance?.RenameServer(OwnerClientId, DisplayName); else NameRpc(Bootstrap.PlayerName);
         }
@@ -134,7 +136,7 @@ namespace Height1079.Runtime
         /// Also a safety net: anything that ends up under the slope is put back on it.</summary>
         void EnsurePlaced()
         {
-            if (!IsOwner) return;
+            if (!IsOwner || Ride != null) return;
             if (!placed && IsServer)
             {
                 var run = NightSession.Instance?.Run;
@@ -182,7 +184,7 @@ namespace Height1079.Runtime
             Backpacks.HandleWork(this, holdE && job != WorkKind.None);
             if (job != WorkKind.None) Bootstrap.AutoKindle = false;
 
-            bool wantKindle = job == WorkKind.None && holdE && WorldData.NearCamp(transform.position.x, transform.position.z)
+            bool wantKindle = job == WorkKind.None && holdE && !Height1079.Core.World.IsElbrus && WorldData.NearCamp(transform.position.x, transform.position.z)
                 && session != null && session.FireRemaining.Value <= 0f
                 && new Vector2(body.linearVelocity.x, body.linearVelocity.z).magnitude < .3f;
             if (wantKindle != kindling)
@@ -201,6 +203,14 @@ namespace Height1079.Runtime
         void FixedUpdate()
         {
             if (!IsOwner) return;
+            if (Ride != null)
+            {
+                // carried by a cabin, a chair or a snow-cat: the vehicle owns the position, the legs do nothing
+                var seat = Ride.position;
+                body.position = seat; transform.position = seat; body.linearVelocity = Vector3.zero;
+                lastVerticalSpeed = 0f;
+                return;
+            }
             EnsurePlaced();
             UpdateLowSpace();
             var session = NightSession.Instance;
@@ -289,6 +299,29 @@ namespace Height1079.Runtime
             capsule.height = h; capsule.center = new Vector3(0, h / 2, 0);
             capsule.radius = Mathf.Lerp(.32f, .28f, crouch);
             if (head != null) head.localPosition = new Vector3(0, Mathf.Lerp(StandEye, CrawlEye, crouch), 0);
+        }
+
+        /// <summary>Seat of the vehicle carrying this hiker (cabin, chair, snow-cat), or null when on foot.</summary>
+        public Transform Ride { get; private set; }
+
+        /// <summary>Owner only: step into a vehicle. The hiker stops colliding with the world and follows the seat.</summary>
+        public void BoardRide(Transform seat)
+        {
+            if (!IsOwner || seat == null || Ride != null) return;
+            Ride = seat;
+            body.linearVelocity = Vector3.zero;
+            body.isKinematic = true;
+            capsule.enabled = false;
+        }
+
+        /// <summary>Owner only: step out onto the given point.</summary>
+        public void LeaveRide(Vector3 pos)
+        {
+            if (!IsOwner || Ride == null) return;
+            Ride = null;
+            body.isKinematic = false;
+            capsule.enabled = true;
+            Place(pos);
         }
 
         /// <summary>Owner only: a blow throws the hiker, knocks them down for <paramref name="stun"/> seconds and shakes the view.</summary>

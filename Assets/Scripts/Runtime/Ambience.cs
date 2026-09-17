@@ -148,7 +148,7 @@ namespace Height1079.Runtime
 
         static Vector3 CampPoint()
         {
-            var (cx, cz) = WorldData.Camp;
+            var (cx, cz) = Height1079.Core.World.IsElbrus ? (Elbrus.Start.x, Elbrus.Start.z) : WorldData.Camp;
             return new Vector3(cx, TerrainBuilder.Height(Bootstrap.Dem, cx, cz) + .8f, cz);
         }
 

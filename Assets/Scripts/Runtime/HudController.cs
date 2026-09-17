@@ -13,8 +13,11 @@ namespace Height1079.Runtime
         static Font font;
         Canvas canvas;
         GameObject menu, hud, protocol;
+        Button kholatButton, elbrusButton, hostButton;
+        Text kicker, lede;
+        static readonly Color PlaceOff = new Color(.13f, .22f, .27f), PlaceOn = new Color(.28f, .45f, .5f);
         InputField nameField, addressField;
-        Text status, clock, direction, party, hint, outcomeTitle, outcomeNote, summary, pairOutcome, events;
+        Text status, clock, direction, party, hint, outcomeTitle, outcomeNote, summary, pairOutcome, events, prompt;
         Slider heat, hands, clarity;
         Button fireButton, workButton;
         float workStarted, workNeeded;
@@ -114,29 +117,49 @@ namespace Height1079.Runtime
             return f;
         }
 
+        /// <summary>Picks the place before the session starts. Both players have to pick the same one:
+        /// the location is not negotiated over the network yet (docs/BACKLOG.md).</summary>
+        void SetPlace(Place place)
+        {
+            World.Current = place;
+            bool elbrus = place == Place.Elbrus;
+            if (kholatButton != null) kholatButton.GetComponent<Image>().color = elbrus ? PlaceOff : PlaceOn;
+            if (elbrusButton != null) elbrusButton.GetComponent<Image>().color = elbrus ? PlaceOn : PlaceOff;
+            if (kicker != null) kicker.text = elbrus ? "ПРИЭЛЬБРУСЬЕ / UNITY-ПРОТОТИП" : "СЕВЕРНЫЙ УРАЛ / UNITY-ПРОТОТИП";
+            if (lede != null) lede.text = elbrus
+                ? "Поляна Азау, 2350 м. Канатная дорога до Гара-Баши,\nратрак до 5100 и пешком на вершину 5642."
+                : "Одна ночь. Холод. Дорога наверх.\nДоберитесь от леса до укрытия прежде, чем рассветёт.";
+            var label = hostButton != null ? hostButton.GetComponentInChildren<Text>() : null;
+            if (label != null) label.text = elbrus ? "НАЧАТЬ ПОДЪЁМ" : "СОЗДАТЬ НОЧЬ";
+        }
+
         // ---- screens ---------------------------------------------------------
         void BuildMenu()
         {
             menu = Rect("Menu", canvas.transform, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero).gameObject;
             PanelImage(menu.GetComponent<RectTransform>(), new Color(.07f, .14f, .18f, .92f));
-            var card = Centered("Card", menu.transform, new Vector2(440, 560));
+            var card = Centered("Card", menu.transform, new Vector2(440, 648));
             PanelImage(card, new Color(.05f, .1f, .14f, .85f));
-            Label("Kicker", card, new Vector2(32, -30), new Vector2(380, 20), 12, new Color(.71f, .79f, .81f)).text = "СЕВЕРНЫЙ УРАЛ / UNITY-ПРОТОТИП";
+            kicker = Label("Kicker", card, new Vector2(32, -30), new Vector2(380, 20), 12, new Color(.71f, .79f, .81f));
             Label("Title", card, new Vector2(32, -60), new Vector2(380, 90), 84, Ink, TextAnchor.UpperLeft, FontStyle.Bold).text = "1079";
             Label("Sub", card, new Vector2(34, -150), new Vector2(380, 24), 15, Ink).text = "В Ы С О Т А";
-            Label("Lede", card, new Vector2(32, -190), new Vector2(380, 60), 15, new Color(.74f, .8f, .83f)).text = "Одна ночь. Холод. Дорога наверх.\nДоберитесь от леса до укрытия прежде, чем рассветёт.";
-            Label("NameLabel", card, new Vector2(32, -262), new Vector2(380, 18), 12, new Color(.67f, .76f, .8f)).text = "Ваше имя";
-            nameField = Field("Name", card, new Vector2(32, -284), new Vector2(376, 40), "Путник");
-            Label("AddrLabel", card, new Vector2(32, -336), new Vector2(380, 18), 12, new Color(.67f, .76f, .8f)).text = "Адрес хоста (для подключения)";
-            addressField = Field("Address", card, new Vector2(32, -358), new Vector2(376, 40), "127.0.0.1");
-            ButtonUi("Host", card, new Vector2(32, -416), new Vector2(180, 44), "СОЗДАТЬ НОЧЬ", new Color(.86f, .9f, .91f), new Color(.09f, .16f, .19f), () => Bootstrap.Host(nameField.text));
-            ButtonUi("Join", card, new Vector2(228, -416), new Vector2(180, 44), "ПРИСОЕДИНИТЬСЯ", new Color(.2f, .29f, .34f), Ink, () => Bootstrap.Join(nameField.text, addressField.text));
+            lede = Label("Lede", card, new Vector2(32, -190), new Vector2(380, 60), 15, new Color(.74f, .8f, .83f));
+            Label("PlaceLabel", card, new Vector2(32, -256), new Vector2(380, 18), 12, new Color(.67f, .76f, .8f)).text = "Где играем";
+            kholatButton = ButtonUi("PlaceKholat", card, new Vector2(32, -278), new Vector2(186, 40), "ХОЛАТЧАХЛЬ", PlaceOff, Ink, () => SetPlace(Place.Kholat));
+            elbrusButton = ButtonUi("PlaceElbrus", card, new Vector2(222, -278), new Vector2(186, 40), "ЭЛЬБРУС", PlaceOff, Ink, () => SetPlace(Place.Elbrus));
+            Label("NameLabel", card, new Vector2(32, -332), new Vector2(380, 18), 12, new Color(.67f, .76f, .8f)).text = "Ваше имя";
+            nameField = Field("Name", card, new Vector2(32, -354), new Vector2(376, 40), "Путник");
+            Label("AddrLabel", card, new Vector2(32, -406), new Vector2(380, 18), 12, new Color(.67f, .76f, .8f)).text = "Адрес хоста (для подключения)";
+            addressField = Field("Address", card, new Vector2(32, -428), new Vector2(376, 40), "127.0.0.1");
+            hostButton = ButtonUi("Host", card, new Vector2(32, -486), new Vector2(180, 44), "СОЗДАТЬ НОЧЬ", new Color(.86f, .9f, .91f), new Color(.09f, .16f, .19f), () => Bootstrap.Host(nameField.text));
+            ButtonUi("Join", card, new Vector2(228, -486), new Vector2(180, 44), "ПРИСОЕДИНИТЬСЯ", new Color(.2f, .29f, .34f), Ink, () => Bootstrap.Join(nameField.text, addressField.text));
             if (Bootstrap.Lobby != null)
             {
-                ButtonUi("SteamHost", card, new Vector2(32, -470), new Vector2(180, 40), "НОЧЬ ЧЕРЕЗ STEAM", new Color(.11f, .2f, .29f), Ink, () => Bootstrap.Lobby.Host(nameField.text, SetStatus));
-                ButtonUi("SteamInvite", card, new Vector2(228, -470), new Vector2(180, 40), "ПРИГЛАСИТЬ ДРУЗЕЙ", new Color(.11f, .2f, .29f), Ink, () => Bootstrap.Lobby.Invite());
+                ButtonUi("SteamHost", card, new Vector2(32, -540), new Vector2(180, 40), "НОЧЬ ЧЕРЕЗ STEAM", new Color(.11f, .2f, .29f), Ink, () => Bootstrap.Lobby.Host(nameField.text, SetStatus));
+                ButtonUi("SteamInvite", card, new Vector2(228, -540), new Vector2(180, 40), "ПРИГЛАСИТЬ ДРУЗЕЙ", new Color(.11f, .2f, .29f), Ink, () => Bootstrap.Lobby.Invite());
             }
-            status = Label("Status", card, new Vector2(32, -520), new Vector2(380, 40), 12, new Color(.69f, .76f, .78f));
+            SetPlace(World.Current);
+            status = Label("Status", card, new Vector2(32, -594), new Vector2(380, 40), 12, new Color(.69f, .76f, .78f));
             status.text = Bootstrap.Lobby != null && Bootstrap.Lobby.Available ? "Steam подключён. Друзья заходят через приглашение или список друзей." : "Хост открывает порт 7777. Steam-лобби включается сборкой со Steam (см. README).";
         }
 
@@ -154,7 +177,14 @@ namespace Height1079.Runtime
             heat = Meter("ТЕПЛО", box, new Vector2(22, -178));
             hands = Meter("РУКИ", box, new Vector2(132, -178));
             clarity = Meter("ЯСНОСТЬ", box, new Vector2(242, -178));
-            Label("Keys", box, new Vector2(22, -214), new Vector2(330, 46), 11, new Color(.69f, .76f, .8f)).text = "WASD · Shift бег · V вид · E костёр · Esc пауза\n1 компас · 2 фонарик (F — свет) · 3/M карта · Q убрать · N мини-карта\nTab рюкзак · G снять/надеть · R взять/убрать · X бросить";
+            Label("Keys", box, new Vector2(22, -214), new Vector2(330, 46), 11, new Color(.69f, .76f, .8f)).text = World.IsElbrus
+                ? "WASD · Shift бег · V вид · Esc пауза\nE — сесть в кабину, кресло или ратрак и выйти · F8 быстрее\n1 компас · 3/M карта · N мини-карта · Tab рюкзак"
+                : "WASD · Shift бег · V вид · E костёр · Esc пауза\n1 компас · 2 фонарик (F — свет) · 3/M карта · Q убрать · N мини-карта\nTab рюкзак · G снять/надеть · R взять/убрать · X бросить";
+            var promptBox = Rect("PromptBox", hud.transform, new Vector2(.5f, 0), new Vector2(.5f, 0), new Vector2(-300, 34), new Vector2(600, 34));
+            promptBox.pivot = new Vector2(0, 0); PanelImage(promptBox, new Color(0, 0, 0, .45f));
+            prompt = Label("Prompt", promptBox, Vector2.zero, new Vector2(600, 34), 16, new Color(1f, .93f, .78f), TextAnchor.MiddleCenter);
+            prompt.rectTransform.anchorMin = Vector2.zero; prompt.rectTransform.anchorMax = Vector2.one; prompt.rectTransform.sizeDelta = Vector2.zero; prompt.rectTransform.anchoredPosition = Vector2.zero;
+            promptBox.gameObject.SetActive(false);
             var strip = Rect("DebugStrip", hud.transform, new Vector2(0, 1), new Vector2(1, 1), new Vector2(0, 0), new Vector2(0, 26));
             strip.pivot = new Vector2(0, 1); PanelImage(strip, new Color(0, 0, 0, .55f));
             debug = Label("Debug", strip, new Vector2(12, -5), new Vector2(1200, 18), 14, new Color(1f, .95f, .8f));
@@ -254,7 +284,7 @@ namespace Height1079.Runtime
             var held = (HeldItem)me.Held.Value;
             bool big = held == HeldItem.Map;
             miniRoot.gameObject.SetActive(miniOn && !big);
-            float W = WorldData.Size;
+            float W = World.Size;
             if (miniOn && !big)
             {
                 float span = MiniMetres / W;
@@ -436,6 +466,16 @@ namespace Height1079.Runtime
 
         public void SetStatus(string text) { if (status != null) status.text = text; }
 
+        /// <summary>A line at the bottom of the screen for what is within reach right now (the ropeway, a snow-cat).
+        /// Empty text hides the panel.</summary>
+        public void SetPrompt(string text)
+        {
+            if (prompt == null) return;
+            prompt.text = text ?? "";
+            var box = prompt.transform.parent as RectTransform;
+            if (box != null) box.gameObject.SetActive(!string.IsNullOrEmpty(prompt.text));
+        }
+
         void Update()
         {
             var s = NightSession.Instance;
@@ -448,14 +488,16 @@ namespace Height1079.Runtime
                 fps = Mathf.Lerp(fps, 1f / Mathf.Max(Time.unscaledDeltaTime, 1e-4f), .05f);
                 debug.text = $"{fps:0} fps · cam {c.x:0},{c.y:0},{c.z:0} · ground under cam {TerrainBuilder.Height(Bootstrap.Dem, c.x, c.z):0} · me {x:0},{me.transform.position.y:0},{z:0} · ground {TerrainBuilder.Height(Bootstrap.Dem, x, z):0} · fog {RenderSettings.fogDensity:0.0000} · v {me.Speed:0.0} · keys {Controls.Debug} · {(me.FirstPerson ? "1st" : "3rd")} · grounded {me.Grounded}";
             }
-            clock.text = SurvivalRules.NightTime(s.Elapsed.Value);
-            float dist = WorldData.Distance(x, z, WorldData.Tent.X, WorldData.Tent.Z);
-            float bearing = Mathf.DeltaAngle(me.Yaw, Mathf.Atan2(WorldData.Tent.X - x, WorldData.Tent.Z - z) * Mathf.Rad2Deg);
-            direction.text = $"{(Mathf.Abs(bearing) < 17f ? "↑" : bearing > 0 ? "→" : "←")} Верхнее укрытие · {Mathf.RoundToInt(dist)} м";
+            clock.text = World.IsElbrus ? $"{me.transform.position.y:0} м" : SurvivalRules.NightTime(s.Elapsed.Value);
+            float gx = World.IsElbrus ? Elbrus.WestSummit.X : WorldData.Tent.X, gz = World.IsElbrus ? Elbrus.WestSummit.Z : WorldData.Tent.Z;
+            float dist = WorldData.Distance(x, z, gx, gz);
+            float bearing = Mathf.DeltaAngle(me.Yaw, Mathf.Atan2(gx - x, gz - z) * Mathf.Rad2Deg);
+            string goal = World.IsElbrus ? "Западная вершина" : "Верхнее укрытие";
+            direction.text = $"{(Mathf.Abs(bearing) < 17f ? "↑" : bearing > 0 ? "→" : "←")} {goal} · {(dist > 1500f ? $"{dist / 1000f:0.0} км" : $"{Mathf.RoundToInt(dist)} м")}";
             var sb = new StringBuilder();
             foreach (var p in s.Party) if (!p.you) sb.Append(sb.Length > 0 ? " · " : "").Append($"{p.name}: {(p.outcome != Outcome.None ? SurvivalRules.Describe(p.outcome).Title.ToLowerInvariant() : p.online ? "на склоне" : "без связи")}");
             party.text = sb.ToString();
-            bool nearFire = WorldData.NearCamp(x, z);
+            bool nearFire = !World.IsElbrus && WorldData.NearCamp(x, z);
             float fire = s.FireRemaining.Value;
             fireButton.gameObject.SetActive(nearFire && fire <= 0f);
             fireButton.GetComponentInChildren<Text>().text = Bootstrap.AutoKindle ? "Прекратить розжиг" : "Разжечь костёр";
@@ -465,6 +507,7 @@ namespace Height1079.Runtime
                 : me.Paused ? "Пауза · ночь продолжается, нажмите на сцену"
                 : me.Crawling ? "Палатка · внутри только ползком"
                 : nearFire ? (fire > 0 ? $"У огня · ещё {Mathf.CeilToInt(fire)} с" : s.KindleNeeded > 0 ? $"Разжигаете… держите E{kindle}" : "Кострище · стойте и удерживайте E")
+                : World.IsElbrus ? (s.Heat < 40 ? "Холодно и мало воздуха. Не задерживайтесь наверху." : "Южный склон. Наверх — канаткой, ратраком или пешком.")
                 : s.Heat < 30 ? "Холод мешает думать. Вернитесь к огню." : s.Storm.Value ? "Метель. Держитесь рядом." : "Свет уходит. Выбирайте путь.";
             heat.value = s.Heat; hands.value = s.Hands; clarity.value = s.Clarity;
             UpdateNavigation(me, x, z);

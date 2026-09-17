@@ -8,15 +8,23 @@ namespace Height1079.Core
     /// Row 0 of the grid is the southern edge, column 0 the western edge; nodes are spaced <see cref="Step"/> metres apart.</summary>
     public sealed class HeightField
     {
+        /// <summary>Kholat Syakhl grid: 2049² nodes, 2 m apart. The Elbrus map uses the same class with its own geometry
+        /// (2049² nodes, 6 m apart) — read <see cref="Res"/>/<see cref="GridStep"/>/<see cref="HalfSize"/>, not these constants.</summary>
         public const int Resolution = 2049;
         public const float Step = 2f;
         public static readonly float Half = (Resolution - 1) * Step / 2f; // 2048 m
         public readonly float[] Heights;
         public readonly float Min, Max;
+        /// <summary>Geometry of this particular grid.</summary>
+        public readonly int Res;
+        public readonly float GridStep, HalfSize;
 
-        public HeightField(float[] heights)
+        public HeightField(float[] heights) : this(heights, Resolution, Step) { }
+
+        public HeightField(float[] heights, int resolution, float step)
         {
-            if (heights.Length != Resolution * Resolution) throw new InvalidDataException($"height grid must be {Resolution}²");
+            if (heights.Length != resolution * resolution) throw new InvalidDataException($"height grid must be {resolution}²");
+            Res = resolution; GridStep = step; HalfSize = (resolution - 1) * step / 2f;
             Heights = heights;
             float min = float.MaxValue, max = float.MinValue;
             foreach (var h in heights) { if (h < min) min = h; if (h > max) max = h; }
@@ -24,23 +32,25 @@ namespace Height1079.Core
         }
 
         /// <summary>Unity RAW 16-bit little-endian, value 0..65535 mapped to [min, max] metres.</summary>
-        public static HeightField FromR16(byte[] raw, float min, float max)
+        public static HeightField FromR16(byte[] raw, float min, float max) => FromR16(raw, min, max, Resolution, Step);
+
+        public static HeightField FromR16(byte[] raw, float min, float max, int resolution, float step)
         {
-            if (raw == null || raw.Length != Resolution * Resolution * 2) throw new InvalidDataException("height_2049.r16 must hold 2049² uint16 values");
-            var h = new float[Resolution * Resolution];
+            if (raw == null || raw.Length != resolution * resolution * 2) throw new InvalidDataException($"height raster must hold {resolution}² uint16 values");
+            var h = new float[resolution * resolution];
             float scale = (max - min) / 65535f;
             for (int i = 0; i < h.Length; i++) h[i] = min + (raw[2 * i] | raw[2 * i + 1] << 8) * scale;
-            return new HeightField(h);
+            return new HeightField(h, resolution, step);
         }
 
-        public float At(int col, int row) => Heights[row * Resolution + col];
+        public float At(int col, int row) => Heights[row * Res + col];
 
         /// <summary>Bilinear sample at world x/z; clamped to the grid edge.</summary>
         public float Sample(float x, float z)
         {
-            double fx = Math.Max(0, Math.Min(Resolution - 1, (x + Half) / Step));
-            double fz = Math.Max(0, Math.Min(Resolution - 1, (z + Half) / Step));
-            int a = Math.Min(Resolution - 2, (int)fx), b = Math.Min(Resolution - 2, (int)fz);
+            double fx = Math.Max(0, Math.Min(Res - 1, (x + HalfSize) / GridStep));
+            double fz = Math.Max(0, Math.Min(Res - 1, (z + HalfSize) / GridStep));
+            int a = Math.Min(Res - 2, (int)fx), b = Math.Min(Res - 2, (int)fz);
             double u = fx - a, v = fz - b;
             return (float)((At(a, b) * (1 - u) + At(a + 1, b) * u) * (1 - v) + (At(a, b + 1) * (1 - u) + At(a + 1, b + 1) * u) * v);
         }
@@ -131,11 +141,13 @@ namespace Height1079.Core
         }
 
         /// <summary>8-bit mask grid (row 0 = south), e.g. rock_1025.r8 or canopy_2049.r8, sampled nearest at world x/z.</summary>
-        public static byte Mask(byte[] grid, int resolution, float x, float z)
+        public static byte Mask(byte[] grid, int resolution, float x, float z) => Mask(grid, resolution, x, z, HeightField.Half);
+
+        public static byte Mask(byte[] grid, int resolution, float x, float z, float half)
         {
-            float step = 2 * HeightField.Half / (resolution - 1);
-            int c = Math.Max(0, Math.Min(resolution - 1, (int)Math.Round((x + HeightField.Half) / step)));
-            int r = Math.Max(0, Math.Min(resolution - 1, (int)Math.Round((z + HeightField.Half) / step)));
+            float step = 2 * half / (resolution - 1);
+            int c = Math.Max(0, Math.Min(resolution - 1, (int)Math.Round((x + half) / step)));
+            int r = Math.Max(0, Math.Min(resolution - 1, (int)Math.Round((z + half) / step)));
             return grid[r * resolution + c];
         }
     }

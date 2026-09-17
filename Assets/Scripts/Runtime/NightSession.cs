@@ -46,16 +46,20 @@ namespace Height1079.Runtime
             Instance = this;
             if (!IsServer) return;
             dem = TerrainBuilder.LoadDem();
-            run = new NightRun(Time.timeAsDouble, (x, z) => TerrainBuilder.Height(dem, x, z));
-            menk = new MenkBrain((x, z) => TerrainBuilder.Height(dem, x, z));
-            menk.Say = text => run.Record(text);
-            menk.Hit = (token, dir, damage) =>
+            run = new NightRun(Time.timeAsDouble, (x, z) => TerrainBuilder.Height(dem, x, z), Height1079.Core.World.Scenario);
+            // the forest giant belongs to the taiga of Kholat Syakhl, not to the glaciers of Elbrus
+            if (!Height1079.Core.World.IsElbrus)
             {
-                run.Strike(token, damage, damage > 40f ? "{name}: удар из темноты сбивает с ног." : "{name}: удар сквозь полотнище палатки.");
-                if (token.Length > 1 && ulong.TryParse(token.Substring(1), out var id))
-                    MenkHitRpc(dir, damage, RpcTarget.Single(id, RpcTargetUse.Temp));
-            };
-            MenkPos.Value = menk.Pos; MenkYaw.Value = menk.Yaw;
+                menk = new MenkBrain((x, z) => TerrainBuilder.Height(dem, x, z));
+                menk.Say = text => run.Record(text);
+                menk.Hit = (token, dir, damage) =>
+                {
+                    run.Strike(token, damage, damage > 40f ? "{name}: удар из темноты сбивает с ног." : "{name}: удар сквозь полотнище палатки.");
+                    if (token.Length > 1 && ulong.TryParse(token.Substring(1), out var id))
+                        MenkHitRpc(dir, damage, RpcTarget.Single(id, RpcTargetUse.Temp));
+                };
+                MenkPos.Value = menk.Pos; MenkYaw.Value = menk.Yaw;
+            }
             InitPacks();
             NetworkManager.OnClientConnectedCallback += OnClientConnected;
             NetworkManager.OnClientDisconnectCallback += OnClientDisconnected;
@@ -118,6 +122,7 @@ namespace Height1079.Runtime
                     Torch = light, Dynamo = hiker.TorchKind.Value == 1, Alive = p.Online && p.Outcome == Outcome.None
                 });
             }
+            if (menk == null) return;
             if (run.Outcome == Outcome.None) menk.Tick(Time.deltaTime, run.Elapsed, Weather.Storm, seen);
             MenkPos.Value = menk.Pos;
             MenkYaw.Value = menk.Yaw;
@@ -136,7 +141,7 @@ namespace Height1079.Runtime
         void Update()
         {
             if (!IsServer || run == null) return;
-            if (Controls.MenkWake) menk.WakeNow();
+            if (Controls.MenkWake && menk != null) menk.WakeNow();
             if (Controls.SkipMinute) run.SkipAhead(60);
             TickMenk();
             TickWork();

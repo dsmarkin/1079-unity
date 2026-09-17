@@ -18,21 +18,34 @@ namespace Height1079.Core
             public bool Moving, Storm, Fire, Companion, Sheltered, Goal;
         }
 
+        /// <summary>How hard the clock and the cold press in this scenario. The night on the slope uses <see cref="Night"/>;
+        /// the Elbrus day is longer and much less cold, because the danger there is height and weather, not a February night.</summary>
+        public sealed class Profile
+        {
+            /// <summary>Multiplier on the heat loss per second.</summary>
+            public float Cold = 1f;
+            /// <summary>Seconds a participant may stay out before the run ends by itself.</summary>
+            public float Seconds = NightSeconds;
+            public static readonly Profile Night = new Profile();
+            public static readonly Profile Day = new Profile { Cold = .28f, Seconds = 5400f };
+        }
+
         static float Clamp(float v) => Math.Max(0f, Math.Min(100f, v));
 
         /// <summary>Advances one participant by dt seconds. Returns true when an outcome was just decided.</summary>
-        public static bool Tick(Participant p, float dt, Conditions c)
+        public static bool Tick(Participant p, float dt, Conditions c, Profile profile = null)
         {
             if (p.Outcome != Outcome.None) return false;
+            profile = profile ?? Profile.Night;
             p.Elapsed += dt;
-            float loss = (c.Storm ? .15f : .07f) * (c.Sheltered ? .45f : 1f) * (c.Companion ? .65f : 1f) * (c.Moving ? .8f : 1f);
+            float loss = (c.Storm ? .15f : .07f) * (c.Sheltered ? .45f : 1f) * (c.Companion ? .65f : 1f) * (c.Moving ? .8f : 1f) * profile.Cold;
             p.Heat = Clamp(p.Heat + dt * (c.Fire ? .9f : -loss));
             p.Hands = Clamp(p.Hands + dt * (c.Fire ? 1.4f : p.Heat < 55f ? -.15f : -.025f));
             p.Clarity = Clamp(p.Clarity + dt * (c.Fire ? .3f : p.Heat < 30f ? -.12f : 0f));
             if (c.Storm && !c.Sheltered && !c.Fire) p.Exposure += dt;
             if (p.Heat <= 0f) p.Outcome = Outcome.Cold;
             else if (c.Goal) p.Outcome = Outcome.Arrival;
-            else if (p.Elapsed >= NightSeconds) p.Outcome = Outcome.Dawn;
+            else if (p.Elapsed >= profile.Seconds) p.Outcome = Outcome.Dawn;
             return p.Outcome != Outcome.None;
         }
 

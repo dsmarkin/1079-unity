@@ -51,10 +51,13 @@ namespace Height1079.Runtime
             Hud = HudController.Create();
             PlaceMenuCamera();
             Ambience.Create();
-            SnowFx.Create();
             Weather.Create();
-            ForestMist.Create();
-            MenkView.Create();
+            if (!World.IsElbrus)
+            {
+                SnowFx.Create();
+                ForestMist.Create();
+                MenkView.Create();
+            }
             PackView.Create();
             var driver = new GameObject("Atmosphere", typeof(Atmosphere));
             Object.DontDestroyOnLoad(driver);
@@ -64,6 +67,15 @@ namespace Height1079.Runtime
         static void PlaceMenuCamera()
         {
             var cam = Camera.main; if (cam == null) return;
+            if (World.IsElbrus)
+            {
+                var a = Elbrus.Azau; var top = Elbrus.WestSummit;
+                float ay = Dem.Sample(a.X, a.Z) + 60f;
+                cam.transform.position = new Vector3(a.X + 120f, ay, a.Z - 260f);
+                cam.transform.LookAt(new Vector3(top.X, Dem.Sample(top.X, top.Z), top.Z));
+                cam.nearClipPlane = .1f; cam.farClipPlane = 20000f;
+                return;
+            }
             var (cx, cz) = WorldData.Camp;
             float y = TerrainBuilder.Height(Dem, cx, cz) + 28f;
             // behind the camp, looking up the ascent toward the tent
@@ -84,6 +96,7 @@ namespace Height1079.Runtime
         static void BuildWorld()
         {
             TerrainBuilder.Build();
+            if (World.IsElbrus) { BuildElbrus(); return; }
             WorldDressing.Build(Dem);
 
             var sunGo = new GameObject("Sun", typeof(Light));
@@ -110,6 +123,17 @@ namespace Height1079.Runtime
             var pipe = GameObject.Find("StovePipeSmoke");
             if (pipe != null) CampSmoke.Create("StoveSmoke", pipe.transform, Vector3.zero, 7f, .7f, .7f);
             else Debug.LogWarning("1079: StovePipeSmoke anchor not found");
+        }
+
+        /// <summary>The southern slope of Elbrus: ropeways, the Garabashi camp and the summit route, in daylight.
+        /// None of the 1959 dressing applies here — no camp fire, no archive layer, no night.</summary>
+        static void BuildElbrus()
+        {
+            var sunGo = new GameObject("Sun", typeof(Light));
+            sun = sunGo.GetComponent<Light>();
+            sun.type = LightType.Directional;
+            ElbrusWorld.Daylight(sun);
+            ElbrusWorld.Build(Dem);
         }
 
         static void BuildNetwork()
@@ -175,6 +199,7 @@ namespace Height1079.Runtime
             void Start()
             {
                 film = NightFilm.Create();
+                if (Height1079.Core.World.IsElbrus) return;
                 SkyDome.Create();
                 var go = new GameObject("MoonLight", typeof(Light));
                 DontDestroyOnLoad(go);
@@ -185,6 +210,7 @@ namespace Height1079.Runtime
 
             void Update()
             {
+                if (Height1079.Core.World.IsElbrus) { ElbrusDay(); return; }
                 if (Controls.Archive && Hud != null)
                     Hud.SetStatus(WorldDressing.ToggleArchive() ? "Архивный слой: версии, ориентиры КАН, линия следов и подъём от лабаза (F2 — скрыть)." : "");
                 if (Controls.SiteView && Hud != null)
@@ -256,6 +282,15 @@ namespace Height1079.Runtime
                     float far = s == null ? 1400f : Mathf.Lerp(Mathf.Lerp(1400f, 260f, d), 120f, blizzard);
                     if (Mathf.Abs(terrain.treeDistance - far) > 10f) terrain.treeDistance = far;
                 }
+            }
+
+            /// <summary>Daylight on Elbrus: nothing of the night machinery runs, the film stays clean.</summary>
+            void ElbrusDay()
+            {
+                Darkness = 0f;
+                if (film != null) film.Set(0f, 0f);
+                var cam = Camera.main;
+                if (cam != null && cam.farClipPlane < 15000f) cam.farClipPlane = 20000f;
             }
         }
     }

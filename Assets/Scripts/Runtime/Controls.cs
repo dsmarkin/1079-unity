@@ -98,6 +98,18 @@ namespace Height1079.Runtime
             || Down(Key.F3)
 #endif
             ;
+        /// <summary>Эльбрус: сесть в кабину, кресло или ратрак и выйти из них. E, дубль F9 (буквы не доходят при автоматизации).</summary>
+        public static bool Board => LegacyDown(KeyCode.E) || LegacyDown(KeyCode.F9)
+#if ENABLE_INPUT_SYSTEM
+            || Down(Key.E) || Down(Key.F9)
+#endif
+            ;
+        /// <summary>Эльбрус: ускорить время, пока едешь (F8).</summary>
+        public static bool TimeWarp => LegacyDown(KeyCode.F8)
+#if ENABLE_INPUT_SYSTEM
+            || Down(Key.F8)
+#endif
+            ;
 
         static bool Pressed(KeyCode legacy
 #if ENABLE_INPUT_SYSTEM

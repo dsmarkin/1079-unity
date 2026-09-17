@@ -34,12 +34,45 @@ namespace Height1079.Core
 
         public static readonly (float x, float z) Start = (WorldData.Camp.x + 2f, WorldData.Camp.z + 3f);
 
-        /// <param name="groundHeight">Height sampler used for the shelter check (below the tree line).</param>
-        public NightRun(double now, Func<float, float, float> groundHeight)
+        /// <summary>What a run is about: where it starts, what counts as shelter, where the goal is and how hard the clock presses.
+        /// <see cref="Slope"/> is the night of 1–2 February on Kholat Syakhl; the Elbrus location passes its own.</summary>
+        public sealed class Scenario
         {
+            public string Id = "slope";
+            public string Intro = "";
+            public (float x, float z) Start;
+            /// <summary>Where a shared fire may be kindled (null: nowhere).</summary>
+            public Func<float, float, bool> NearFireplace;
+            public Func<float, float, bool> AtGoal;
+            /// <summary>x, z and the ground height there.</summary>
+            public Func<float, float, float, bool> Sheltered;
+            public bool Storms = true;
+            public SurvivalRules.Profile Profile = SurvivalRules.Profile.Night;
+            /// <summary>Spread of the spawn ring around the start, metres.</summary>
+            public float SpawnRadius = 1.4f;
+
+            public static readonly Scenario Slope = new Scenario
+            {
+                Id = "slope",
+                Intro = "Ночёвка 31 января у лабаза, долина Ауспии. Подъём ≈1,7 км к палатке на склоне.",
+                Start = NightRun.Start,
+                NearFireplace = WorldData.NearCamp,
+                AtGoal = WorldData.AtGoal,
+                Sheltered = (x, z, y) => y < WorldData.ShelterHeight,
+            };
+        }
+
+        public readonly Scenario Plan;
+
+        /// <param name="groundHeight">Height sampler used for the shelter check (below the tree line).</param>
+        public NightRun(double now, Func<float, float, float> groundHeight) : this(now, groundHeight, null) { }
+
+        public NightRun(double now, Func<float, float, float> groundHeight, Scenario scenario)
+        {
+            Plan = scenario ?? Scenario.Slope;
             this.groundHeight = groundHeight;
             StartedAt = tickedAt = now;
-            Record("Ночёвка 31 января у лабаза, долина Ауспии. Подъём ≈1,7 км к палатке на склоне.");
+            if (!string.IsNullOrEmpty(Plan.Intro)) Record(Plan.Intro);
         }
 
         public void Record(string text) => Events.Add(new NightEvent(Elapsed, text));
@@ -47,11 +80,15 @@ namespace Height1079.Core
         public float FireRemaining(double now) => (float)Math.Max(0, FireUntil - now);
 
         /// <summary>Spawn positions are spread around the camp so a companion never appears inside the first hiker.</summary>
-        public static (float x, float z) SpawnFor(int index)
+        public static (float x, float z) SpawnFor(int index) => SpawnFor(index, Scenario.Slope);
+
+        public static (float x, float z) SpawnFor(int index, Scenario plan)
         {
-            float r = index == 0 ? 0f : 1.4f;
-            return (Start.x + (float)Math.Cos(index * 2.1) * r, Start.z + (float)Math.Sin(index * 2.1) * r);
+            float r = index == 0 ? 0f : plan.SpawnRadius;
+            return (plan.Start.x + (float)Math.Cos(index * 2.1) * r, plan.Start.z + (float)Math.Sin(index * 2.1) * r);
         }
+
+        public (float x, float z) Spawn(int index) => SpawnFor(index, Plan);
 
         public Participant AddPlayer(string token, string name, double now)
         {
@@ -60,7 +97,7 @@ namespace Height1079.Core
                 existing.Online = true; existing.LastSeen = now; existing.KindlingStarted = null;
                 return existing;
             }
-            var (x, z) = SpawnFor(Players.Count);
+            var (x, z) = SpawnFor(Players.Count, Plan);
             var p = new Participant { Token = token, Name = name, X = x, Z = z, Online = true, LastSeen = now, JoinedAt = Elapsed };
             Players[token] = p;
             if (Elapsed > 5f) Record($"{name} присоединяется к ночи.");
@@ -89,7 +126,7 @@ namespace Height1079.Core
         public bool BeginKindling(string token, double now)
         {
             if (!Players.TryGetValue(token, out var p) || p.Outcome != Outcome.None || FireUntil > now || Outcome != Outcome.None) return false;
-            if (!WorldData.NearCamp(p.X, p.Z)) return false;
+            if (Plan.NearFireplace == null || !Plan.NearFireplace(p.X, p.Z)) return false;
             if (!KindleSupplies(token)) return false;
             p.KindlingStarted = now; p.KindlingX = p.X; p.KindlingZ = p.Z;
             return true;
@@ -128,7 +165,7 @@ namespace Height1079.Core
             tickedAt = now;
             Elapsed = (float)(now - StartedAt + skipped);
             int before = Events.Count;
-            bool storm = SurvivalRules.StormAt(Elapsed);
+            bool storm = Plan.Storms && SurvivalRules.StormAt(Elapsed);
             if (storm != Storm) { Storm = storm; Record(storm ? "Видимость упала. Началась метель." : "Ветер ослаб."); }
 
             foreach (var token in Players.Keys.ToList())
@@ -141,7 +178,7 @@ namespace Height1079.Core
                     continue;
                 }
                 if (!p.Online || p.Outcome != Outcome.None) continue;
-                bool burning = FireUntil > now, near = WorldData.NearCamp(p.X, p.Z);
+                bool burning = FireUntil > now, near = Plan.NearFireplace != null && Plan.NearFireplace(p.X, p.Z);
                 if (p.KindlingStarted.HasValue)
                 {
                     if (burning || !near) p.KindlingStarted = null;
@@ -160,9 +197,10 @@ namespace Height1079.Core
                 var c = new SurvivalRules.Conditions
                 {
                     Moving = moving, Storm = storm, Fire = near && FireUntil > now, Companion = companion,
-                    Sheltered = groundHeight(p.X, p.Z) < WorldData.ShelterHeight, Goal = WorldData.AtGoal(p.X, p.Z)
+                    Sheltered = Plan.Sheltered != null && Plan.Sheltered(p.X, p.Z, groundHeight(p.X, p.Z)),
+                    Goal = Plan.AtGoal != null && Plan.AtGoal(p.X, p.Z)
                 };
-                if (SurvivalRules.Tick(p, dt, c))
+                if (SurvivalRules.Tick(p, dt, c, Plan.Profile))
                 {
                     p.KindlingStarted = null;
                     Record($"{p.Name}: {SurvivalRules.Describe(p.Outcome).Title.ToLowerInvariant()} ({SurvivalRules.NightTime(Elapsed)}).");

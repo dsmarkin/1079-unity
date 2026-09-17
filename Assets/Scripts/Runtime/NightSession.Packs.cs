@@ -95,6 +95,7 @@ namespace Height1079.Runtime
                 return null;
             };
             // the fire of 31 Jan was built on damp logs: a couple of armfuls are still lying by it
+            if (Height1079.Core.World.IsElbrus) return;   // no fire, no firewood on the glaciers of Elbrus
             var c = WorldData.Camp;
             for (int i = 0; i < 2; i++)
             {
