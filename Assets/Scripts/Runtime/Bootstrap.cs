@@ -214,6 +214,13 @@ namespace Height1079.Runtime
                 if (fireSmoke != null) { var em = fireSmoke.emission; em.enabled = fire > 0f; }
                 if (fireLight != null) fireLight.intensity = fire > 0f ? (3.2f + .8f * Mathf.PerlinNoise(Time.time * 6f, 0f)) * Mathf.Lerp(1f, 1.4f, d) : 0f;
                 if (film != null) film.Set(s != null ? d : 0f, blizzard);
+                // the night fog hides everything past ~150 m (a blizzard: far less): don't draw trees nobody can see
+                var terrain = Terrain.activeTerrain;
+                if (terrain != null)
+                {
+                    float far = s == null ? 1400f : Mathf.Lerp(Mathf.Lerp(1400f, 260f, d), 120f, blizzard);
+                    if (Mathf.Abs(terrain.treeDistance - far) > 10f) terrain.treeDistance = far;
+                }
             }
         }
     }

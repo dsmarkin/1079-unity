@@ -135,8 +135,9 @@ namespace Height1079.EditorTools.World
                     {
                         var dir = Quaternion.Euler(0, R() * 360, 0) * Vector3.forward;
                         var root = TrunkAt(y) + dir * TrunkR(y) * .8f;
-                        float len = .25f + .6f * R() * (1f - y / (baseY + 1f));
-                        var tip = root + (dir + Vector3.down * (.1f + .3f * R())).normalized * len;
+                        if (R() < .35f) continue;
+                        float len = (.15f + .7f * R() * R()) * (1f - .5f * y / (baseY + 1f));
+                        var tip = root + (dir + Vector3.down * (.15f + .6f * R()) + new Vector3(R() - .5f, 0, R() - .5f) * .5f).normalized * len;
                         mb.Tube(SubBark, root, tip, .012f, .003f, 3, 2f);
                         if (R() < s.Lichen) Beard(mb, tip, .3f + .4f * R(), .25f);
                     }
@@ -209,7 +210,17 @@ namespace Height1079.EditorTools.World
                     }
                     // snow pillow on the spray (heavier low in the crown, where the branches are wide)
                     if (s.SnowAmount > 0 && R() < s.SnowAmount * (1 - rel * .45f))
-                        Pillow(mb, root + d0 * len * .18f + Vector3.up * .06f, tip + Vector3.up * .05f, w * (.5f + .25f * R()), .07f + .13f * s.SnowAmount * (1 - rel), full ? 4 : 2, rnd);
+                    {
+                        // кухта: two or three clumps along the spray, not one slab
+                        int clumps = full ? 2 + rnd.Next(2) : 1;
+                        for (int k = 0; k < clumps; k++)
+                        {
+                            float u0 = .12f + .7f * (k + R() * .6f) / clumps, u1 = Mathf.Min(1f, u0 + .22f + .15f * R());
+                            var pa = Vector3.Lerp(root, tip, u0); var pb = Vector3.Lerp(root, tip, u1);
+                            var off = Vector3.Cross(d0, Vector3.up).normalized * (R() - .5f) * w * .25f + Vector3.up * .05f;
+                            Pillow(mb, pa + off, pb + off, w * (.22f + .16f * R()), (.05f + .1f * s.SnowAmount * (1 - rel)) * (.7f + .6f * R()), full ? 3 : 2, rnd);
+                        }
+                    }
                     if (full && rel < .35f && R() < s.Lichen * .5f) Beard(mb, Vector3.Lerp(root, tip, .5f) + Vector3.down * .05f, .25f + .3f * R(), .2f);
                 }
             }
@@ -227,8 +238,9 @@ namespace Height1079.EditorTools.World
                 // snow skirt over the buried lower branches (not on larch: it has no skirt of evergreen boughs)
                 if (s.Buried > 0 && s.Form != Form.Larch)
                 {
-                    float rr = s.MaxBranch * Profile(s.Form, 0) * (s.Flagged ? 1.3f : .85f);
-                    Surf.Lump(mb, SubSnow, new Vector3(0, s.Buried * .15f, s.Flagged ? .4f : 0), new Vector3(rr, s.Buried * .45f, rr * (s.Flagged ? 1.25f : 1f)), s.Seed + 7, .35f, skirt: .5f);
+                    // a low drift over the buried boughs, flush with the snow surface (no wall)
+                    float rr = s.MaxBranch * Profile(s.Form, 0) * (s.Flagged ? 1.1f : .7f);
+                    Surf.Lump(mb, SubSnow, new Vector3(0, -.08f, s.Flagged ? .35f : 0), new Vector3(rr, Mathf.Min(.35f, s.Buried * .3f), rr * (s.Flagged ? 1.25f : 1f)), s.Seed + 7, .55f, skirt: .15f);
                 }
             }
             return mb;
@@ -359,7 +371,7 @@ namespace Height1079.EditorTools.World
         }
 
         public static GameObject SavePrefab(string name, MeshBuilder lod0, MeshBuilder lod1, MeshBuilder lod2, Material bark, Material foliage, Material farFoliage, float trunkRadius, float height)
-            => SavePrefab(name, lod0, lod1, lod2, bark, foliage, farFoliage, trunkRadius, height, new[] { .22f, .07f, .012f });
+            => SavePrefab(name, lod0, lod1, lod2, bark, foliage, farFoliage, trunkRadius, height, new[] { .3f, .08f, .012f });
 
         /// <summary>Saves a 3-LOD prefab. <paramref name="lods"/>: screen heights where LOD0→1, 1→2 and 2→culled switch. Radius 0 = no collider.</summary>
         public static GameObject SavePrefab(string name, MeshBuilder lod0, MeshBuilder lod1, MeshBuilder lod2, Material bark, Material foliage, Material farFoliage, float trunkRadius, float height, float[] lods)
@@ -377,7 +389,7 @@ namespace Height1079.EditorTools.World
                 mr.sharedMaterials = i < 2
                     ? new[] { Wind(bark, .6f), Wind(foliage, 1f), Wind(snowLumps, 1f), Wind(lichen, 1.4f) }
                     : new[] { Wind(bark, .6f), Wind(farFoliage, 0f), Wind(snowLumps, 1f), Wind(lichen, 1.4f) };
-                mr.shadowCastingMode = i == 2 ? UnityEngine.Rendering.ShadowCastingMode.Off : UnityEngine.Rendering.ShadowCastingMode.On;
+                mr.shadowCastingMode = i == 0 || (i == 1 && lods[2] < .02f) ? UnityEngine.Rendering.ShadowCastingMode.On : UnityEngine.Rendering.ShadowCastingMode.Off;
                 renderers.Add(new Renderer[] { mr });
                 i++;
             }
@@ -472,8 +484,8 @@ namespace Height1079.EditorTools.World
         {
             EnsureMaterials();
             var list = new List<UnderPrototype>();
-            var small = new[] { .1f, .04f, .018f };   // small things vanish early
-            var shrub = new[] { .12f, .05f, .03f };
+            var small = new[] { .2f, .09f, .045f };   // small things vanish early (a 3 m shrub at ~60 m)
+            var shrub = new[] { .25f, .12f, .07f };
             void Tree(string name, UnderKind kind, ConiferSpec s, Material b, Material leaf)
                 => list.Add(new UnderPrototype { Kind = kind, Size = s.Height, Upright = true, Prefab = SavePrefab(name, Conifer(s, 1), Conifer(s, .4f), FarConifer(s), b, leaf, farSpruce, s.Height > 3.5f ? s.TrunkRadius : 0f, s.Height, small) });
 

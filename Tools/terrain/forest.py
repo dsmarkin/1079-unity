@@ -124,8 +124,8 @@ def scatter(kind, prob, size_lo, size_hi, avoid_trees=True):
 
 fo = forest * (ground < 790)
 # sub-canopy conifers: the canopy model sees one top per 10 m; real mature taiga holds several times more stems
-scatter(0, .030 * fo * (.55 * lowG + .45) * (.6 + .4 * gap) * np.exp(.5 * spp[0]), 2.0, 7.5)
-scatter(1, .020 * fo * lowG * (1 + wetG) * np.exp(.6 * spp[1]), 2.0, 6.5)
+scatter(0, .045 * fo * (.6 * lowG + .4) * (.6 + .4 * gap) * np.exp(.5 * spp[0]), 2.0, 11.0)
+scatter(1, .030 * fo * lowG * (1 + wetG) * np.exp(.6 * spp[1]), 2.0, 9.0)
 scatter(9, .004 * fo * (1 - lowG) * np.exp(.8 * spp[3]), 1.5, 5.0)
 # rowan: undergrowth of the dark taiga, more in gaps and by the brooks
 scatter(2, .006 * fo * (.5 + gap) * (1 + wetG), 2.0, 5.0)
