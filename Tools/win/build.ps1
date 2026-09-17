@@ -2,6 +2,10 @@
 # Run: powershell -ExecutionPolicy Bypass -File Tools\win\build.ps1   (the Unity editor with this project must be closed)
 . (Join-Path $PSScriptRoot "editor.ps1")
 "== windows build $(Get-Date)" | Set-Content build-win.log
+# first session generates the world, the second builds the player: a player built in the same session as the
+# generation shipped an empty terrain TextAsset (see CLAUDE.md)
+& $Editor -batchmode -nographics -quit -projectPath "$Root" -executeMethod Height1079.EditorTools.ProjectSetup.Prepare -logFile "$Root\build-prepare.log" | Out-Null
+"prepare $LASTEXITCODE $(Get-Date)" | Add-Content build-win.log
 & $Editor -batchmode -nographics -quit -projectPath "$Root" -executeMethod Height1079.EditorTools.Builds.Windows -logFile "$Root\build-editor.log" | Out-Null
 "exit $LASTEXITCODE $(Get-Date)" | Add-Content build-win.log
 Select-String -Path build-editor.log -Pattern 'error CS|Build StandaloneWindows|Exception' | Select-Object -First 20 | ForEach-Object { $_.Line } | Add-Content build-win.log

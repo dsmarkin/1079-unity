@@ -161,6 +161,15 @@ namespace Height1079.EditorTools
         /// <summary>The first batch build after a script change has produced players whose big data files were empty
         /// ("Mismatched serialization in the builtin class 'TextAsset'" in player.log, then the game starts with no world):
         /// the TextAsset in the library is there but holds nothing. Re-import the data files and check them before building.</summary>
+        /// <summary>Batch entry point: generate the world and the prefabs, then quit. The build runs in a second Unity session, because a
+        /// player built in the same session as the generation shipped an empty terrain TextAsset.</summary>
+        public static void Prepare()
+        {
+            EnsureAll(false);
+            EnsureData();
+            AssetDatabase.SaveAssets();
+        }
+
         static void EnsureData()
         {
             AssetDatabase.Refresh();
