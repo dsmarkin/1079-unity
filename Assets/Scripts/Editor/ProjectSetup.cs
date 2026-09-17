@@ -158,11 +158,33 @@ namespace Height1079.EditorTools
         public static void Mac() => Build(BuildTarget.StandaloneOSX, "Builds/mac/1079.app");
         public static void Windows() => Build(BuildTarget.StandaloneWindows64, "Builds/windows/1079.exe");
 
+        /// <summary>The first batch build after a script change has produced players whose big data files were empty
+        /// ("Mismatched serialization in the builtin class 'TextAsset'" in player.log, then the game starts with no world):
+        /// the TextAsset in the library is there but holds nothing. Re-import the data files and check them before building.</summary>
+        static void EnsureData()
+        {
+            AssetDatabase.Refresh();
+            foreach (var file in Directory.GetFiles("Assets/Resources", "*.bytes", SearchOption.AllDirectories))
+            {
+                string path = file.Replace('\\', '/');
+                for (int attempt = 0; attempt < 3; attempt++)
+                {
+                    var asset = AssetDatabase.LoadAssetAtPath<TextAsset>(path);
+                    long onDisk = new FileInfo(file).Length;
+                    if (asset != null && asset.dataSize == onDisk) break;
+                    Debug.Log($"1079 build: re-importing {path} (library holds {(asset == null ? -1 : asset.dataSize)} of {onDisk} bytes)");
+                    AssetDatabase.ImportAsset(path, ImportAssetOptions.ForceUpdate | ImportAssetOptions.ForceSynchronousImport);
+                }
+            }
+            AssetDatabase.SaveAssets();
+        }
+
         static void Build(BuildTarget target, string location)
         {
             ProjectSetup.EnsureAll(false);
             PlayerSettings.productName = "1079 · Высота";
             PlayerSettings.companyName = "1079";
+            EnsureData();
             // always a clean player build: the incremental data cache goes stale whenever the generated world changes and the game then
             // starts with the default skybox and no terrain ("Mismatched serialization in the builtin class 'TextAsset'" in player.log).
             // A full build of this project takes about half a minute, so there is nothing to save.
