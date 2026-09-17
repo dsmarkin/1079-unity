@@ -42,8 +42,9 @@ namespace Height1079.Core
         /// <summary>A player who is out of the night without reaching shelter.</summary>
         public static bool Fell(Outcome o) => o == Outcome.Cold || o == Outcome.Taken;
 
-        /// <summary>Blizzards: the first front at 110 s, then 170 s of пурга and 100 s of lull, again and again.</summary>
-        public static bool StormAt(float elapsed) => elapsed > 110f && (elapsed - 110f) % 270f < 170f;
+        /// <summary>Blizzards: the first front at 110 s, then 170 s of пурга and 100 s of lull, again and again; toward morning (≈05:05)
+        /// the wind drops for good, so the waning moon that rose at 04:21 shows over the south-east before the end.</summary>
+        public static bool StormAt(float elapsed) => elapsed > 110f && elapsed < 1040f && (elapsed - 110f) % 270f < 170f;
 
         public static OutcomeText Describe(Outcome o) => o switch
         {

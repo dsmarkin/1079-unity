@@ -258,6 +258,8 @@ namespace Height1079.Tests
             // no moon above the horizon until after 4 a.m.
             for (float e = 0; e < 900; e += 10) Assert.Less(Sky.Moon(Sky.JulianDay(Sky.ClockMinutes(e))).alt, 0, $"moon up at {e}s");
             Assert.Greater(Sky.Moon(Sky.JulianDay(Sky.ClockMinutes(SurvivalRules.NightSeconds))).alt, 0);
+            // and the weather lets it show: no blizzard after it has risen high enough
+            for (float e = 1040; e <= SurvivalRules.NightSeconds; e += 5) Assert.IsFalse(SurvivalRules.StormAt(e));
         }
 
         [Test]
