@@ -25,10 +25,10 @@ Shader "Height1079/SkyClouds"
             {
                 float3 dir = normalize(i.dir);
                 float2 p = dir.xz / (max(dir.y, 0) + .09) * .9 + _CloudWind * _CloudTime;
-                float n = h1079_fbm(p) * .7 + h1079_fbm(p * 3.1 + 9.2) * .3;
+                float n = h1079_fbm(p) * .8 + h1079_noise(p * 6.3 + 9.2) * .2;
                 float cover = _CloudCover;
                 float dens = smoothstep(1 - cover - .12, 1 - cover + .18, n);
-                dens = max(dens, saturate(cover * 1.1 - .05));            // overcast fills the gaps
+                dens = max(dens, saturate((cover - .7) / .3));            // only a real overcast fills the gaps
                 dens = max(dens, smoothstep(.16, 0, dir.y) * .9);        // haze on the horizon
                 float3 sky = h1079_skyColor(dir);
                 // underside of the deck: a bit darker than the sky at night, lit by the glow at dusk, thin edges catch light
@@ -36,7 +36,7 @@ Shader "Height1079/SkyClouds"
                 float toward = saturate(dot(sd, vd) * .5 + .5);
                 float3 col = sky * lerp(.75, 1.05, 1 - dens) + _SkyGlow * pow(toward, 3) * .35 * (1 - dens * .5);
                 col = lerp(col, float3(.07, .08, .095) * (1 + length(_SkyGlow)), _SkyStorm);
-                float alpha = saturate(dens * 1.05) * (dir.y < -.02 ? 1 : 1);
+                float alpha = saturate(dens * 1.05);
                 return fixed4(col, alpha);
             }
             ENDCG

@@ -16,7 +16,7 @@ float h1079_noise(float2 p)
 float h1079_fbm(float2 p)
 {
     float v = 0, a = .5;
-    for (int k = 0; k < 5; k++) { v += a * h1079_noise(p); p = p * 2.03 + 17.1; a *= .5; }
+    for (int k = 0; k < 4; k++) { v += a * h1079_noise(p); p = p * 2.03 + 17.1; a *= .5; }
     return v;
 }
 // sky colour for a view direction: zenith/horizon gradient and the twilight glow on the sun's side

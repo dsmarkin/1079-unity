@@ -27,9 +27,13 @@ Shader "Height1079/Sky"
                 // Milky Way: a soft band along the galactic plane, brighter toward the centre, patchy
                 float b = dot(dir, _GalPoleW);
                 float band = exp(-b * b / .018) * (.55 + .45 * saturate(dot(dir, _GalCentreW) * .5 + .5));
-                float3 q = dir * 9;
-                float patch = h1079_fbm(q.xy + q.z * 1.7) * h1079_fbm(q.yz * 1.3 + 4.1);
-                band *= .4 + 1.6 * patch;
+                float patch = 0;
+                if (_MilkyWay > .001 && band > .01)
+                {
+                    float3 q = dir * 9;
+                    patch = h1079_fbm(q.xy + q.z * 1.7);
+                }
+                band *= .3 + 1.4 * patch;
                 c += float3(.55, .6, .75) * band * _MilkyWay * .045 * saturate(dir.y * 4);
                 return fixed4(c, 1);
             }
