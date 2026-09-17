@@ -47,13 +47,13 @@ namespace Height1079.Runtime
             Object.DontDestroyOnLoad(driver);
         }
 
-        /// <summary>The menu looks at the slope from above the camp; the scene camera in Main.unity sits inside the mountain otherwise.</summary>
+        /// <summary>The menu looks up the valley from behind the 31 Jan camp toward the slope; the scene camera in Main.unity sits inside the mountain otherwise.</summary>
         static void PlaceMenuCamera()
         {
             var cam = Camera.main; if (cam == null) return;
             var (cx, cz) = WorldData.Camp;
             float y = TerrainBuilder.Height(Dem, cx, cz) + 28f;
-            // behind the camp, looking back up the footprint line toward the tent
+            // behind the camp, looking up the ascent toward the tent
             var away = new Vector3(cx - WorldData.Tent.X, 0, cz - WorldData.Tent.Z).normalized;
             cam.transform.position = new Vector3(cx, y, cz) + away * 45f;
             cam.transform.LookAt(new Vector3(WorldData.Tent.X, TerrainBuilder.Height(Dem, WorldData.Tent.X, WorldData.Tent.Z), WorldData.Tent.Z));
@@ -82,7 +82,7 @@ namespace Height1079.Runtime
             RenderSettings.ambientSkyColor = new Color(.89f, .94f, 1f); RenderSettings.ambientEquatorColor = new Color(.6f, .66f, .7f); RenderSettings.ambientGroundColor = new Color(.35f, .38f, .4f);
             RenderSettings.fog = true; RenderSettings.fogMode = FogMode.ExponentialSquared; RenderSettings.fogDensity = .0013f; RenderSettings.fogColor = new Color(.68f, .74f, .78f);
 
-            // Fictional camp: logs, ember, fire light.
+            // Night camp of 31 Jan: burning stack on the log raft of Site_Camp_31Jan_Fire, ember, fire light.
             var camp = new GameObject("Camp");
             float cx = WorldData.Camp.x, cz = WorldData.Camp.z, cy = TerrainBuilder.Height(Dem, cx, cz);
             camp.transform.position = new Vector3(cx, cy, cz);
@@ -91,16 +91,16 @@ namespace Height1079.Runtime
             {
                 var log = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
                 log.name = "Log"; log.transform.SetParent(camp.transform, false);
-                log.transform.localPosition = new Vector3(0, .12f, 0); log.transform.localScale = new Vector3(.22f, .6f, .22f);
+                log.transform.localPosition = new Vector3(0, .3f, 0); log.transform.localScale = new Vector3(.16f, .5f, .16f);
                 log.transform.localRotation = Quaternion.Euler(0, i * 36f, 90f);
                 log.GetComponent<Renderer>().sharedMaterial = wood;
             }
             var emberGo = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-            emberGo.name = "Ember"; emberGo.transform.SetParent(camp.transform, false); emberGo.transform.localPosition = new Vector3(0, .5f, 0); emberGo.transform.localScale = new Vector3(.6f, .9f, .6f);
+            emberGo.name = "Ember"; emberGo.transform.SetParent(camp.transform, false); emberGo.transform.localPosition = new Vector3(0, .62f, 0); emberGo.transform.localScale = new Vector3(.6f, .9f, .6f);
             Object.Destroy(emberGo.GetComponent<Collider>());
             var emberMat = Flat(new Color(1f, .71f, .3f)); emberMat.EnableKeyword("_EMISSION"); emberMat.SetColor("_EmissionColor", new Color(1f, .55f, .2f) * 2.5f);
             ember = emberGo.GetComponent<Renderer>(); ember.sharedMaterial = emberMat; ember.enabled = false;
-            var lightGo = new GameObject("FireLight", typeof(Light)); lightGo.transform.SetParent(camp.transform, false); lightGo.transform.localPosition = new Vector3(0, 1.1f, 0);
+            var lightGo = new GameObject("FireLight", typeof(Light)); lightGo.transform.SetParent(camp.transform, false); lightGo.transform.localPosition = new Vector3(0, 1.3f, 0);
             fireLight = lightGo.GetComponent<Light>(); fireLight.type = LightType.Point; fireLight.color = new Color(1f, .64f, .28f); fireLight.range = 24f; fireLight.intensity = 0f; fireLight.shadows = LightShadows.Soft;
         }
 

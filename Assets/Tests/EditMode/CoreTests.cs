@@ -131,6 +131,12 @@ namespace Height1079.Tests
             float camp = WorldData.GroundHeight(dem, WorldData.Camp.x, WorldData.Camp.z);
             Assert.IsTrue(camp > 600 && camp < WorldData.ShelterHeight, $"camp {camp}");
             Assert.Greater(tent, camp);
+            Assert.Less(camp, Sites.TreeLine, "the 31 Jan camp is in the forest");
+            float toLabaz = WorldData.Distance(WorldData.Camp.x, WorldData.Camp.z, WorldData.Labaz.X, WorldData.Labaz.Z);
+            Assert.Less(toLabaz, 15f, $"camp {toLabaz} m from the labaz");
+            float toTent = WorldData.Distance(WorldData.Camp.x, WorldData.Camp.z, WorldData.Tent.X, WorldData.Tent.Z);
+            Assert.IsTrue(toTent > 1500 && toTent < 2100, $"camp → tent {toTent} m");
+            Assert.IsTrue(WorldData.NearCamp(NightRun.Start.x, NightRun.Start.z));
         }
 
         [Test]

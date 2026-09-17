@@ -34,6 +34,12 @@ namespace Height1079.Runtime
             var (ldx, ldz, _) = dem.Fall(l.X, l.Z);
             Spawn("Sites/Site_Labaz_1959", Ground(dem, l.X, l.Z), Quaternion.LookRotation(new Vector3(-ldz, 0, ldx)), sites);
 
+            // night camp of 31 Jan next to it: tent pad along the contour, fire pit on a log raft
+            var (px, pz) = WorldData.CampTentPad;
+            var (pdx, pdz, _) = dem.Fall(px, pz);
+            Spawn("Sites/Site_Camp_31Jan_TentPad", Ground(dem, px, pz, -.1f), Quaternion.LookRotation(new Vector3(pdx, 0, pdz)), sites);
+            Spawn("Sites/Site_Camp_31Jan_Fire", Ground(dem, WorldData.Camp.x, WorldData.Camp.z, -.05f), Quaternion.Euler(0, 20, 0), sites);
+
             var c = WorldData.Cedar;
             Spawn("Sites/Site_Cedar_1959", Ground(dem, c.X, c.Z, -.05f), Quaternion.identity, sites);
 

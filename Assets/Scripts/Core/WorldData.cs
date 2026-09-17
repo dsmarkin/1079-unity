@@ -89,8 +89,12 @@ namespace Height1079.Core
 
         public static readonly Poi Tent = Get("tent"), Cedar = Get("cedar"), Ravine = Get("ravine"), P4 = Get("p4"), Labaz = Get("labaz"), Saddle = Get("saddle");
 
-        /// <summary>Fictional camp for the survival route (16 m west, 12 m south of the cedar); not a historical fire-site coordinate.</summary>
-        public static readonly (float x, float z) Camp = (Cedar.X - 16f, Cedar.Z - 12f);
+        /// <summary>Night camp of 31 Jan 1959 — the group's last normal bivouac, in the forest of the upper Auspiya valley. On 1 Feb they built the
+        /// labaz there and went up the slope (Konstantinov / uralstalker: the labaz marks the camp; diary 31.01: "костёр развели на брёвнах, яму копать
+        /// не хотелось", supper in the tent). Exact fire and tent spots were never measured: fire 6 m east / 7 m south of the labaz, tent pad 1 m west /
+        /// 6 m south of it on the same gentle bench (DEM ≈ 642 m) — an assumption.</summary>
+        public static readonly (float x, float z) Camp = (Labaz.X + 6f, Labaz.Z - 7f);
+        public static readonly (float x, float z) CampTentPad = (Labaz.X - 1f, Labaz.Z - 6f);
         public const float CampRadius = 5f, GoalRadius = 12f, ShelterHeight = 735f;
 
         static (float x, float z) P(string id) { var p = Get(id); return (p.X, p.Z); }

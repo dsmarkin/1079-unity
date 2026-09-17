@@ -35,7 +35,7 @@ namespace Height1079.Core
         {
             this.groundHeight = groundHeight;
             StartedAt = tickedAt = now;
-            Record("Выход от лесного кострища. Цель — верхнее укрытие.");
+            Record("Ночёвка 31 января у лабаза, долина Ауспии. Подъём ≈1,7 км к палатке на склоне.");
         }
 
         public void Record(string text) => Events.Add(new NightEvent(Elapsed, text));

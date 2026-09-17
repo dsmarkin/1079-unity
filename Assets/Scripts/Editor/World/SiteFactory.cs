@@ -264,6 +264,76 @@ namespace Height1079.EditorTools.World
             return Save(root);
         }
 
+        // ------------------------------------------------------------------ night camp of 31 Jan
+        /// <summary>Bivouac left on the morning of 1 Feb: the tent was carried up the slope, so only its trampled pad (+X = ridge) remains,
+        /// with the snow walls dug around it and a fir-branch bedding. The fire pit is a separate prefab: "костёр на брёвнах" — a raft of green
+        /// logs laid on the snow (diary 31.01), the runtime puts the burning stack and the light on top.</summary>
+        public static void Camp31()
+        {
+            var pad = new GameObject("Site_Camp_31Jan_TentPad");
+            var t = pad.transform;
+            const float L = 4.9f, W = 2.5f, depth = .5f;
+            var walls = new MeshBuilder(1);
+            for (int k = 0; k < 14; k++)
+            {
+                float a = k / 14f * Mathf.PI * 2;
+                Mound(walls, 0, new Vector3(Mathf.Cos(a) * (L * .5f + .7f), -.05f, Mathf.Sin(a) * (W * .5f + .7f)), new Vector3(1.0f, depth, .75f), 300 + k);
+            }
+            Part(t, "SnowWalls", walls, Materials.Snow);
+            var floor = new MeshBuilder(1);
+            floor.Box(0, new Vector3(0, -.02f, 0), new Vector3(L, .04f, W), Quaternion.identity, 2);
+            Part(t, "TrampledFloor", floor, Materials.Snow);
+            var bedding = new MeshBuilder(3);
+            var rnd = new System.Random(31);
+            for (int k = 0; k < 16; k++)
+            {
+                var a = new Vector3(-L * .45f + (float)rnd.NextDouble() * L * .9f, .03f, -W * .4f + (float)rnd.NextDouble() * W * .8f);
+                var b = a + Quaternion.Euler(0, 70 + (float)rnd.NextDouble() * 40, 0) * Vector3.forward * (.7f + (float)rnd.NextDouble() * .4f);
+                FirBranch(bedding, a, b, .55f);
+            }
+            Part(t, "FirBedding", bedding, Materials.Bark, Materials.Find("NeedlesFir"), Materials.Find("SnowOnBranches"));
+            // stakes left from the guy lines, and two short cut spruce poles at the ends of the ridge
+            var stakes = new MeshBuilder(1);
+            foreach (var sx in new[] { -1, 1 })
+            {
+                stakes.Tube(0, new Vector3(sx * (L * .5f + .25f), -.2f, 0), new Vector3(sx * (L * .5f + .3f), 1.1f, .03f), .035f, .028f, 6, 2, 0, true);
+                foreach (var sz in new[] { -1, 1 })
+                    stakes.Tube(0, new Vector3(sx * L * .38f, -.15f, sz * (W * .5f + .9f)), new Vector3(sx * L * .38f, .35f, sz * (W * .5f + .85f)), .025f, .02f, 5, 1, 0, true);
+            }
+            Part(t, "Stakes", stakes, Materials.Bark);
+            Save(pad);
+
+            var fire = new GameObject("Site_Camp_31Jan_Fire");
+            var f = fire.transform;
+            var ring = new MeshBuilder(1);
+            for (int k = 0; k < 9; k++)
+            {
+                float a = k / 9f * Mathf.PI * 2;
+                Mound(ring, 0, new Vector3(Mathf.Cos(a) * 1.9f, -.1f, Mathf.Sin(a) * 1.9f), new Vector3(.8f, .3f, .7f), 330 + k);
+            }
+            Part(f, "MeltedRing", ring, Materials.Snow);
+            var raft = new MeshBuilder(1);
+            for (int k = 0; k < 5; k++)
+                raft.Tube(0, new Vector3(-.75f, .09f, -.4f + k * .2f), new Vector3(.75f, .09f + (k % 2) * .01f, -.38f + k * .2f), .095f, .085f, 8, 1, 0, true);
+            Part(f, "GreenLogRaft", raft, Materials.Bark);
+            var ash = new MeshBuilder(1);
+            Mound(ash, 0, new Vector3(0, .15f, 0), new Vector3(.45f, .06f, .38f), 350);
+            Part(f, "Ash", ash, Materials.Charcoal);
+            var pile = new MeshBuilder(2);
+            for (int k = 0; k < 7; k++)
+            {
+                var a = new Vector3(1.6f, .08f + (k / 3) * .14f, -1.0f + (k % 3) * .16f);
+                pile.Tube(0, a, a + new Vector3(.2f, .01f, 1.1f), .06f, .055f, 7, 1, 0, true);
+                pile.Box(1, a + new Vector3(.2f, 0, 1.12f), new Vector3(.11f, .11f, .01f), Quaternion.Euler(0, 10, 0), .3f);
+            }
+            Part(f, "Firewood", pile, Materials.Bark, Materials.Wood);
+            var stump = new MeshBuilder(2);
+            stump.Tube(0, new Vector3(-1.7f, -.3f, 1.2f), new Vector3(-1.7f, .55f, 1.2f), .13f, .12f, 9, 1, 0, false);
+            stump.Cone(1, new Vector3(-1.7f, .55f, 1.2f), .12f, .03f, 9);
+            Part(f, "CutSpruceStump", stump, Materials.Bark, Materials.Wood);
+            Save(fire);
+        }
+
         /// <summary>A cut fir branch (лапник): stick plus needle cards; submeshes bark/needles/snow.</summary>
         static void FirBranch(MeshBuilder mb, Vector3 a, Vector3 b, float width)
         {
