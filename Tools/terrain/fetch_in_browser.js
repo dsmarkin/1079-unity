@@ -53,3 +53,54 @@ async function fetchCanopy() {
   await Promise.all(Array.from({ length: 16 }, work));
   save(out, '1079-terrain-2m-chm-u8.bin');
 }
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────────
+// Эльбрус: рельеф для второй локации.
+// Бакеты недоступны из облака и из песочницы Mac, поэтому DEM качается во встроенном браузере на
+// домене бакета (https://s3.amazonaws.com) и выгружается одним base64. Результат положить в
+// Tools/terrain/elbrus-dem-2049-i16.bin и запустить python3 Tools/terrain/elbrus.py.
+//
+// Плитки: AWS Open Data «terrain tiles», формат terrarium (высота = R*256 + G + B/256 − 32768),
+// zoom 14 → ≈7 м/пиксель на широте 43°. Сетка та же, что в Tools/terrain/elbrus_geo.py.
+async function elbrusDem() {
+  const OLAT = 43.30910, OLON = 42.45857, HALF = 6144, N = 2049, Z = 14;
+  const A = 6378137, F = 1 / 298.257223563, E2 = F * (2 - F), D = Math.PI / 180;
+  const M0 = A * (1 - E2) / Math.pow(1 - E2 * Math.pow(Math.sin(OLAT * D), 2), 1.5);
+  const Nr = la => A / Math.sqrt(1 - E2 * Math.pow(Math.sin(la * D), 2));
+  const unproj = (x, z) => { const lat = OLAT + z / M0 / D; return [lat, OLON + x / (Nr(lat) * Math.cos(lat * D)) / D]; };
+  const n = 2 ** Z;
+  const px = lon => (lon + 180) / 360 * n * 256;
+  const py = lat => { const r = lat * D; return (1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2 * n * 256; };
+  const corners = [unproj(-HALF, -HALF), unproj(HALF, -HALF), unproj(-HALF, HALF), unproj(HALF, HALF)];
+  const latmin = Math.min(...corners.map(p => p[0])), latmax = Math.max(...corners.map(p => p[0]));
+  const lonmin = Math.min(...corners.map(p => p[1])), lonmax = Math.max(...corners.map(p => p[1]));
+  const x0 = Math.floor(px(lonmin) / 256), x1 = Math.floor(px(lonmax) / 256);
+  const y0 = Math.floor(py(latmax) / 256), y1 = Math.floor(py(latmin) / 256);
+  const W = (x1 - x0 + 1) * 256, H = (y1 - y0 + 1) * 256, mos = new Float32Array(W * H);
+  for (let tx = x0; tx <= x1; tx++) for (let ty = y0; ty <= y1; ty++) {
+    const r = await fetch(`https://s3.amazonaws.com/elevation-tiles-prod/terrarium/${Z}/${tx}/${ty}.png`);
+    const bm = await createImageBitmap(await r.blob());
+    const cv = new OffscreenCanvas(256, 256), g = cv.getContext('2d', { willReadFrequently: true });
+    g.drawImage(bm, 0, 0);
+    const d = g.getImageData(0, 0, 256, 256).data, ox = (tx - x0) * 256, oy = (ty - y0) * 256;
+    for (let j = 0; j < 256; j++) for (let i = 0; i < 256; i++) {
+      const k = (j * 256 + i) * 4;
+      mos[(oy + j) * W + ox + i] = (d[k] * 256 + d[k + 1] + d[k + 2] / 256) - 32768;
+    }
+  }
+  const samp = (lat, lon) => {
+    const fx = px(lon) - x0 * 256, fy = py(lat) - y0 * 256;
+    const a = Math.max(0, Math.min(W - 2, Math.floor(fx))), b = Math.max(0, Math.min(H - 2, Math.floor(fy)));
+    const u = fx - a, v = fy - b;
+    return (mos[b * W + a] * (1 - u) + mos[b * W + a + 1] * u) * (1 - v) + (mos[(b + 1) * W + a] * (1 - u) + mos[(b + 1) * W + a + 1] * u) * v;
+  };
+  const step = 2 * HALF / (N - 1), grid = new Int16Array(N * N);   // row 0 = south
+  for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) {
+    const [la, lo] = unproj(-HALF + c * step, -HALF + r * step);
+    grid[r * N + c] = Math.round(samp(la, lo));
+  }
+  const blob = new Blob([grid.buffer], { type: 'application/octet-stream' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = 'elbrus-dem-2049-i16.bin'; a.click();
+  return { tiles: (x1 - x0 + 1) * (y1 - y0 + 1), min: Math.min(...grid), max: Math.max(...grid) };
+}

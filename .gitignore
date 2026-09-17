@@ -31,3 +31,8 @@ Assets/Scenes.meta
 /*.log
 /unity-tests.xml
 /*.command
+
+# Terrain pipeline intermediates (re-fetched by Tools/terrain/fetch_in_browser.js)
+Tools/terrain/__pycache__/
+Tools/terrain/*.bin
+Tools/terrain/*.npy
