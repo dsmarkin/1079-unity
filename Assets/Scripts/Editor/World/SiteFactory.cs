@@ -101,11 +101,7 @@ namespace Height1079.EditorTools.World
             var t = root.transform;
             float Lf = Sites.Labaz.FloorLength, Wf = Sites.Labaz.FloorWidth, D = Sites.Labaz.PitDepth;
             var snow = new MeshBuilder(1);
-            for (int k = 0; k < 10; k++)
-            {
-                float a = k / 10f * Mathf.PI * 2;
-                Mound(snow, 0, new Vector3(Mathf.Cos(a) * (Lf * .5f + .75f), -.1f, Mathf.Sin(a) * (Wf * .5f + .75f)), new Vector3(.9f, D * .75f, .8f), 40 + k);
-            }
+            Bank(snow, Matrix4x4.identity, Vector3.zero, Lf * .5f + .75f, Wf * .5f + .75f, morning ? Mathf.PI : 0f, morning ? .35f : .05f, D * .9f, 1.1f, 40);
             Part(t, "SnowPit", snow, Materials.Snow);
             var floor = new MeshBuilder(1);
             for (int k = 0; k < 7; k++) floor.Box(0, new Vector3(-Lf / 2 + .11f + k * (Lf - .22f) / 6, .01f, 0), new Vector3(.24f, .012f, Wf * (.92f + .08f * (k % 2))), Quaternion.Euler(0, (k - 3) * 2f, 0), 2);

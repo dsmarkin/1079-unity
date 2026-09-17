@@ -68,7 +68,7 @@ namespace Height1079.EditorTools.World
         static float SPow(float x, float p) => Sgn(x) * Mathf.Pow(Mathf.Abs(x), p);
 
         /// <summary>Old snow mound, now irregular (kept for the other sites).</summary>
-        static void Mound(MeshBuilder mb, int s, Vector3 c, Vector3 size, int seed) => Lump(mb, s, c, size, seed, .26f);
+        static void Mound(MeshBuilder mb, int s, Vector3 c, Vector3 size, int seed) => Lump(mb, s, c, new Vector3(size.x * 1.1f, size.y * .8f, size.z * 1.1f), seed, .4f);
 
         // ------------------------------------------------------------------ snow banks
 
@@ -94,7 +94,7 @@ namespace Height1079.EditorTools.World
                 float u = (float)rnd.NextDouble();
                 var p = At(u, .38f, false);
                 float sz = .16f + .2f * (float)rnd.NextDouble();
-                Lump(mb, 0, p + Vector3.down * sz * .3f, new Vector3(sz * 1.2f, sz * .7f, sz), seed * 10 + k, .38f, m: m, skirt: .2f);
+                Lump(mb, 0, p + Vector3.down * sz * .35f, new Vector3(sz * 1.4f, sz * .55f, sz), seed * 10 + k, .45f, m: m, skirt: .2f);
             }
         }
 
@@ -310,7 +310,7 @@ namespace Height1079.EditorTools.World
                 float th = u * Mathf.PI * 2, c = Mathf.Cos(th), s = Mathf.Sin(th);
                 float gather = Noise.Smooth(.72f, .97f, v);
                 float wr = .035f * gather * Mathf.Sin(th * 11 + seed) + .03f * Noise.Fbm(new Vector3(c * 1.5f, v * 3f, s * 1.5f) + off, 3)
-                         + (1 - full) * .06f * Noise.N(new Vector3(c * 3, v * 5, s * 3) + off) + .012f * Mathf.Sin(v * 26 + c * 3) * (1 - gather);
+                         + (1 - full) * .06f * Noise.N(new Vector3(c * 3, v * 5, s * 3) + off) + .02f * Mathf.Abs(Noise.N(new Vector3(c * 6, v * 1.2f, s * 6) + off)) * (1 - gather);
                 float pr = Prof(v) * (1 + wr);
                 float x = W / 2 * SPow(c, .7f) * pr, z = D / 2 * SPow(s, .7f) * pr;
                 if (z > 0) z *= .72f;

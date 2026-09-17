@@ -83,8 +83,8 @@ namespace Height1079.EditorTools.World
             // Slobodin's rucksack as on the 31 Jan photo: felt boots and an axe tied on
             var m0 = RuckMatrix(poses[0], .02f);
             float h0 = RuckH * Mathf.Lerp(.78f, 1f, poses[0].Full);
-            FeltBoot(k, m0 * TRS(new Vector3(.2f, h0 + .02f, .03f), Quaternion.Euler(0, 0, 90) * Quaternion.Euler(0, 90, 0)), 610, FeltBlack, .01f);
-            FeltBoot(k, m0 * TRS(new Vector3(.2f, h0 + .1f, -.05f), Quaternion.Euler(0, 0, 90) * Quaternion.Euler(0, 80, 0)), 611, FeltBlack, .012f);
+            FeltBoot(k, m0 * TRS(new Vector3(.22f, h0 + .045f, .04f), Quaternion.Euler(0, 0, 90)), 610, FeltBlack, .01f);
+            FeltBoot(k, m0 * TRS(new Vector3(.2f, h0 + .1f, -.06f), Quaternion.Euler(0, 180, 0) * Quaternion.Euler(0, 0, -90) * Quaternion.Euler(0, 0, 0)), 611, FeltBlack, .012f);
             Axe(k, m0 * TRS(new Vector3(-.02f, h0 * .98f, RuckD * .42f), Quaternion.Euler(0, 90, 6)), .5f, false);
             var cord = k.B("RuckCord", Materials.Rope);
             Sweep(cord, 0, new[] { new Vector3(-.2f, h0 + .05f, .02f), new Vector3(0, h0 + .13f, 0), new Vector3(.2f, h0 + .05f, -.02f) }, (tt, a) => .004f, 4, 8, new Options { M = m0 }, false, false);

@@ -151,19 +151,23 @@ namespace Height1079.Core
         {
             float d = CreekDistance(x, z);
             float h = dem.Sample(x, z) - 3f * (float)Math.Exp(-d * d / 30f);
-            // the 31 Jan tent pad is trampled level (so the tent floor can be walked on): flat inside the ellipse, blended over 60 % more
-            float ex = (x - CampTentPad.x) / PadRadiusX, ez = (z - CampTentPad.z) / PadRadiusZ, e = (float)Math.Sqrt(ex * ex + ez * ez);
-            if (e < 1.6f)
-            {
-                float k = e <= 1f ? 1f : 1f - (e - 1f) / .6f; k = k * k * (3 - 2 * k);
-                h += (PadHeight(dem) - h) * k;
-            }
+            // the 31 Jan tent pad and the fire circle are trampled level: flat inside the ellipse, blended over 60 % more
+            h = Level(h, x, z, CampTentPad.x, CampTentPad.z, PadRadiusX, PadRadiusZ, PadHeight(dem), 1.6f);
+            h = Level(h, x, z, Camp.x, Camp.z, FireRadius, FireRadius, dem.Sample(Camp.x, Camp.z), 1.3f);
             return h;
+        }
+
+        static float Level(float h, float x, float z, float cx, float cz, float rx, float rz, float level, float blend)
+        {
+            float ex = (x - cx) / rx, ez = (z - cz) / rz, e = (float)Math.Sqrt(ex * ex + ez * ez);
+            if (e >= blend) return h;
+            float k = e <= 1f ? 1f : 1f - (e - 1f) / (blend - 1f); k = k * k * (3 - 2 * k);
+            return h + (level - h) * k;
         }
 
         /// <summary>Level of the 31 Jan tent pad: the DEM at its centre.</summary>
         public static float PadHeight(HeightField dem) => dem.Sample(CampTentPad.x, CampTentPad.z);
-        public const float PadRadiusX = 6f, PadRadiusZ = 3.5f;
+        public const float PadRadiusX = 6f, PadRadiusZ = 3.5f, FireRadius = 2.9f;
 
         public static float Distance(float ax, float az, float bx, float bz)
         {

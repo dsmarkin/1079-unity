@@ -142,7 +142,7 @@ namespace Height1079.EditorTools.World
             {
                 float th = u * Mathf.PI * 2, ph = full ? (v - .5f) * Mathf.PI : v * Mathf.PI * .5f;
                 var d = new Vector3(Mathf.Cos(th) * Mathf.Cos(ph), Mathf.Sin(ph), Mathf.Sin(th) * Mathf.Cos(ph));
-                float k = 1f + rough * Noise.Fbm(d * 1.6f + off, 3) + rough * .35f * Noise.N(d * 5f + off);
+                float k = 1f + rough * Noise.Fbm(d * 1.6f + off, 3) + rough * .45f * Noise.N(d * 4.5f + off) - rough * .5f * Mathf.Abs(Noise.N(d * 2.3f + off * 1.3f));
                 var p = new Vector3(d.x * size.x, d.y * size.y, d.z * size.z) * k;
                 p.x += lean * p.y * .4f;
                 if (!full && v <= 0f) p.y -= skirt;
