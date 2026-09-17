@@ -23,7 +23,7 @@ namespace Height1079.EditorTools.World
             var id = Matrix4x4.identity;
 
             // trampled pad (lumpy, edges sinking) and the dug wall round it, open toward the fire
-            var snow = k.B("PadSnow", Materials.Snow);
+            var snow = k.B("PadSnow", SnowTrodden);
             Emit(snow, 0, 22, 34, (u, v) =>
             {
                 float x = (u - .5f) * (W + 3.6f), z = (v - .5f) * (L + 5f) + .5f;
@@ -85,9 +85,18 @@ namespace Height1079.EditorTools.World
             float h0 = RuckH * Mathf.Lerp(.78f, 1f, poses[0].Full);
             FeltBoot(k, m0 * TRS(new Vector3(.22f, h0 + .045f, .04f), Quaternion.Euler(0, 0, 90)), 610, FeltBlack, .01f);
             FeltBoot(k, m0 * TRS(new Vector3(.24f, h0 + .045f, -.085f), Quaternion.Euler(0, 0, 90)), 611, FeltBlack, .012f);
-            Axe(k, m0 * TRS(new Vector3(-.02f, h0 * .98f, RuckD * .42f), Quaternion.Euler(0, 90, 6)), .5f, false);
+            var ruckT = new GameObject("SlobodinHatchet").transform; ruckT.SetParent(t, false);
+            ruckT.localPosition = m0.MultiplyPoint3x4(new Vector3(-.02f, h0 * .55f, RuckD * .5f)); ruckT.localRotation = m0.rotation;
+            if (PlaceScan(ruckT, "hatchet", Vector3.zero, Quaternion.Euler(0, 90, 4), 1.4f) == null)
+                Axe(k, m0 * TRS(new Vector3(-.02f, h0 * .98f, RuckD * .42f), Quaternion.Euler(0, 90, 6)), .5f, false);
             var cord = k.B("RuckCord", Materials.Rope);
             Sweep(cord, 0, new[] { new Vector3(-.2f, h0 + .05f, .02f), new Vector3(0, h0 + .13f, 0), new Vector3(.2f, h0 + .05f, -.02f) }, (tt, a) => .004f, 4, 8, new Options { M = m0 }, false, false);
+
+            // stumps of the "frail damp firs" cut for firewood, a fallen trunk beyond the wall
+            PlaceScan(t, "tree_stump_01", new Vector3(-4.1f, -.08f, -2.4f), Yaw(40), .38f);
+            PlaceScan(t, "tree_stump_02", new Vector3(3.9f, -.08f, -1.6f), Yaw(200), .34f);
+            PlaceScan(t, "tree_stump_01", new Vector3(3.4f, -.1f, 5.6f), Yaw(290), .3f);
+            PlaceScan(t, "dead_tree_trunk_02", new Vector3(-4.9f, -.3f, 2.2f), Yaw(78), .8f);
 
             // eight free ski poles in the snow left of the entrance, not quite in pairs; the spare pair of skis stuck upright
             rnd = new System.Random(733);
@@ -215,7 +224,10 @@ namespace Height1079.EditorTools.World
 
             // small things near the doorway: the camera in its case, the diary with a pencil, Dyatlov's flashlight
             ZorkiyCamera(k, TRS(new Vector3(.5f, y0 + .004f, 1.36f), Yaw(25)));
-            Diary(k, TRS(new Vector3(.02f, y0 + .002f, 1.42f), Yaw(-12)));
+            if (PlaceScan(root, "binder_notebook", new Vector3(-.05f, y0 + .004f, 1.42f), Yaw(-12), .95f, "binder_notebook_closed", "Diary") == null)
+                Diary(k, TRS(new Vector3(.02f, y0 + .002f, 1.42f), Yaw(-12)));
+            else
+                Sweep(k.B("Pencil", SkiWood), 0, new[] { new Vector3(.12f, y0 + .004f, 1.3f), new Vector3(.2f, y0 + .004f, 1.43f) }, (tt, a) => .0038f, 6, 1, new Options(), true, true);
             Flashlight(k, TRS(new Vector3(-.56f, y0 + .026f, 1.3f), Quaternion.Euler(0, 70, 0) * Quaternion.Euler(0, 0, -90)));
 
             // light: the stove's glow and daylight through the canvas
@@ -240,7 +252,7 @@ namespace Height1079.EditorTools.World
             var rnd = new System.Random(1959);
             float R() => (float)rnd.NextDouble();
 
-            var snow = k.B("FireSnow", Materials.Snow);
+            var snow = k.B("FireSnow", SnowTrodden);
             Emit(snow, 0, 30, 10, (u, v) =>
             {
                 float th = u * Mathf.PI * 2, r = v * 2.8f;
@@ -249,7 +261,12 @@ namespace Height1079.EditorTools.World
             }, new Options { ClosedU = true, UvScale = new Vector2(8, 3) });
             Bank(snow, id, Vector3.zero, 3.0f, 3.0f, -Mathf.PI / 2, .5f, .38f, .9f, 50);
 
-            // raft of green logs, the burnt stack on it, ash and embers
+            // scorched ground under the raft, raft of green logs, the burnt stack on it, ash and embers
+            Emit(k.B("Scorch", BurnedGround), 0, 24, 4, (u, v) =>
+            {
+                float th = u * Mathf.PI * 2, r = v * (1.05f + .15f * Noise.N(Mathf.Cos(th) * 2, Mathf.Sin(th) * 2, 3));
+                return new Vector3(Mathf.Cos(th) * r, .02f + .01f * (1 - v), Mathf.Sin(th) * r);
+            }, new Options { ClosedU = true, UvScale = new Vector2(2, 1) });
             for (int i = 0; i < 5; i++)
                 Log(k, id, new Vector3(-.75f, .09f, -.4f + i * .2f), new Vector3(.75f, .09f + (i % 2) * .01f, -.38f + i * .2f), .09f + R() * .015f, 1000 + i, false, i == 0 || i == 4 ? .004f : 0f, 2);
             for (int i = 0; i < 6; i++)
@@ -294,7 +311,8 @@ namespace Height1079.EditorTools.World
             Mitten(k, TRS(new Vector3(-.9f, 1.03f, .6f), Quaternion.Euler(180, 30, 8)), 1070);
 
             // seats, woodpile, chopping block with the large axe, the saw on a half-cut log, the small axe in its case
-            Log(k, id, new Vector3(-1.95f, .12f, -1.0f), new Vector3(-1.5f, .13f, 1.0f), .14f, 1080, false, .02f, 2);
+            if (PlaceScan(f, "dead_tree_trunk", new Vector3(-1.75f, -.02f, 0), Yaw(96), .72f, null, "SeatTrunk") == null)
+                Log(k, id, new Vector3(-1.95f, .12f, -1.0f), new Vector3(-1.5f, .13f, 1.0f), .14f, 1080, false, .02f, 2);
             Log(k, id, new Vector3(-.95f, .12f, -1.95f), new Vector3(.9f, .13f, -1.85f), .13f, 1081, false, .015f, 1);
             for (int i = 0; i < 11; i++)
             {
@@ -302,7 +320,10 @@ namespace Height1079.EditorTools.World
                 Log(k, id, a, a + new Vector3(.12f + (R() - .5f) * .1f, (R() - .5f) * .03f, .85f + R() * .15f), .05f + R() * .012f, 1090 + i, false, i >= 8 ? .02f : .004f, 1);
             }
             Log(k, id, new Vector3(1.7f, -.2f, 1.9f), new Vector3(1.7f, .32f, 1.9f), .19f, 1110, false, .01f, 0, .18f);
-            Axe(k, TRS(new Vector3(1.74f, .39f, 1.9f), Yaw(30) * Quaternion.Euler(0, 0, -120)), .62f, false);
+            if (PlaceScan(f, "wooden_axe_02", new Vector3(1.7f, .72f, 1.86f), Yaw(30) * Quaternion.Euler(155, 0, 0), 1f, null, "AxeInBlock") == null)
+                Axe(k, TRS(new Vector3(1.74f, .39f, 1.9f), Yaw(30) * Quaternion.Euler(0, 0, -120)), .62f, false);
+            PlaceScan(f, "russian_food_cans_01", new Vector3(1.05f, .03f, 1.62f), Yaw(15), 1f, "russian_food_cans_01_can_cond", "CondensedMilk");
+            PlaceScan(f, "russian_food_cans_01", new Vector3(-1.35f, .28f, .35f), Yaw(80), 1f, "russian_food_cans_01_can_fish", "OpenTin");
             Log(k, id, new Vector3(-.4f, .1f, 2.2f), new Vector3(1.1f, .12f, 2.4f), .1f, 1111, false, .015f, 2);
             Saw(k, TRS(new Vector3(.35f, .255f, 2.285f), Yaw(-8)));
             Axe(k, TRS(new Vector3(2.15f, .47f, -.6f), Yaw(20) * Quaternion.Euler(90, 0, 0)), .38f, true);

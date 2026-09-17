@@ -62,6 +62,43 @@ namespace Height1079.EditorTools.World
             return m;
         });
 
+        // ------------------------------------------------------------------ scanned props (Poly Haven, CC0), optional
+        static GameObject Scan(string id)
+        {
+            var go = AssetDatabase.LoadMainAssetAtPath($"{WorldPaths.PolyHaven}/Models/{id}/{id}_1k.gltf") as GameObject;
+            if (go == null) Debug.LogWarning($"1079 world: scan {id} not imported — procedural stand-in used");
+            return go;
+        }
+
+        /// <summary>Places a scanned model under <paramref name="parent"/>; <paramref name="keep"/> limits it to one node (multi-object scans).
+        /// Returns null when the scan is missing, so callers fall back to the procedural prop.</summary>
+        static GameObject PlaceScan(Transform parent, string id, Vector3 pos, Quaternion rot, float scale, string keep = null, string name = null)
+        {
+            var src = Scan(id); if (src == null) return null;
+            var go = UnityEngine.Object.Instantiate(src, parent);
+            go.name = name ?? "Scan_" + id;
+            go.transform.localPosition = pos; go.transform.localRotation = rot; go.transform.localScale = Vector3.one * scale;
+            if (keep != null)
+            {
+                var all = go.GetComponentsInChildren<Transform>(true);
+                foreach (var tr in all)
+                    if (tr != null && tr != go.transform && tr.GetComponent<Renderer>() != null && tr.name != keep) UnityEngine.Object.DestroyImmediate(tr.gameObject);
+                foreach (var tr in go.GetComponentsInChildren<Transform>(true))
+                    if (tr.name == keep) tr.localPosition = Vector3.zero;
+            }
+            foreach (var c in go.GetComponentsInChildren<Collider>(true)) UnityEngine.Object.DestroyImmediate(c);
+            return go;
+        }
+
+        static Material SnowTrodden => Mat("SnowTrodden", () => Materials.OptionalTex(WorldPaths.PH("snow_01", "diff")) != null
+            ? Materials.PH("SnowTrodden", "snow_01", new Color(.95f, .97f, 1f), 1f, .3f, .9f) : Materials.Snow);
+        static Material BurnedGround => Mat("BurnedGround", () => Materials.OptionalTex(WorldPaths.PH("burned_ground_01", "diff")) != null
+            ? Materials.PH("BurnedGround", "burned_ground_01", new Color(.8f, .78f, .76f), 1f, .05f) : Materials.Charcoal);
+        static Material SpruceBark => Mat("SpruceBark", () => Materials.OptionalTex(WorldPaths.PH("bark_brown_02", "diff")) != null
+            ? Materials.PH("SpruceBark", "bark_brown_02", new Color(.85f, .82f, .8f), 1f) : Materials.Bark);
+        static Material Hessian => Mat("Hessian", () => Materials.OptionalTex(WorldPaths.PH("hessian_230", "diff")) != null
+            ? Materials.PH("Hessian", "hessian_230", new Color(.95f, .92f, .85f), 2f, .05f) : Materials.Cloth("bag", new Color(.63f, .6f, .5f)));
+
         static Matrix4x4 TRS(Vector3 p, Quaternion r, float s = 1f) => Matrix4x4.TRS(p, r, Vector3.one * s);
         static Quaternion Yaw(float deg) => Quaternion.Euler(0, deg, 0);
         static float Sgn(float x) => x < 0 ? -1f : 1f;
@@ -103,7 +140,7 @@ namespace Height1079.EditorTools.World
         /// <summary>A log with bark, a slight bend, knots and branch stubs, closed at both ends with end grain.</summary>
         static void Log(Kit k, Matrix4x4 m, Vector3 a, Vector3 b, float r, int seed, bool charred = false, float snow = 0f, int stubs = 1, float r1 = -1f)
         {
-            var mb = charred ? k.B("LogsCharred", Charred, EndGrainChar) : k.B("Logs", Materials.Bark, EndGrain);
+            var mb = charred ? k.B("LogsCharred", Charred, EndGrainChar) : k.B("Logs", SpruceBark, EndGrain);
             var off = new Vector3(seed * .77f, seed * 1.9f, seed * .31f);
             var axis = b - a; float len = axis.magnitude; var dir = axis / len;
             var perp = Vector3.Cross(dir, Mathf.Abs(dir.y) > .9f ? Vector3.right : Vector3.up).normalized;

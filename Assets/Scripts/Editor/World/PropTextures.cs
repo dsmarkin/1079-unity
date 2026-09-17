@@ -13,6 +13,14 @@ namespace Height1079.EditorTools.World
         const int S = 512;
 
         /// <summary>Albedo from colour(x, y) and a normal map from height(x, y); materials cached by name.</summary>
+        /// <summary>When set, the next <see cref="Pair"/> uses this scanned normal map (Poly Haven) instead of the generated one, tiled by <see cref="scanTiling"/>.</summary>
+        static Texture2D scanNormal; static float scanTiling = 1f;
+        static Material WithScan(string id, float tiling, Func<Material> make)
+        {
+            scanNormal = Materials.OptionalTex(WorldPaths.PH(id, "nor_gl")); scanTiling = tiling;
+            try { return make(); } finally { scanNormal = null; scanTiling = 1f; }
+        }
+
         public static Material Pair(string name, Func<float, float, Color> color, Func<float, float, float> height, float bump, float smoothness, int size = S, float metallic = 0f)
         {
             var existing = Materials.Find(name);
@@ -39,8 +47,8 @@ namespace Height1079.EditorTools.World
                 }
             nrm.SetPixels(np); nrm.Apply();
             var a = TextureFactory.Save(name + "_albedo", albedo, false, TextureWrapMode.Repeat);
-            var nm = SaveNormal(name + "_normal", nrm);
-            var m = Materials.Get(name, Color.white, a, nm, smoothness);
+            var nm = scanNormal != null ? scanNormal : SaveNormal(name + "_normal", nrm);
+            var m = Materials.Get(name, Color.white, a, nm, smoothness, tiling: scanNormal != null ? new Vector2(scanTiling, scanTiling) : (Vector2?)null);
             m.SetFloat("_Metallic", metallic);
             EditorUtility.SetDirty(m);
             return m;
@@ -72,7 +80,8 @@ namespace Height1079.EditorTools.World
         // ------------------------------------------------------------------ fabrics
 
         /// <summary>Heavy cotton canvas: 2×2 weave, washed-out blotches, grime towards the bottom (v = 0), darker seams.</summary>
-        public static Material RuckCanvas(string name, Color baseColor, int seed)
+        public static Material RuckCanvas(string name, Color baseColor, int seed) => WithScan("book_pattern", 1f, () => RuckCanvasGen(name, baseColor, seed));
+        static Material RuckCanvasGen(string name, Color baseColor, int seed)
         {
             float Weave(float u, float v) { float x = u * S / 2f, y = v * S / 2f; return (Mathf.Sin(x * Mathf.PI) * .5f + .5f) * ((int)y % 2 == 0 ? 1 : .6f) + (Mathf.Sin(y * Mathf.PI) * .5f + .5f) * ((int)x % 2 == 0 ? .6f : 1); }
             return Pair(name, (u, v) =>
@@ -86,7 +95,8 @@ namespace Height1079.EditorTools.World
         }
 
         /// <summary>Old leather: pebbled grain, creases, rubbed lighter edges.</summary>
-        public static Material Leather(string name, Color baseColor, int seed)
+        public static Material Leather(string name, Color baseColor, int seed) => WithScan(seed % 2 == 0 ? "brown_leather" : "fabric_leather_02", 1f, () => LeatherGen(name, baseColor, seed));
+        static Material LeatherGen(string name, Color baseColor, int seed)
         {
             float Grain(float u, float v) => T(u, v, 90, seed) * .6f + T(u, v, 45, seed + 1) * .4f;
             float Crease(float u, float v) => Mathf.Pow(1 - Mathf.Abs(T(u, v, 6, seed + 5) * 2 - 1), 12);
@@ -112,7 +122,8 @@ namespace Height1079.EditorTools.World
         }
 
         /// <summary>Pressed felt (валенки): fuzzy fibres, no weave, dirt at the sole.</summary>
-        public static Material Felt(string name, Color baseColor, int seed)
+        public static Material Felt(string name, Color baseColor, int seed) => WithScan("poly_wool_herringbone", 1f, () => FeltGen(name, baseColor, seed));
+        static Material FeltGen(string name, Color baseColor, int seed)
             => Pair(name, (u, v) => Shade(Color.Lerp(baseColor, new Color(.12f, .11f, .1f), Mathf.Clamp01(.2f - v) * 3f), .8f + .35f * T(u, v, 70, seed) * T(u, v, 9, seed + 2)),
                 (u, v) => T(u, v, 120, seed) * .6f + T(u, v, 12, seed + 4) * .4f, 2.5f, .02f);
 

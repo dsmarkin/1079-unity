@@ -110,7 +110,10 @@ namespace Height1079.EditorTools.World
             // food: canvas bags and boxes (≈55 kg), mandolin, spare boots
             var bags = new MeshBuilder(1);
             for (int k = 0; k < 6; k++) Mound(bags, 0, new Vector3(-.55f + k * .22f, .05f, (k % 2 == 0 ? -.22f : .2f)), new Vector3(.14f, .22f, .16f), 60 + k);
-            Off(Part(t, "FoodBags", bags, Materials.Cloth("bag", new Color(.63f, .6f, .5f))), goods);
+            Off(Part(t, "FoodBags", bags, Hessian), goods);
+            // tins among the food: condensed milk and canned meat were in the labaz protocol
+            for (int c = 0; c < 4; c++)
+                if (PlaceScan(t, "russian_food_cans_01", goods + new Vector3(.35f + c * .09f, .01f, -.42f + (c % 2) * .08f), Yaw(c * 47), 1f, c % 2 == 0 ? "russian_food_cans_01_can_cond" : "russian_food_cans_01_can_fish") == null) break;
             var boxes = new MeshBuilder(1);
             boxes.Box(0, new Vector3(.45f, .12f, -.2f), new Vector3(.34f, .24f, .26f), Quaternion.Euler(0, 8, 0), 3);
             boxes.Box(0, new Vector3(.47f, .09f, .18f), new Vector3(.3f, .18f, .24f), Quaternion.Euler(0, -5, 0), 3);

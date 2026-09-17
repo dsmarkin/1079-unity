@@ -74,7 +74,9 @@ namespace Height1079.EditorTools.World
         public static Material Rope => C("Rope", () => Get("Rope", new Color(.72f, .66f, .52f)));
         public static Material Metal => C("Metal", () => Get("Metal", new Color(.35f, .36f, .38f), smoothness: .55f));
         public static Material BirchBark => C("BirchBark", () => Get("BirchBark", Color.white, TextureFactory.BirchBark("birch_bark", 7), null, .08f));
-        public static Material Canvas => C("Canvas", () => Get("TentCanvas", Color.white, TextureFactory.Canvas("tent_canvas", new Color(.47f, .47f, .34f)), null, .05f));
+        public static Material Canvas => C("Canvas", () => Get("TentCanvas", Color.white, TextureFactory.Canvas("tent_canvas", new Color(.47f, .47f, .34f)), OptionalTex(WorldPaths.PH("book_pattern", "nor_gl")), .05f, tiling: new Vector2(3, 3), normalScale: .8f));
+        /// <summary>Texture if present (third-party scans are optional: the library still builds without them).</summary>
+        public static Texture2D OptionalTex(string path) => System.IO.File.Exists(path) ? AssetDatabase.LoadAssetAtPath<Texture2D>(path) : null;
         public static Material Sheet => C("Sheet", () => Get("WhiteSheet", new Color(.9f, .9f, .87f), smoothness: .05f));
         public static Material BirchCardboard => C("BirchCardboard", () => Get("BirchBarkFloor", new Color(.86f, .8f, .7f), TextureFactory.BirchBark("birch_bark_peeled", 11), null, .05f));
         public static Material Cloth(string name, Color c) => C("Cloth_" + name, () => Get("Cloth_" + name, Color.white, TextureFactory.Cloth("cloth_" + name, c), null, .03f));
