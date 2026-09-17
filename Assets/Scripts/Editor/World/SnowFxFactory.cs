@@ -20,6 +20,7 @@ namespace Height1079.EditorTools.World
 
             ParticleFade("Snowflakes", flakes, new Color(1f, 1f, 1f, 1f));
             ParticleFade("SnowPuff", flakes, new Color(.95f, .97f, 1f, .8f));
+            ParticleFade("Smoke", TextureFactory.Save("smoke", Smoke(), true, TextureWrapMode.Clamp), new Color(.72f, .72f, .74f, .55f));
             for (int i = 0; i < FadeLevels; i++)
             {
                 float a = 1f - i / (float)FadeLevels;
@@ -96,6 +97,23 @@ namespace Height1079.EditorTools.World
                         }
                         default: a = Mathf.Exp(-r * r * 3.2f) * Mathf.Clamp01((1 - r) * 4f); break;
                     }
+                    t.SetPixel(x, y, new Color(1, 1, 1, a));
+                }
+            t.Apply();
+            return t;
+        }
+
+        /// <summary>Wood smoke puff: soft round blob with billowy noise.</summary>
+        static Texture2D Smoke()
+        {
+            const int S = 128;
+            var t = new Texture2D(S, S, TextureFormat.RGBA32, false);
+            for (int y = 0; y < S; y++)
+                for (int x = 0; x < S; x++)
+                {
+                    float u = (x + .5f) / S * 2 - 1, v = (y + .5f) / S * 2 - 1, r = Mathf.Sqrt(u * u + v * v);
+                    float n = .55f + .45f * Mathf.PerlinNoise(x * .07f + 3, y * .07f) * Mathf.PerlinNoise(x * .15f, y * .15f + 5) * 2f;
+                    float a = Mathf.Clamp01(1 - r) ; a = a * a * (3 - 2 * a) * Mathf.Clamp01(n);
                     t.SetPixel(x, y, new Color(1, 1, 1, a));
                 }
             t.Apply();

@@ -23,7 +23,7 @@ namespace Height1079.EditorTools.World
         public static void RebuildMenu() => Build(true);
 
         /// <summary>Bump when a factory changes so existing checkouts rebuild the generated world on next open/check.</summary>
-        public const int PipelineVersion = 6;
+        public const int PipelineVersion = 7;
         const string Stamp = WorldPaths.Generated + "/pipeline.version";
 
         public static bool IsBuilt => File.Exists(TerrainAsset) && File.Exists(HeightResource) && File.Exists(Stamp) && File.ReadAllText(Stamp).Trim() == PipelineVersion.ToString();
@@ -63,7 +63,9 @@ namespace Height1079.EditorTools.World
             ItemsFactory.Build();
             SiteFactory.Tent();
             SiteFactory.Labaz(branches);
-            SiteFactory.Camp31();
+            SiteFactory.Labaz(branches, morning: true);
+            SiteFactory.Camp31Tent();
+            SiteFactory.Camp31Fire();
             SiteFactory.CedarSite(hero, towardTent);
             SiteFactory.Den();
             SiteFactory.P4Stone(rocks[1]);
@@ -196,8 +198,8 @@ namespace Height1079.EditorTools.World
             (() => WorldData.Den, 3.5f),
             (() => (WorldData.P4.X, WorldData.P4.Z), 1.5f),
             (() => (WorldData.Labaz.X, WorldData.Labaz.Z), 1.8f),
-            (() => WorldData.Camp, 4f),
-            (() => WorldData.CampTentPad, 4f),
+            (() => WorldData.Camp, 4.5f),
+            (() => WorldData.CampTentPad, 5.5f),
             (() => (WorldData.Tent.X, WorldData.Tent.Z), 8f),
             (() => (WorldData.Get("dyatlov").X, WorldData.Get("dyatlov").Z), 2f),
             (() => (WorldData.Get("triple").X, WorldData.Get("triple").Z), 2f),

@@ -137,6 +137,10 @@ namespace Height1079.Tests
             float toTent = WorldData.Distance(WorldData.Camp.x, WorldData.Camp.z, WorldData.Tent.X, WorldData.Tent.Z);
             Assert.IsTrue(toTent > 1500 && toTent < 2100, $"camp → tent {toTent} m");
             Assert.IsTrue(WorldData.NearCamp(NightRun.Start.x, NightRun.Start.z));
+            // 31 Jan camp accounting: every ski and pole of the nine is somewhere on the site
+            Assert.AreEqual(Sites.Camp31.SkiPairs, Sites.Camp31.SkiPairsUnderFloor + Sites.Camp31.SkiPairsAsStand);
+            Assert.AreEqual(Sites.Tent.SkiPairsUnderFloor, Sites.Camp31.SkiPairsUnderFloor);
+            Assert.AreEqual(8, Sites.Camp31.PolesLeftFree);
         }
 
         [Test]

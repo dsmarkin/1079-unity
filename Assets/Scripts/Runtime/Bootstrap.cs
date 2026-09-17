@@ -29,6 +29,7 @@ namespace Height1079.Runtime
         static Light sun;
         static Light fireLight;
         static Renderer ember;
+        static ParticleSystem fireSmoke;
         static NetworkManager network;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
@@ -96,12 +97,15 @@ namespace Height1079.Runtime
                 log.GetComponent<Renderer>().sharedMaterial = wood;
             }
             var emberGo = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-            emberGo.name = "Ember"; emberGo.transform.SetParent(camp.transform, false); emberGo.transform.localPosition = new Vector3(0, .62f, 0); emberGo.transform.localScale = new Vector3(.6f, .9f, .6f);
+            emberGo.name = "Ember"; emberGo.transform.SetParent(camp.transform, false); emberGo.transform.localPosition = new Vector3(0, .5f, 0); emberGo.transform.localScale = new Vector3(.45f, .6f, .45f);
             Object.Destroy(emberGo.GetComponent<Collider>());
             var emberMat = Flat(new Color(1f, .71f, .3f)); emberMat.EnableKeyword("_EMISSION"); emberMat.SetColor("_EmissionColor", new Color(1f, .55f, .2f) * 2.5f);
             ember = emberGo.GetComponent<Renderer>(); ember.sharedMaterial = emberMat; ember.enabled = false;
             var lightGo = new GameObject("FireLight", typeof(Light)); lightGo.transform.SetParent(camp.transform, false); lightGo.transform.localPosition = new Vector3(0, 1.3f, 0);
             fireLight = lightGo.GetComponent<Light>(); fireLight.type = LightType.Point; fireLight.color = new Color(1f, .64f, .28f); fireLight.range = 24f; fireLight.intensity = 0f; fireLight.shadows = LightShadows.Soft;
+            fireSmoke = CampSmoke.Create("FireSmoke", camp.transform, new Vector3(0, .9f, 0), 6f, 1.1f, .9f);
+            var pipe = GameObject.Find("StovePipeSmoke");
+            if (pipe != null) CampSmoke.Create("StoveSmoke", pipe.transform, Vector3.zero, 3f, .45f, .6f);
         }
 
         static void BuildNetwork()
@@ -174,7 +178,8 @@ namespace Height1079.Runtime
                 var cam = Camera.main; if (cam != null) { cam.clearFlags = CameraClearFlags.SolidColor; cam.backgroundColor = sky; }
                 if (sun != null) sun.intensity = 1.6f - night * 1.3f;
                 float fire = s != null ? s.FireRemaining.Value : 0f;
-                if (ember != null) { ember.enabled = fire > 0f; ember.transform.localScale = new Vector3(.6f, .9f, .6f) * (1f + Mathf.Sin(Time.time * 13f) * .12f); }
+                if (ember != null) { ember.enabled = fire > 0f; ember.transform.localScale = new Vector3(.45f, .6f, .45f) * (1f + Mathf.Sin(Time.time * 13f) * .12f); }
+                if (fireSmoke != null) { var em = fireSmoke.emission; em.enabled = fire > 0f; }
                 if (fireLight != null) fireLight.intensity = fire > 0f ? 3.5f + Mathf.Sin(Time.time * 17f) * .5f : 0f;
             }
         }

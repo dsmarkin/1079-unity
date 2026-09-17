@@ -30,15 +30,15 @@ namespace Height1079.Runtime
             var tent = Spawn("Sites/Site_Tent_1959", new Vector3(t.X, uphill - .05f, t.Z), rot, sites);
             if (tent != null && Vector3.Dot(rot * Vector3.right, new Vector3(dx, 0, dz)) < 0) tent.transform.localScale = new Vector3(-1, 1, 1);
 
+            // night camp of 31 Jan as on the morning of 1 Feb: tent with its entrance toward the fire, kitchen, labaz being dug
             var l = WorldData.Labaz;
             var (ldx, ldz, _) = dem.Fall(l.X, l.Z);
-            Spawn("Sites/Site_Labaz_1959", Ground(dem, l.X, l.Z), Quaternion.LookRotation(new Vector3(-ldz, 0, ldx)), sites);
-
-            // night camp of 31 Jan next to it: tent pad along the contour, fire pit on a log raft
+            var labazRot = Quaternion.LookRotation(new Vector3(-ldz, 0, ldx));
+            Spawn("Sites/Site_Labaz_1959_Morning", Ground(dem, l.X, l.Z), labazRot, sites);
             var (px, pz) = WorldData.CampTentPad;
-            var (pdx, pdz, _) = dem.Fall(px, pz);
-            Spawn("Sites/Site_Camp_31Jan_TentPad", Ground(dem, px, pz, -.1f), Quaternion.LookRotation(new Vector3(pdx, 0, pdz)), sites);
-            Spawn("Sites/Site_Camp_31Jan_Fire", Ground(dem, WorldData.Camp.x, WorldData.Camp.z, -.05f), Quaternion.Euler(0, 20, 0), sites);
+            var toFire = new Vector3(WorldData.Camp.x - px, 0, WorldData.Camp.z - pz);
+            Spawn("Sites/Site_Camp_31Jan_Tent", Ground(dem, px, pz, .02f), Quaternion.LookRotation(toFire), sites);
+            Spawn("Sites/Site_Camp_31Jan_Fire", Ground(dem, WorldData.Camp.x, WorldData.Camp.z, -.05f), Quaternion.LookRotation(-toFire), sites);
 
             var c = WorldData.Cedar;
             Spawn("Sites/Site_Cedar_1959", Ground(dem, c.X, c.Z, -.05f), Quaternion.identity, sites);
@@ -54,6 +54,8 @@ namespace Height1079.Runtime
 
             // markers: documented event points are visible, everything else is in the archive layer
             Archive = new GameObject("ArchiveLayer");
+            // the labaz as the searchers found it on 2 Mar (same spot as the morning pit)
+            Spawn("Sites/Site_Labaz_1959", Ground(dem, l.X, l.Z), labazRot, Archive.transform);
             foreach (var p in WorldData.Pois)
             {
                 string kind = p.Kind.ToString();
@@ -107,7 +109,7 @@ namespace Height1079.Runtime
         /// <summary>Site viewer (F3): orbit camera around the event sites in turn; the hiker keeps standing where it was. Index -1 = off.</summary>
         public static int ViewIndex { get; private set; } = -1;
         static readonly string[] ViewIds = { "tent", "cedar", "p4", "labaz", "dyatlov" };
-        static readonly float[] ViewRadius = { 9f, 14f, 8f, 7f, 10f };
+        static readonly float[] ViewRadius = { 9f, 14f, 8f, 13f, 10f };
         public static string ViewName => ViewIndex < 0 ? "" : WorldData.Get(ViewIds[ViewIndex]).Label;
 
         public static void NextView() { ViewIndex = ViewIndex + 1 >= ViewIds.Length ? -1 : ViewIndex + 1; }
@@ -119,6 +121,7 @@ namespace Height1079.Runtime
             var p = WorldData.Get(ViewIds[ViewIndex]);
             float x = p.X, z = p.Z;
             if (ViewIds[ViewIndex] == "p4") { x = WorldData.Den.x; z = WorldData.Den.z; }
+            if (ViewIds[ViewIndex] == "labaz") { x = (p.X + WorldData.CampTentPad.x + WorldData.Camp.x) / 3; z = (p.Z + WorldData.CampTentPad.z + WorldData.Camp.z) / 3; } // the whole 31 Jan camp
             var target = new Vector3(x, TerrainBuilder.Height(dem, x, z) + 1f, z);
             float a = Time.unscaledTime * .12f, r = ViewRadius[ViewIndex];
             var pos = target + new Vector3(Mathf.Cos(a) * r, 0, Mathf.Sin(a) * r);

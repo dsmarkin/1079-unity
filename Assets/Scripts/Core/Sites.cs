@@ -73,6 +73,27 @@ namespace Height1079.Core
             public const float SnowAboveInMay = 2.75f;
         }
 
+        /// <summary>Night camp of 31 Jan 1959 as it stood on the morning of 1 Feb, before the labaz was built and the group left (~15:00).
+        /// Counts come from the search inventory of the tent (28.02–02.03.1959) and the labaz protocol, i.e. what the nine carried up the next day.</summary>
+        public static class Camp31
+        {
+            /// <summary>Nine hikers after Yudin turned back on 28 Jan.</summary>
+            public const int Hikers = 9;
+            /// <summary>9 pairs of skis in use + 1 spare pair (university equipment list). On the slope: 8 pairs under the floor, one pair as the middle stand;
+            /// a spare ski marked the labaz. The same pitching is assumed here, the spare pair stands in the snow.</summary>
+            public const int SkiPairs = 9, SpareSkiPairs = 1, SkiPairsUnderFloor = 8, SkiPairsAsStand = 1;
+            /// <summary>Tent pitched on ski poles and tied with ropes (protocol 28.02.1959): two crossed poles per end, one anchor per end, four side stakes.</summary>
+            public const int PolesInTentRig = 10;
+            public static int PolesLeftFree => SkiPairs * 2 - PolesInTentRig;
+            /// <summary>Found in the tent: 9 rucksacks, 9 blankets, 2 buckets, 2 cooking pots, 3 axes (2 large, 1 small in a leather case), 1 saw, stove with pipe.</summary>
+            public const int Rucksacks = 9, Blankets = 9, Buckets = 2, Pots = 2, LargeAxes = 2, SmallAxes = 1, Saws = 1;
+            /// <summary>Dyatlov's folding tin stove, 190 × 240 × 400 mm, 4 kg, 3 m pipe; hung from the ridge rope, horizontal pipe out through the rear end,
+            /// with an asbestos ring and a ring of raw wooden bars 25–30 cm (Sokhansky; Lebedev's "firewood" at the rear of the tent).</summary>
+            public const float StoveHeight = .19f, StoveWidth = .24f, StoveLength = .40f, PipeLength = 3f, RingBarLength = .28f;
+            /// <summary>Snow in the valley 1.2–2 m (diary 31.01), so the pad is trampled and walled rather than dug to the ground — assumed depth 0.5 m.</summary>
+            public const float PadDepth = .5f;
+        }
+
         /// <summary>Tree line in this valley from the canopy model: 95% of trees stand below ~750 m.</summary>
         public const float TreeLine = 750f;
     }

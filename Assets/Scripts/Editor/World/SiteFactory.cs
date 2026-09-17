@@ -68,29 +68,17 @@ namespace Height1079.EditorTools.World
             metal.Tube(0, ring - Vector3.up * .004f, ring + Vector3.up * .004f, .055f, .055f, 8, 1f, 0, true);
         }
 
-        // ------------------------------------------------------------------ tent
-        /// <summary>The tent on the evening of 1 Feb 1959. Local frame: +Z = entrance end (toward the pass), +X = downslope side (where the cuts were made).</summary>
-        public static GameObject Tent()
+        /// <summary>Canvas, skis under the floor, ski-pole stands and guys, middle stand, ice axe — shared by the slope tent and the forest camp.
+        /// <paramref name="skiRow"/> = centre of each ski row from the middle (1.07 keeps the skis under the floor; larger pushes the tips out at the ends).</summary>
+        static void TentBody(Transform t, float skiRow)
         {
             float L = Sites.Tent.Length, W = Sites.Tent.Width, Hr = Sites.Tent.RidgeHeight, wall = Hr - Mathf.Sqrt(Sites.Tent.SlopeLength * Sites.Tent.SlopeLength - W * W / 4);
-            var root = new GameObject("Site_Tent_1959");
-            var t = root.transform;
-
-            // levelled platform: the snow bank below, the cut wall above (uphill = -X)
-            var snow = new MeshBuilder(1);
-            snow.Box(0, new Vector3(0, -.14f, 0), new Vector3(W + .5f, .3f, L + .5f), Quaternion.identity, .5f);
-            for (int k = 0; k < 6; k++) Mound(snow, 0, new Vector3(W / 2 + .55f, -.25f, -2.5f + k * 1.0f), new Vector3(.95f, .32f, .85f), 30 + k); // spoil on the downslope side
-            snow.Box(0, new Vector3(-W / 2 - .75f, Sites.Tent.CutDepth / 2 - .1f, 0), new Vector3(.6f, Sites.Tent.CutDepth + .2f, Sites.Tent.CutLength + 1.2f), Quaternion.Euler(0, 0, -12), .5f);
-            for (int k = 0; k < 5; k++) Mound(snow, 0, new Vector3(-W / 2 - 1.2f, .15f, -2.2f + k * 1.1f), new Vector3(.9f, .35f, .8f), 10 + k);
-            Mound(snow, 0, new Vector3(-.3f, .05f, -L / 2 - .9f), new Vector3(1.4f, .3f, .7f), 20);
-            Part(t, "SnowPlatform", snow, Materials.Snow);
-
             // 8 pairs of skis under the floor: two rows along the tent
             var skis = new MeshBuilder(1);
             for (int row = 0; row < 2; row++)
                 for (int k = 0; k < 8; k++)
                 {
-                    float x = -W / 2 + .12f + k * (W - .24f) / 7f, z = (row == 0 ? -1 : 1) * 1.07f;
+                    float x = -W / 2 + .12f + k * (W - .24f) / 7f, z = (row == 0 ? -1 : 1) * skiRow;
                     skis.Box(0, new Vector3(x, .012f, z), new Vector3(.075f, .022f, 2.05f), Quaternion.Euler(0, (k % 2) * 1.5f, 0), 2f);
                     skis.Box(0, new Vector3(x, .03f, z + 1.02f * (row == 0 ? -1 : 1)), new Vector3(.07f, .02f, .12f), Quaternion.Euler((row == 0 ? 25 : -25), 0, 0), 2f); // curled tips
                 }
@@ -169,6 +157,27 @@ namespace Height1079.EditorTools.World
             Part(t, "IceAxeShaft", axeWood, Materials.Wood);
             Part(t, "IceAxeHead", axeHead, Materials.Metal);
 
+        }
+
+        // ------------------------------------------------------------------ tent
+        /// <summary>The tent on the evening of 1 Feb 1959. Local frame: +Z = entrance end (toward the pass), +X = downslope side (where the cuts were made).</summary>
+        public static GameObject Tent()
+        {
+            float L = Sites.Tent.Length, W = Sites.Tent.Width, Hr = Sites.Tent.RidgeHeight, wall = Hr - Mathf.Sqrt(Sites.Tent.SlopeLength * Sites.Tent.SlopeLength - W * W / 4);
+            var root = new GameObject("Site_Tent_1959");
+            var t = root.transform;
+
+            // levelled platform: the snow bank below, the cut wall above (uphill = -X)
+            var snow = new MeshBuilder(1);
+            snow.Box(0, new Vector3(0, -.14f, 0), new Vector3(W + .5f, .3f, L + .5f), Quaternion.identity, .5f);
+            for (int k = 0; k < 6; k++) Mound(snow, 0, new Vector3(W / 2 + .55f, -.25f, -2.5f + k * 1.0f), new Vector3(.95f, .32f, .85f), 30 + k); // spoil on the downslope side
+            snow.Box(0, new Vector3(-W / 2 - .75f, Sites.Tent.CutDepth / 2 - .1f, 0), new Vector3(.6f, Sites.Tent.CutDepth + .2f, Sites.Tent.CutLength + 1.2f), Quaternion.Euler(0, 0, -12), .5f);
+            for (int k = 0; k < 5; k++) Mound(snow, 0, new Vector3(-W / 2 - 1.2f, .15f, -2.2f + k * 1.1f), new Vector3(.9f, .35f, .8f), 10 + k);
+            Mound(snow, 0, new Vector3(-.3f, .05f, -L / 2 - .9f), new Vector3(1.4f, .3f, .7f), 20);
+            Part(t, "SnowPlatform", snow, Materials.Snow);
+
+            TentBody(t, 1.07f);
+
             // search state (26 Feb): cuts on the downslope roof, snow on the northern part, flashlight on the roof — disabled by default
             var search = new GameObject("SearchState_1959-02-26"); search.transform.SetParent(t, false);
             var cuts = new MeshBuilder(1);
@@ -197,9 +206,11 @@ namespace Height1079.EditorTools.World
         static void AddBoxCollider(GameObject go, Vector3 center, Vector3 size) { var c = go.AddComponent<BoxCollider>(); c.center = center; c.size = size; }
 
         // ------------------------------------------------------------------ labaz
-        public static GameObject Labaz(GameObject branchesModel)
+        public static GameObject Labaz(GameObject branchesModel, bool morning = false)
         {
-            var root = new GameObject("Site_Labaz_1959");
+            // morning of 1 Feb: pit dug and floored, the goods laid out beside it, cover material stacked on the other side, no marker yet
+            var root = new GameObject(morning ? "Site_Labaz_1959_Morning" : "Site_Labaz_1959");
+            Vector3 goods = morning ? new Vector3(0, 0, 2.5f) : Vector3.zero, cover = morning ? new Vector3(.2f, -.28f, -2.6f) : Vector3.zero;
             var t = root.transform;
             float Lf = Sites.Labaz.FloorLength, Wf = Sites.Labaz.FloorWidth, D = Sites.Labaz.PitDepth;
             var snow = new MeshBuilder(1);
@@ -216,28 +227,28 @@ namespace Height1079.EditorTools.World
             // food: canvas bags and boxes (≈55 kg), mandolin, spare boots
             var bags = new MeshBuilder(1);
             for (int k = 0; k < 6; k++) Mound(bags, 0, new Vector3(-.55f + k * .22f, .05f, (k % 2 == 0 ? -.22f : .2f)), new Vector3(.14f, .22f, .16f), 60 + k);
-            Part(t, "FoodBags", bags, Materials.Cloth("bag", new Color(.63f, .6f, .5f)));
+            Off(Part(t, "FoodBags", bags, Materials.Cloth("bag", new Color(.63f, .6f, .5f))), goods);
             var boxes = new MeshBuilder(1);
             boxes.Box(0, new Vector3(.45f, .12f, -.2f), new Vector3(.34f, .24f, .26f), Quaternion.Euler(0, 8, 0), 3);
             boxes.Box(0, new Vector3(.47f, .09f, .18f), new Vector3(.3f, .18f, .24f), Quaternion.Euler(0, -5, 0), 3);
-            Part(t, "Boxes", boxes, Materials.Cloth("carton", new Color(.62f, .5f, .36f)));
+            Off(Part(t, "Boxes", boxes, Materials.Cloth("carton", new Color(.62f, .5f, .36f))), goods);
             var mandolin = new MeshBuilder(1);
             Mound(mandolin, 0, new Vector3(.1f, .04f, .36f), new Vector3(.16f, .08f, .12f), 70);
             mandolin.Box(0, new Vector3(.1f, .09f, .36f + .26f), new Vector3(.045f, .02f, .34f), Quaternion.identity, 4);
-            Part(t, "Mandolin", mandolin, Materials.Get("MandolinVarnish", new Color(.45f, .22f, .1f), smoothness: .7f));
+            Off(Part(t, "Mandolin", mandolin, Materials.Get("MandolinVarnish", new Color(.45f, .22f, .1f), smoothness: .7f)), goods);
             var boots = new MeshBuilder(1);
             boots.Tube(0, new Vector3(-.2f, .02f, .38f), new Vector3(-.2f, .02f, .38f) + new Vector3(.4f, .05f, 0), .06f, .055f, 8, 3, 0, true);
             boots.Tube(0, new Vector3(-.2f, .02f, .5f), new Vector3(-.2f, .02f, .5f) + new Vector3(.4f, .05f, .02f), .06f, .055f, 8, 3, 0, true);
-            Part(t, "FeltBoots", boots, Materials.Cloth("felt", new Color(.2f, .19f, .18f)));
+            Off(Part(t, "FeltBoots", boots, Materials.Cloth("felt", new Color(.2f, .19f, .18f))), goods);
 
             // cover: firewood, boards, fir branches
             var logs = new MeshBuilder(1);
             for (int k = 0; k < 5; k++) logs.Tube(0, new Vector3(-.85f, .3f + (k % 2) * .06f, -.45f + k * .22f), new Vector3(.85f, .32f, -.42f + k * .22f), .07f, .065f, 7, 1, 0, true);
-            Part(t, "Firewood", logs, Materials.Bark);
+            Off(Part(t, "Firewood", logs, Materials.Bark), cover);
             var planks = new MeshBuilder(1);
             planks.Box(0, new Vector3(-.1f, .42f, -.15f), new Vector3(1.8f, .02f, .2f), Quaternion.Euler(0, 6, 2), .5f);
             planks.Box(0, new Vector3(.05f, .43f, .2f), new Vector3(1.7f, .02f, .18f), Quaternion.Euler(0, -4, -1), .5f);
-            Part(t, "Boards", planks, Materials.Planks);
+            Off(Part(t, "Boards", planks, Materials.Planks), cover);
             var branches = new MeshBuilder(3);
             var rnd = new System.Random(77);
             for (int k = 0; k < 9; k++)
@@ -246,13 +257,14 @@ namespace Height1079.EditorTools.World
                 var b = a + Quaternion.Euler(0, (float)rnd.NextDouble() * 360, 0) * Vector3.forward * (.8f + (float)rnd.NextDouble() * .5f);
                 FirBranch(branches, a, b, .6f);
             }
-            Part(t, "FirBranches", branches, Materials.Bark, Materials.Find("NeedlesFir"), Materials.Find("SnowOnBranches"));
+            Off(Part(t, "FirBranches", branches, Materials.Bark, Materials.Find("NeedlesFir"), Materials.Find("SnowOnBranches")), cover);
             if (branchesModel != null)
             {
                 var brush = Object.Instantiate(branchesModel, t); brush.name = "Brushwood_PolyHaven";
-                brush.transform.localPosition = new Vector3(1.6f, 0, .7f); brush.transform.localRotation = Quaternion.Euler(0, 35, 0);
+                brush.transform.localPosition = new Vector3(1.6f, 0, .7f) + cover; brush.transform.localRotation = Quaternion.Euler(0, 35, 0);
             }
 
+            if (morning) return Save(root);
             // marker: one ski stuck in the snow with a torn gaiter
             var ski = new MeshBuilder(1);
             ski.Box(0, new Vector3(-1.2f, Sites.Labaz.MarkerSkiLength / 2 - .35f, -.9f), new Vector3(.075f, Sites.Labaz.MarkerSkiLength, .022f), Quaternion.Euler(3, 0, -4), 2);
@@ -264,54 +276,168 @@ namespace Height1079.EditorTools.World
             return Save(root);
         }
 
-        // ------------------------------------------------------------------ night camp of 31 Jan
-        /// <summary>Bivouac left on the morning of 1 Feb: the tent was carried up the slope, so only its trampled pad (+X = ridge) remains,
-        /// with the snow walls dug around it and a fir-branch bedding. The fire pit is a separate prefab: "костёр на брёвнах" — a raft of green
-        /// logs laid on the snow (diary 31.01), the runtime puts the burning stack and the light on top.</summary>
-        public static void Camp31()
-        {
-            var pad = new GameObject("Site_Camp_31Jan_TentPad");
-            var t = pad.transform;
-            const float L = 4.9f, W = 2.5f, depth = .5f;
-            var walls = new MeshBuilder(1);
-            for (int k = 0; k < 14; k++)
-            {
-                float a = k / 14f * Mathf.PI * 2;
-                Mound(walls, 0, new Vector3(Mathf.Cos(a) * (L * .5f + .7f), -.05f, Mathf.Sin(a) * (W * .5f + .7f)), new Vector3(1.0f, depth, .75f), 300 + k);
-            }
-            Part(t, "SnowWalls", walls, Materials.Snow);
-            var floor = new MeshBuilder(1);
-            floor.Box(0, new Vector3(0, -.02f, 0), new Vector3(L, .04f, W), Quaternion.identity, 2);
-            Part(t, "TrampledFloor", floor, Materials.Snow);
-            var bedding = new MeshBuilder(3);
-            var rnd = new System.Random(31);
-            for (int k = 0; k < 16; k++)
-            {
-                var a = new Vector3(-L * .45f + (float)rnd.NextDouble() * L * .9f, .03f, -W * .4f + (float)rnd.NextDouble() * W * .8f);
-                var b = a + Quaternion.Euler(0, 70 + (float)rnd.NextDouble() * 40, 0) * Vector3.forward * (.7f + (float)rnd.NextDouble() * .4f);
-                FirBranch(bedding, a, b, .55f);
-            }
-            Part(t, "FirBedding", bedding, Materials.Bark, Materials.Find("NeedlesFir"), Materials.Find("SnowOnBranches"));
-            // stakes left from the guy lines, and two short cut spruce poles at the ends of the ridge
-            var stakes = new MeshBuilder(1);
-            foreach (var sx in new[] { -1, 1 })
-            {
-                stakes.Tube(0, new Vector3(sx * (L * .5f + .25f), -.2f, 0), new Vector3(sx * (L * .5f + .3f), 1.1f, .03f), .035f, .028f, 6, 2, 0, true);
-                foreach (var sz in new[] { -1, 1 })
-                    stakes.Tube(0, new Vector3(sx * L * .38f, -.15f, sz * (W * .5f + .9f)), new Vector3(sx * L * .38f, .35f, sz * (W * .5f + .85f)), .025f, .02f, 5, 1, 0, true);
-            }
-            Part(t, "Stakes", stakes, Materials.Bark);
-            Save(pad);
+        // ------------------------------------------------------------------ night camp of 31 Jan, morning of 1 Feb
+        static GameObject Off(GameObject go, Vector3 offset) { go.transform.localPosition += offset; return go; }
 
+        /// <summary>Canvas rucksack of the 1950s: soft sack, top flap, two leather shoulder straps, two side pockets. Local +Z = back (straps).</summary>
+        static void Rucksack(MeshBuilder sack, MeshBuilder leather, Vector3 at, float yaw, float size, int seed)
+        {
+            var q = Quaternion.Euler(0, yaw, 0);
+            Mound(sack, 0, at + Vector3.up * .02f, new Vector3(.19f, .5f, .14f) * size, seed);
+            Mound(sack, 0, at + q * new Vector3(0, .44f, .01f) * size, new Vector3(.2f, .09f, .15f) * size, seed + 1); // flap
+            foreach (int side in new[] { -1, 1 })
+            {
+                Mound(sack, 0, at + q * new Vector3(side * .19f, .12f, 0) * size, new Vector3(.06f, .2f, .09f) * size, seed + 2 + side);
+                Vector3 top = at + q * new Vector3(side * .07f, .43f, .14f) * size, bottom = at + q * new Vector3(side * .12f, .08f, .15f) * size;
+                leather.Tube(0, top, Vector3.Lerp(top, bottom, .5f) + q * new Vector3(0, 0, .07f) * size, .012f, .012f, 4, 1);
+                leather.Tube(0, Vector3.Lerp(top, bottom, .5f) + q * new Vector3(0, 0, .07f) * size, bottom, .012f, .012f, 4, 1);
+            }
+            leather.Box(0, at + q * new Vector3(0, .36f, -.14f) * size, new Vector3(.03f, .12f, .01f) * size, q, 1); // flap strap
+        }
+
+        /// <summary>Tin bucket with a wire bail, filled with snow being melted. Open top at +Y.</summary>
+        static void Bucket(MeshBuilder tin, MeshBuilder snow, Vector3 bottom, float height, float rTop, float rBottom)
+        {
+            tin.Tube(0, bottom + Vector3.up * height, bottom, rTop, rBottom, 14, 1, 0, true);
+            tin.Tube(0, bottom + Vector3.up * .01f, bottom + Vector3.up * (height - .005f), rBottom - .004f, rTop - .004f, 14, 1); // inner wall, reversed
+            var c = bottom + Vector3.up * height * .8f; float r = Mathf.Lerp(rBottom, rTop, .8f) - .004f;
+            for (int i = 0; i < 12; i++)
+            {
+                float a0 = i / 12f * Mathf.PI * 2, a1 = (i + 1) / 12f * Mathf.PI * 2;
+                int k0 = snow.Vert(c, Vector3.up, Vector2.zero), k1 = snow.Vert(c + new Vector3(Mathf.Cos(a1), 0, Mathf.Sin(a1)) * r, Vector3.up, Vector2.zero), k2 = snow.Vert(c + new Vector3(Mathf.Cos(a0), 0, Mathf.Sin(a0)) * r, Vector3.up, Vector2.zero);
+                snow.Tri(0, k0, k1, k2);
+            }
+            Vector3 prev = bottom + new Vector3(-rTop, height, 0);
+            for (int i = 1; i <= 8; i++)
+            {
+                float a = i / 8f * Mathf.PI;
+                var p = bottom + new Vector3(-Mathf.Cos(a) * rTop, height + Mathf.Sin(a) * rTop * 1.1f, 0);
+                tin.Tube(0, prev, p, .003f, .003f, 4, 1); prev = p;
+            }
+        }
+
+        /// <summary>Valenok: shaft plus foot, as a tube pair; <paramref name="down"/> = shaft direction.</summary>
+        static void FeltBoot(MeshBuilder felt, Vector3 heel, Vector3 down, Vector3 toe)
+        {
+            felt.Tube(0, heel, heel + down * .42f, .055f, .06f, 8, 1, 0, true);
+            felt.Tube(0, heel, heel + toe * .24f, .05f, .045f, 8, 1, 0, true);
+        }
+
+        /// <summary>The group's tent on its forest pad, morning of 1 Feb. Local: +Z = entrance (toward the fire), -X = uphill.
+        /// Same tent and pitching as on the slope (canvas, 8 pairs of skis under the floor, ski-pole stands, middle stand of one pair of skis);
+        /// the stove is hung inside and its pipe leaves through the rear sleeve with the ring of raw bars. Outside: nine rucksacks being packed on
+        /// fir branches, the eight free poles and the spare pair of skis in the snow.</summary>
+        public static void Camp31Tent()
+        {
+            float L = Sites.Tent.Length, W = Sites.Tent.Width, Hr = Sites.Tent.RidgeHeight;
+            var root = new GameObject("Site_Camp_31Jan_Tent");
+            var t = root.transform;
+
+            var pad = new MeshBuilder(1);
+            pad.Box(0, new Vector3(0, -.4f, .5f), new Vector3(W + 1.6f, .82f, L + 3.2f), Quaternion.identity, .5f);
+            for (int k = 0; k < 18; k++)
+            {
+                float a = k / 18f * Mathf.PI * 2;
+                if (Mathf.Sin(a) > .8f) continue; // opening toward the fire
+                Mound(pad, 0, new Vector3(Mathf.Cos(a) * (W / 2 + 1.9f), -.1f, .5f + Mathf.Sin(a) * (L / 2 + 2.3f)), new Vector3(1.0f, Sites.Camp31.PadDepth, .9f), 300 + k);
+            }
+            Part(t, "TrampledPad", pad, Materials.Snow);
+
+            TentBody(t, 1.25f); // ski tips show at both ends
+
+            // stove pipe: out of the rear sleeve, horizontal, then a short rise; ring of raw bars round the sleeve; two cut sticks hold the pipe
+            var pipe = new MeshBuilder(1);
+            Vector3 p0 = new Vector3(0, .7f, -L / 2 + .3f), p1 = new Vector3(0, .72f, -L / 2 - 1.05f), p2 = new Vector3(0, 1.32f, -L / 2 - 1.15f);
+            pipe.Tube(0, p0, p1, .05f, .05f, 10, 1); pipe.Tube(0, p1 + Vector3.back * .02f, p2, .05f, .048f, 10, 1);
+            for (int k = 1; k < 3; k++) pipe.Tube(0, Vector3.Lerp(p0, p1, k / 3f) - Vector3.forward * .02f, Vector3.Lerp(p0, p1, k / 3f) + Vector3.forward * .02f, .056f, .056f, 10, 1, 0, true); // joints
+            Part(t, "StovePipe", pipe, Materials.Metal);
+            var ring = new MeshBuilder(1);
+            for (int k = 0; k < 10; k++)
+            {
+                float a = k / 10f * Mathf.PI * 2;
+                var c = new Vector3(Mathf.Cos(a) * .15f, .7f + Mathf.Sin(a) * .15f, -L / 2 - .22f);
+                var tan = new Vector3(-Mathf.Sin(a), Mathf.Cos(a), 0) * Sites.Camp31.RingBarLength * .5f;
+                ring.Tube(0, c - tan * .6f, c + tan * .6f, .018f, .018f, 5, 1, 0, true);
+            }
+            var sticks = new MeshBuilder(1);
+            sticks.Tube(0, new Vector3(-.3f, -.2f, -L / 2 - .9f), new Vector3(.12f, .82f, -L / 2 - .92f), .02f, .015f, 5, 1);
+            sticks.Tube(0, new Vector3(.3f, -.2f, -L / 2 - .9f), new Vector3(-.12f, .82f, -L / 2 - .92f), .02f, .015f, 5, 1);
+            Part(t, "PipeRingBars", ring, Materials.Wood);
+            Part(t, "PipeSticks", sticks, Materials.Bark);
+            var smoke = new GameObject("StovePipeSmoke"); smoke.transform.SetParent(t, false); smoke.transform.localPosition = p2 + Vector3.up * .05f;
+
+            // fir branches in front of the entrance, rucksacks on them
+            var mat = new MeshBuilder(3);
+            var rnd = new System.Random(311);
+            for (int k = 0; k < 22; k++)
+            {
+                var a = new Vector3(-1.2f + (float)rnd.NextDouble() * 2.4f, .02f, L / 2 + .5f + (float)rnd.NextDouble() * 1.6f);
+                var b = a + Quaternion.Euler(0, (float)rnd.NextDouble() * 360, 0) * Vector3.forward * (.7f + (float)rnd.NextDouble() * .4f);
+                FirBranch(mat, a, b, .55f);
+            }
+            Part(t, "FirMat", mat, Materials.Bark, Materials.Find("NeedlesFir"), Materials.Find("SnowOnBranches"));
+
+            var khaki = new MeshBuilder(1); var grey = new MeshBuilder(1); var brown = new MeshBuilder(1); var leather = new MeshBuilder(1);
+            var sacks = new[] { khaki, grey, khaki, brown, grey, khaki, brown, khaki, grey };
+            for (int i = 0; i < Sites.Camp31.Rucksacks; i++)
+            {
+                bool back = i >= 5;
+                float x = back ? -.75f + (i - 5) * .5f : -1.0f + i * .5f, z = L / 2 + (back ? 1.95f : 1.2f);
+                Rucksack(sacks[i], leather, new Vector3(x, .03f, z), 180 + (i * 37 % 30) - 15, .95f + (i % 3) * .05f, 400 + i * 7);
+            }
+            // Slobodin's rucksack as on the 31 Jan photo: felt boots and an axe tied on top (the first in the front row)
+            var felt = new MeshBuilder(1);
+            Vector3 top0 = new Vector3(-1.0f, .03f + .52f, L / 2 + 1.2f);
+            FeltBoot(felt, top0 + new Vector3(-.12f, .02f, .02f), Vector3.right, Vector3.back);
+            FeltBoot(felt, top0 + new Vector3(-.12f, .1f, -.03f), Vector3.right, Vector3.back);
+            var axe = new MeshBuilder(1); var axeHead = new MeshBuilder(1);
+            axe.Tube(0, top0 + new Vector3(-.05f, -.25f, .2f), top0 + new Vector3(.02f, .28f, .19f), .016f, .016f, 6, 1);
+            axeHead.Box(0, top0 + new Vector3(.02f, .28f, .19f), new Vector3(.03f, .09f, .16f), Quaternion.Euler(0, 90, 0), 1);
+            Part(t, "RucksacksKhaki", khaki, Materials.Cloth("ruck_khaki", new Color(.44f, .43f, .3f)));
+            Part(t, "RucksacksGrey", grey, Materials.Cloth("ruck_grey", new Color(.42f, .44f, .42f)));
+            Part(t, "RucksacksBrown", brown, Materials.Cloth("ruck_brown", new Color(.45f, .36f, .26f)));
+            Part(t, "RucksackStraps", leather, Materials.Cloth("leather", new Color(.27f, .17f, .1f)));
+            Part(t, "SlobodinFeltBoots", felt, Materials.Cloth("felt", new Color(.2f, .19f, .18f)));
+            Part(t, "SlobodinAxeHandle", axe, Materials.Wood);
+            Part(t, "SlobodinAxeHead", axeHead, Materials.Metal);
+
+            // eight free ski poles in pairs and the spare pair of skis, stuck in the snow left of the entrance
+            var wood = new MeshBuilder(1); var baskets = new MeshBuilder(1);
+            for (int k = 0; k < Sites.Camp31.PolesLeftFree; k++)
+            {
+                var foot = new Vector3(-W / 2 - .7f - (k % 2) * .08f, -.35f, L / 2 - .4f + (k / 2) * .45f);
+                SkiPole(wood, baskets, foot, foot + new Vector3(-.05f + (k % 2) * .1f, 1.45f, .03f));
+            }
+            Part(t, "FreePoles", wood, Materials.Ski);
+            Part(t, "FreePoleBaskets", baskets, Materials.Metal);
+            var spare = new MeshBuilder(1);
+            for (int k = 0; k < 2; k++)
+            {
+                var c = new Vector3(-W / 2 - 1.25f, .6f, L / 2 + 1.4f + k * .1f);
+                spare.Box(0, c, new Vector3(.075f, 2.0f, .022f), Quaternion.Euler(3 - k * 5, 0, -3 + k * 4), 2);
+                spare.Box(0, c + new Vector3(0, 1.02f, -.03f), new Vector3(.07f, .12f, .02f), Quaternion.Euler(-25, 0, 0), 2);
+            }
+            Part(t, "SpareSkis", spare, Materials.Ski);
+
+            AddBoxCollider(root, new Vector3(0, Hr / 2, 0), new Vector3(W, Hr, L));
+            Save(root);
+        }
+
+        /// <summary>Fire and kitchen: "костёр на брёвнах" — a raft of green logs on the snow (diary 31.01); two buckets on a crossbar over it,
+        /// two pots, felt boots and mittens drying on sticks (the diary of 30.01 records burnt mittens and a quilted jacket), firewood from
+        /// "frail damp firs", the saw and two of the three axes. The runtime adds the burning stack, the light and the smoke.</summary>
+        public static void Camp31Fire()
+        {
             var fire = new GameObject("Site_Camp_31Jan_Fire");
             var f = fire.transform;
             var ring = new MeshBuilder(1);
-            for (int k = 0; k < 9; k++)
+            for (int k = 0; k < 11; k++)
             {
-                float a = k / 9f * Mathf.PI * 2;
-                Mound(ring, 0, new Vector3(Mathf.Cos(a) * 1.9f, -.1f, Mathf.Sin(a) * 1.9f), new Vector3(.8f, .3f, .7f), 330 + k);
+                float a = k / 11f * Mathf.PI * 2;
+                Mound(ring, 0, new Vector3(Mathf.Cos(a) * 2.6f, -.15f, Mathf.Sin(a) * 2.6f), new Vector3(1.0f, .35f, .8f), 330 + k);
             }
-            Part(f, "MeltedRing", ring, Materials.Snow);
+            ring.Box(0, new Vector3(0, -.3f, 0), new Vector3(4.6f, .6f, 4.6f), Quaternion.identity, .5f);
+            Part(f, "TrampledRing", ring, Materials.Snow);
             var raft = new MeshBuilder(1);
             for (int k = 0; k < 5; k++)
                 raft.Tube(0, new Vector3(-.75f, .09f, -.4f + k * .2f), new Vector3(.75f, .09f + (k % 2) * .01f, -.38f + k * .2f), .095f, .085f, 8, 1, 0, true);
@@ -319,18 +445,72 @@ namespace Height1079.EditorTools.World
             var ash = new MeshBuilder(1);
             Mound(ash, 0, new Vector3(0, .15f, 0), new Vector3(.45f, .06f, .38f), 350);
             Part(f, "Ash", ash, Materials.Charcoal);
-            var pile = new MeshBuilder(2);
-            for (int k = 0; k < 7; k++)
+
+            // crossbar on two forked stakes, buckets on wire hooks, pots on the snow
+            var stakes = new MeshBuilder(1);
+            foreach (int sx in new[] { -1, 1 })
             {
-                var a = new Vector3(1.6f, .08f + (k / 3) * .14f, -1.0f + (k % 3) * .16f);
-                pile.Tube(0, a, a + new Vector3(.2f, .01f, 1.1f), .06f, .055f, 7, 1, 0, true);
-                pile.Box(1, a + new Vector3(.2f, 0, 1.12f), new Vector3(.11f, .11f, .01f), Quaternion.Euler(0, 10, 0), .3f);
+                var foot = new Vector3(sx * 1.1f, -.3f, 0);
+                stakes.Tube(0, foot, new Vector3(sx * 1.08f, 1.5f, 0), .03f, .025f, 6, 1);
+                stakes.Tube(0, new Vector3(sx * 1.08f, 1.35f, 0), new Vector3(sx * 1.2f, 1.62f, .02f), .018f, .014f, 5, 1); // fork
             }
-            Part(f, "Firewood", pile, Materials.Bark, Materials.Wood);
-            var stump = new MeshBuilder(2);
-            stump.Tube(0, new Vector3(-1.7f, -.3f, 1.2f), new Vector3(-1.7f, .55f, 1.2f), .13f, .12f, 9, 1, 0, false);
-            stump.Cone(1, new Vector3(-1.7f, .55f, 1.2f), .12f, .03f, 9);
-            Part(f, "CutSpruceStump", stump, Materials.Bark, Materials.Wood);
+            stakes.Tube(0, new Vector3(-1.35f, 1.5f, 0), new Vector3(1.35f, 1.52f, 0), .028f, .024f, 6, 1);
+            Part(f, "Crossbar", stakes, Materials.Bark);
+            var tin = new MeshBuilder(1); var melt = new MeshBuilder(1);
+            foreach (int sx in new[] { -1, 1 })
+            {
+                var b = new Vector3(sx * .32f, .88f, 0);
+                Bucket(tin, melt, b, .26f, .15f, .12f);
+                tin.Tube(0, b + new Vector3(0, .26f + .16f, 0), new Vector3(sx * .32f, 1.5f, 0), .003f, .003f, 4, 1);
+            }
+            Bucket(tin, melt, new Vector3(.95f, .02f, 1.35f), .16f, .12f, .11f);
+            Bucket(tin, melt, new Vector3(1.25f, .02f, 1.2f), .14f, .1f, .095f);
+            tin.Tube(0, new Vector3(1.25f, .17f, 1.2f), new Vector3(1.25f, .165f, 1.2f), .11f, .11f, 14, 1, 0, true); // lid
+            Part(f, "BucketsAndPots", tin, Materials.Metal);
+            Part(f, "SnowInBuckets", melt, Materials.Snow);
+
+            // drying: felt boots upside down on sticks, mittens
+            var sticks = new MeshBuilder(1); var felt = new MeshBuilder(1); var wool = new MeshBuilder(1);
+            for (int k = 0; k < 4; k++)
+            {
+                float a = (-40 + k * 22) * Mathf.Deg2Rad;
+                var foot = new Vector3(Mathf.Sin(a) * 1.55f, -.3f, -Mathf.Cos(a) * 1.55f);
+                var top = new Vector3(Mathf.Sin(a) * 1.3f, 1.05f, -Mathf.Cos(a) * 1.3f);
+                sticks.Tube(0, foot, top, .015f, .012f, 5, 1);
+                if (k < 3) FeltBoot(felt, top + Vector3.up * .04f, (foot - top).normalized, new Vector3(-Mathf.Sin(a), 0, Mathf.Cos(a)));
+                else wool.Box(0, top + new Vector3(0, -.05f, 0), new Vector3(.11f, .2f, .04f), Quaternion.Euler(0, -a * Mathf.Rad2Deg, 10), 1);
+            }
+            wool.Box(0, new Vector3(-.9f, .95f, .6f), new Vector3(.1f, .18f, .04f), Quaternion.Euler(0, 30, -8), 1);
+            sticks.Tube(0, new Vector3(-1.05f, -.3f, .75f), new Vector3(-.9f, 1.02f, .6f), .014f, .011f, 5, 1);
+            Part(f, "DryingSticks", sticks, Materials.Bark);
+            Part(f, "FeltBootsDrying", felt, Materials.Cloth("felt_grey", new Color(.36f, .34f, .31f)));
+            Part(f, "Mittens", wool, Materials.Cloth("mitten", new Color(.5f, .18f, .14f)));
+
+            // seats, firewood, chopping block with the large axe, the saw on a half-cut log, the small axe in its leather case
+            var logs = new MeshBuilder(2);
+            logs.Tube(0, new Vector3(-1.9f, .12f, -1.0f), new Vector3(-1.5f, .13f, 1.0f), .14f, .12f, 9, 1, 0, true);
+            logs.Tube(0, new Vector3(-.9f, .12f, -1.95f), new Vector3(.9f, .13f, -1.85f), .13f, .12f, 9, 1, 0, true);
+            for (int k = 0; k < 9; k++)
+            {
+                var a = new Vector3(2.0f, .07f + (k / 3) * .13f, -1.1f + (k % 3) * .15f);
+                logs.Tube(0, a, a + new Vector3(.15f, .01f, .9f), .055f, .05f, 7, 1, 0, true);
+                logs.Box(1, a + new Vector3(.15f, 0, .92f), new Vector3(.1f, .1f, .01f), Quaternion.Euler(0, 10, 0), .3f);
+            }
+            logs.Tube(0, new Vector3(1.7f, -.2f, 1.9f), new Vector3(1.7f, .32f, 1.9f), .19f, .18f, 10, 1, 0, false);
+            logs.Cone(1, new Vector3(1.7f, .32f, 1.9f), .18f, .02f, 10);
+            logs.Tube(0, new Vector3(-.4f, .1f, 2.2f), new Vector3(1.1f, .12f, 2.4f), .1f, .09f, 8, 1, 0, true); // log being sawn
+            Part(f, "Firewood", logs, Materials.Bark, Materials.Wood);
+            var steel = new MeshBuilder(1); var handles = new MeshBuilder(1); var caseM = new MeshBuilder(1);
+            steel.Box(0, new Vector3(.35f, .26f, 2.28f), new Vector3(1.1f, .1f, .004f), Quaternion.Euler(0, -8, 80), 1); // crosscut saw blade on the log
+            handles.Tube(0, new Vector3(-.22f, .2f, 2.2f), new Vector3(-.24f, .42f, 2.2f), .018f, .018f, 6, 1, 0, true);
+            handles.Tube(0, new Vector3(.93f, .2f, 2.36f), new Vector3(.95f, .42f, 2.36f), .018f, .018f, 6, 1, 0, true);
+            handles.Tube(0, new Vector3(1.6f, .33f, 1.85f), new Vector3(1.35f, .75f, 1.72f), .018f, .016f, 6, 1); // large axe in the block
+            steel.Box(0, new Vector3(1.66f, .33f, 1.88f), new Vector3(.03f, .1f, .17f), Quaternion.Euler(0, 62, 60), 1);
+            caseM.Box(0, new Vector3(2.1f, .5f, -.6f), new Vector3(.2f, .05f, .12f), Quaternion.Euler(0, 20, 0), 1);
+            handles.Tube(0, new Vector3(2.1f, .5f, -.6f), new Vector3(2.35f, .52f, -.2f), .014f, .013f, 6, 1);
+            Part(f, "SawAndAxeSteel", steel, Materials.Metal);
+            Part(f, "Handles", handles, Materials.Wood);
+            Part(f, "SmallAxeCase", caseM, Materials.Cloth("leather", new Color(.27f, .17f, .1f)));
             Save(fire);
         }
 
