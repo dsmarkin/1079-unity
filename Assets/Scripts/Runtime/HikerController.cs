@@ -280,6 +280,7 @@ namespace Height1079.Runtime
         void UpdateCamera()
         {
             if (WorldDressing.UpdateView(cam, Bootstrap.Dem)) return;
+            if (MenkView.Watch(cam)) return;
             var rot = Quaternion.Euler(pitch, yaw, 0);
             var visual = transform.Find("Visual");
             if (visual != null)

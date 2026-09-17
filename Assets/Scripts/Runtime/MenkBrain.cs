@@ -53,6 +53,10 @@ namespace Height1079.Runtime
             sleepFor = 160f;
         }
 
+        /// <summary>Test hook (F5 on the host): wake up now, whatever the clock says.</summary>
+        public void WakeNow() { if (Mode == State.Tree) { sleepFor = 0f; stateTime = 1f; forced = true; } }
+        bool forced;
+
         float R(float a, float b) => a + (float)rnd.NextDouble() * (b - a);
 
         void Go(State s)
@@ -80,9 +84,10 @@ namespace Height1079.Runtime
             {
                 case State.Tree:
                     // someone walks right up to it, or keeps a light on it, or it has waited long enough
-                    if (nearest.HasValue && elapsed > 60f && (nearestD < 14f || (litTime > 2.5f && nearestD < 22f) || (stateTime > sleepFor && nearestD < 90f)))
+                    if (nearest.HasValue && (elapsed > 60f || forced) && (nearestD < 14f || (litTime > 2.5f && nearestD < 22f) || (stateTime > sleepFor && nearestD < 90f)))
                     {
                         Go(State.Waking);
+                        forced = false;
                         target = nearest.Value.Token;
                         Say(visitedTent ? "В темноте хрустнуло, будто дерево шагнуло." : "Одно из сухих деревьев у лагеря шевельнулось.");
                     }

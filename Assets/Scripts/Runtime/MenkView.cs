@@ -10,6 +10,21 @@ namespace Height1079.Runtime
     {
         /// <summary>0..1: how much the ground shakes at the camera (read by the first-person camera).</summary>
         public static float Tremor { get; private set; }
+        /// <summary>F4: the camera watches the Menk from a few metres in front of it (for checking the creature).</summary>
+        public static bool Watching { get; private set; }
+        static MenkView instance;
+
+        /// <summary>Called by the player camera; returns true when it placed the camera.</summary>
+        public static bool Watch(Camera cam)
+        {
+            if (!Watching || instance == null || instance.model == null || !instance.model.gameObject.activeSelf) return false;
+            var m = instance.model;
+            var eye = m.position + m.forward * 9f + m.right * 3f + Vector3.up * 2.2f;
+            eye.y = Mathf.Max(eye.y, TerrainBuilder.Height(Bootstrap.Dem, eye.x, eye.z) + 1.6f);
+            cam.transform.position = Vector3.Lerp(cam.transform.position, eye, 1f - Mathf.Exp(-4f * Time.deltaTime));
+            cam.transform.LookAt(m.position + Vector3.up * 2.4f);
+            return true;
+        }
 
         Transform model;
         readonly Dictionary<string, Transform> bones = new Dictionary<string, Transform>();
@@ -35,6 +50,7 @@ namespace Height1079.Runtime
 
         void Awake()
         {
+            instance = this;
             var prefab = Resources.Load<GameObject>("World/Prefabs/Creatures/Menk");
             if (prefab == null) { Debug.LogWarning("1079: Menk prefab missing — menu 1079 → Rebuild world"); enabled = false; return; }
             model = Instantiate(prefab, transform).transform;
@@ -59,6 +75,7 @@ namespace Height1079.Runtime
         void Update()
         {
             if (model == null) return;
+            if (Controls.MenkWatch) Watching = !Watching;
             var s = NightSession.Instance;
             if (s != session)
             {

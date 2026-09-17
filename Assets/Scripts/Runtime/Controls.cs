@@ -63,6 +63,17 @@ namespace Height1079.Runtime
             || Down(Key.F2)
 #endif
             ;
+        /// <summary>F4: watch the Menk (camera beside it). F5 (host): wake it now.</summary>
+        public static bool MenkWatch => LegacyDown(KeyCode.F4)
+#if ENABLE_INPUT_SYSTEM
+            || Down(Key.F4)
+#endif
+            ;
+        public static bool MenkWake => LegacyDown(KeyCode.F5)
+#if ENABLE_INPUT_SYSTEM
+            || Down(Key.F5)
+#endif
+            ;
         public static bool SiteView => LegacyDown(KeyCode.F3)
 #if ENABLE_INPUT_SYSTEM
             || Down(Key.F3)

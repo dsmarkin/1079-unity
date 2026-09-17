@@ -130,6 +130,7 @@ namespace Height1079.Runtime
         void Update()
         {
             if (!IsServer || run == null) return;
+            if (Controls.MenkWake) menk.WakeNow();
             TickMenk();
             double now = Time.timeAsDouble;
             if (now - lastTick < TickSeconds) return;
