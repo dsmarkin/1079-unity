@@ -19,7 +19,7 @@ namespace Height1079.EditorTools.World
         public const float BaseHeight = Elbrus.HeightMin - 6f;
         public static float Range => Elbrus.HeightMax - BaseHeight;
         const int Alpha = 1025;
-        const int LayerCount = 6;
+        const int LayerCount = 4;
 
         public static bool SourcePresent => File.Exists($"{Source}/height_2049.r16");
 
@@ -57,10 +57,13 @@ namespace Height1079.EditorTools.World
             data.SetHeights(0, 0, h);
 
             EditorUtility.DisplayProgressBar("1079 Эльбрус", "Слои и текстуры склона", .7f);
-            data.terrainLayers = Layers();
+            var layers = Layers();
+            var splat = Splat(dem, rock, ash);
+            data.terrainLayers = layers;
             data.alphamapResolution = Alpha;
-            data.SetAlphamaps(0, 0, Splat(dem, rock, ash));
+            data.SetAlphamaps(0, 0, splat);
             data.baseMapResolution = 1024;
+            Report(data, "после SetAlphamaps");
 
             EditorUtility.DisplayProgressBar("1079 Эльбрус", "Сосновый лес Баксана и валуны", .85f);
             Scatter(data, dem, rock);
@@ -69,24 +72,51 @@ namespace Height1079.EditorTools.World
             EditorUtility.DisplayProgressBar("1079 Эльбрус", "Карта района", .92f);
             ElbrusMapFactory.Build(dem);
 
+            Report(data, "перед сохранением");
             AssetDatabase.DeleteAsset(TerrainAsset);
             AssetDatabase.CreateAsset(data, TerrainAsset);
+
+            // Belt and braces: the splat has been lost on the way into the asset before, and the slope then rendered as
+            // unbroken snow. Write it once more into the saved asset and check what actually got stored.
+            var saved = AssetDatabase.LoadAssetAtPath<TerrainData>(TerrainAsset);
+            if (saved != null)
+            {
+                saved.terrainLayers = layers;
+                saved.alphamapResolution = Alpha;
+                saved.SetAlphamaps(0, 0, splat);
+                EditorUtility.SetDirty(saved);
+                AssetDatabase.SaveAssets();
+                Report(saved, "в сохранённом ассете");
+            }
             EditorUtility.ClearProgressBar();
             Debug.Log($"1079 Эльбрус собран за {clock.Elapsed.TotalSeconds:0.0} с: {Elbrus.Size:0} м, {Elbrus.Ropeways.Length} канатных дорог");
         }
 
-        /// <summary>0 firn, 1 wind crust and bare ice, 2 lava rock, 3 volcanic ash, 4 alpine turf, 5 moraine scree.
-        /// The lower slope is what a visitor sees in July: below the Garabashi tongue there is no snow at all, only
+        /// <summary>What the splat map says is under the visitor's feet at Azau (2 350 m): there must be no snow there.</summary>
+        static void Report(TerrainData data, string when)
+        {
+            var (x, z) = Elbrus.Start;
+            int n = data.alphamapResolution;
+            int c = Mathf.Clamp(Mathf.RoundToInt((x + Elbrus.Half) / Elbrus.Size * (n - 1)), 0, n - 1);
+            int r = Mathf.Clamp(Mathf.RoundToInt((z + Elbrus.Half) / Elbrus.Size * (n - 1)), 0, n - 1);
+            var a = data.GetAlphamaps(c, r, 1, 1);
+            var sb = new System.Text.StringBuilder();
+            for (int k = 0; k < data.alphamapLayers; k++) sb.Append($" {k}={a[0, 0, k]:0.00}");
+            Debug.Log($"1079 Эльбрус: грунт у Азау {when}, слоёв {data.alphamapLayers}:{sb}");
+        }
+
+        /// <summary>0 firn and wind crust, 1 lava rock, 2 alpine turf, 3 moraine scree and ash. Four and no more: the
+        /// built-in terrain shader paints four layers in one pass, and the fifth needs an add-pass shader that does not
+        /// survive into a player build — the ground then renders blank white, which is exactly how it looked.
+        /// The lower slope is what a visitor sees in July: below the Gara-Bashi tongue there is no snow at all, only
         /// grey moraine, lava ribs and green meadow down towards Azau.</summary>
         static TerrainLayer[] Layers() => new[]
         {
             // small tiles and a strong normal, or the slope reads as white paper at arm's length
-            Layer("ElbFirn", "snow_02", 3.5f, .25f, new Color(.94f, .95f, .97f), 1.4f),
-            Layer("ElbIce", "snow_03", 5.5f, .5f, new Color(.8f, .88f, .98f), 1.2f),
+            Layer("ElbFirn", "snow_02", 3.5f, .3f, new Color(.93f, .95f, .98f), 1.4f),
             Layer("ElbLava", "rock_face_03", 4f, .1f, new Color(.5f, .48f, .48f), 1.1f),
-            Layer("ElbAsh", "burned_ground_01", 5f, .06f, new Color(.62f, .58f, .54f), 1f),
             Made("ElbTurf", 4f, .06f, TextureFactory.Ground("elb_turf", new Color(.24f, .3f, .15f), new Color(.46f, .5f, .27f), 6f, 91, .18f)),
-            Made("ElbScree", 5f, .05f, TextureFactory.Ground("elb_scree", new Color(.31f, .3f, .29f), new Color(.58f, .56f, .54f), 8f, 47, .3f)),
+            Made("ElbScree", 5f, .05f, TextureFactory.Ground("elb_scree", new Color(.28f, .27f, .26f), new Color(.5f, .48f, .46f), 8f, 47, .26f)),
         };
 
         /// <summary>A layer whose albedo we generate ourselves: the Poly Haven library here has no grass or scree scan.</summary>
@@ -120,8 +150,7 @@ namespace Height1079.EditorTools.World
 
         /// <summary>Where the southern slope shows what, on a July morning. Snow begins where the glaciers do: the tongue of
         /// Gara-Bashi comes down to about 3 300 m, below it are only shaded patches, and by 3 000 m there is none at all —
-        /// grey moraine and lava at Krugozor and Mir, alpine meadow and pine forest down at Azau. Above the firn line the
-        /// wind lays bare ice on the ridges and the sastrugi bands, and the lava ribs (Pastukhov rocks) stay black.</summary>
+        /// grey moraine and lava at Krugozor and Mir, alpine meadow and pine forest down at Azau.</summary>
         static float[,,] Splat(HeightField dem, byte[] rock, byte[] ash)
         {
             int n = Alpha;
@@ -137,33 +166,26 @@ namespace Height1079.EditorTools.World
                     float sh = ash[r * n + c] / 255f;
                     float noise = Mathf.PerlinNoise(x * .0035f + 11, z * .0035f + 5);
                     float patch = Mathf.PerlinNoise(x * .014f + 21, z * .014f + 33);
-                    // sastrugi: wind-carved bands of hard crust across the firn, tens of metres wide
-                    float sastrugi = Mathf.PerlinNoise(x * .045f + 3.1f, z * .012f + 7.7f);
                     // firn line in summer: patches from 3 250 m, continuous snow above 3 700 m, nothing below 3 050 m
                     float snowy = Mathf.Clamp01(Mathf.InverseLerp(3250f, 3700f, elev) + (patch - .55f) * .6f);
                     snowy *= Mathf.InverseLerp(3050f, 3260f, elev);
-                    // north-facing hollows hold their snow longer, south-facing ribs lose it first
+                    // the steep sunny ribs lose their snow first; shaded hollows keep it
                     snowy *= Mathf.Lerp(1f, .55f, Mathf.InverseLerp(26f, 42f, slope));
                     float bare = 1f - snowy;
 
                     float lava = rk * bare * Mathf.Lerp(.55f, 1f, Mathf.InverseLerp(10f, 30f, slope));
-                    float ashW = sh * bare * Mathf.InverseLerp(3300f, 3750f, elev) * (1f - lava);
                     // meadow: the Azau bowl and the grassy shelves of the Baksan valley, gone above ~3 000 m
-                    float grass = (1f - Mathf.InverseLerp(2600f, 3020f, elev)) * (1f - Mathf.InverseLerp(26f, 40f, slope)) * (.55f + .75f * noise);
-                    float turf = Mathf.Clamp01(grass) * bare * (1f - lava) * (1f - ashW);
-                    float scree = Mathf.Max(0f, bare - lava - ashW - turf);
+                    // the meadow follows the forest: green up to the tree line at about 2 700 m, thinning out to bare
+                    // moraine by 3 150 m — the Azau bowl and the shelves above it are grass, not sand
+                    float grass = (1f - Mathf.InverseLerp(2780f, 3150f, elev)) * (1f - Mathf.InverseLerp(28f, 42f, slope)) * (.62f + .7f * noise);
+                    float turf = Mathf.Clamp01(grass) * bare * (1f - lava);
+                    // everything else that is bare: moraine gravel, and the volcanic ash fields higher up
+                    float scree = Mathf.Max(0f, bare - lava - turf);
+                    scree = Mathf.Max(scree, sh * bare * (1f - lava - turf));
 
-                    // wind crust and bare ice: swept ridges and everything steep above the shelf
-                    float ice = Mathf.Clamp01(Mathf.InverseLerp(14f, 30f, slope) * snowy * (.4f + .8f * noise));
-                    ice = Mathf.Max(ice, snowy * Mathf.InverseLerp(.56f, .78f, sastrugi) * .75f);
-                    ice = Mathf.Max(ice, Mathf.InverseLerp(4850f, 5250f, elev) * Mathf.InverseLerp(12f, 24f, slope));
-                    ice = Mathf.Min(ice, snowy);
-                    float firn = Mathf.Max(0f, snowy - ice);
-
-                    float sum = firn + ice + lava + ashW + turf + scree;
+                    float sum = snowy + lava + turf + scree;
                     if (sum < 1e-4f) { scree = 1; sum = 1; }
-                    a[r, c, 0] = firn / sum; a[r, c, 1] = ice / sum; a[r, c, 2] = lava / sum;
-                    a[r, c, 3] = ashW / sum; a[r, c, 4] = turf / sum; a[r, c, 5] = scree / sum;
+                    a[r, c, 0] = snowy / sum; a[r, c, 1] = lava / sum; a[r, c, 2] = turf / sum; a[r, c, 3] = scree / sum;
                 }
             return a;
         }
@@ -179,8 +201,8 @@ namespace Height1079.EditorTools.World
                 Detail(grass, new Color(.62f, .7f, .42f), new Color(.72f, .68f, .44f), 1.1f, .75f),
                 Detail(flowers, new Color(.74f, .72f, .48f), new Color(.8f, .74f, .5f), .8f, .6f),
             };
-            const int Res = 1024;
-            data.SetDetailResolution(Res, 32);
+            const int Res = 2048;
+            data.SetDetailResolution(Res, 64);
             var thick = new int[Res, Res];
             var thin = new int[Res, Res];
             float step = Elbrus.Size / Res;
@@ -189,13 +211,13 @@ namespace Height1079.EditorTools.World
                 {
                     float x = -Elbrus.Half + (c + .5f) * step, z = -Elbrus.Half + (r + .5f) * step;
                     float elev = dem.Sample(x, z);
-                    if (elev > 3050f) continue;
+                    if (elev > 3150f) continue;
                     var (_, _, slope) = dem.Fall(x, z, 10f);
-                    float m = (1f - Mathf.InverseLerp(2600f, 3020f, elev)) * (1f - Mathf.InverseLerp(28f, 42f, slope));
-                    m *= .4f + .9f * Mathf.PerlinNoise(x * .006f + 5, z * .006f + 13);
+                    float m = (1f - Mathf.InverseLerp(2780f, 3150f, elev)) * (1f - Mathf.InverseLerp(28f, 42f, slope));
+                    m *= .45f + .85f * Mathf.PerlinNoise(x * .006f + 5, z * .006f + 13);
                     if (m <= .02f) continue;
-                    thick[r, c] = Mathf.RoundToInt(Mathf.Clamp01(m) * 7f);
-                    thin[r, c] = Mathf.RoundToInt(Mathf.Clamp01(m) * 3f);
+                    thick[r, c] = Mathf.RoundToInt(Mathf.Clamp01(m) * 14f);
+                    thin[r, c] = Mathf.RoundToInt(Mathf.Clamp01(m) * 6f);
                 }
             data.SetDetailLayer(0, 0, 0, thick);
             data.SetDetailLayer(0, 0, 1, thin);

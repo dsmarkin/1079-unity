@@ -105,9 +105,9 @@ namespace Height1079.Runtime
 #endif
             ;
         /// <summary>Эльбрус: ускорить время, пока едешь (F11; F8 и F9 крутят взгляд).</summary>
-        public static bool TimeWarp => LegacyDown(KeyCode.F11)
+        public static bool TimeWarp => LegacyDown(KeyCode.F11) || LegacyDown(KeyCode.Alpha0) || LegacyDown(KeyCode.Keypad0)
 #if ENABLE_INPUT_SYSTEM
-            || Down(Key.F11)
+            || Down(Key.F11) || Down(Key.Digit0) || Down(Key.Numpad0)
 #endif
             ;
 

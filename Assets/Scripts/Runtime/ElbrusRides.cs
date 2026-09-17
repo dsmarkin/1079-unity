@@ -54,7 +54,7 @@ namespace Height1079.Runtime
             bool arrived = state.Boardable && (boardedAtBottom ? state.S > rig.Line.Length - Ropeway.SlowZone : state.S < Ropeway.SlowZone);
             float left = Mathf.Abs(boardedAtBottom ? rig.Line.Length - state.S : state.S);
             var pos = rig.Car(car).position;
-            hud?.SetPrompt($"{rig.Spec.Name} · {pos.y:0} м · ещё {left:0} м" + (fast ? " · ×8 (F11)" : " · F11 — быстрее") + (state.Boardable ? " · E — выйти" : ""));
+            hud?.SetPrompt($"{rig.Spec.Name} · {pos.y:0} м · ещё {left:0} м" + (fast ? " · ×8 (0 — обычный ход)" : " · 0 — быстрее") + (state.Boardable ? " · E — выйти" : ""));
             if (arrived || (state.Boardable && Controls.Board))
             {
                 me.LeaveRide(rig.ExitPoint(car));
@@ -104,7 +104,7 @@ namespace Height1079.Runtime
                 float wait = bestRig.Line.SecondsToBoard(RopewayRig.Clock, bestBottom);
                 string when = wait < 0 ? "" : $" · кабина через {Mathf.CeilToInt(wait / (fast ? Warp : 1f))} с";
                 hud?.SetPrompt(waiting
-                    ? $"{bestRig.Spec.Name} · {dirText} · ждём кабину{when}" + (fast ? " · ×8 (F11)" : " · F11 — быстрее")
+                    ? $"{bestRig.Spec.Name} · {dirText} · ждём кабину{when}" + (fast ? " · ×8 (0 — обычный ход)" : " · 0 — быстрее")
                     : $"{bestRig.Spec.Name} · {dirText} · E — встать на посадку{when}");
                 if (Controls.Board) queued = queued == bestRig ? null : bestRig;
                 queuedAtBottom = bestBottom;

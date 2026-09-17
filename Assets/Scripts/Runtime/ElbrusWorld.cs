@@ -448,8 +448,8 @@ namespace Height1079.Runtime
         static void StationSign(Transform parent, Elbrus.Poi p, float x, float z)
         {
             var sign = Seat("Elb_Sign", parent, x, z, FaceDownhill(x, z) + 180f, 0f, Sit.Flat);
-            var label = sign != null ? sign.GetComponentInChildren<TextMesh>() : null;
-            if (label != null) label.text = p.Label.Replace(" · ", "\n");
+            var labels = sign != null ? sign.GetComponentsInChildren<TextMesh>() : null;
+            if (labels != null) foreach (var l in labels) l.text = p.Label.Replace(" · ", "\n");
         }
 
         // ── Azau: the village at the bottom ───────────────────────────────────────────────────────────────

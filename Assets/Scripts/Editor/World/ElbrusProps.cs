@@ -47,11 +47,13 @@ namespace Height1079.EditorTools.World
             go.AddComponent<BoxCollider>().size = size;
         }
 
+        /// <summary>A line of text on a board. The text material ignores the depth buffer, so a board can carry only one
+        /// copy — the back one would show through. +Z of a board faces the reader, which is downhill.</summary>
         static GameObject Label(Transform t, string text, Vector3 local, float turn, float size, Color color)
         {
             var go = new GameObject("Label"); go.transform.SetParent(t, false);
             go.transform.localPosition = local;
-            go.transform.localRotation = Quaternion.Euler(0, turn, 0);
+            go.transform.localRotation = Quaternion.Euler(0, turn + 180f, 0);
             var tm = go.AddComponent<TextMesh>();
             tm.text = text; tm.characterSize = size; tm.fontSize = 80;
             tm.anchor = TextAnchor.MiddleCenter; tm.alignment = TextAlignment.Center; tm.color = color;

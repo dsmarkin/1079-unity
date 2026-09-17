@@ -315,7 +315,7 @@ namespace Height1079.EditorTools.World
         {
             var root = new GameObject("Elb_Cabin_Gondola");
             var t = root.transform;
-            float bodyY = -2.65f, w = 1.05f, l = 1.15f, h = 1.05f;
+            float bodyY = -3f, w = 1.02f, l = 1.25f, h = 1.25f;
 
             var arm = new MeshBuilder(1);
             arm.Box(0, new Vector3(0, -.12f, 0), new Vector3(.5f, .42f, .8f), Quaternion.identity, 1f);   // grip
@@ -335,31 +335,33 @@ namespace Height1079.EditorTools.World
             }
             Part(t, "Shell", body, Cabin);
 
+            // the glazing runs from knee height to above the eyes of a standing passenger: this is what one rides a
+            // gondola for, and a band too low left the rider staring at the inside of the shell
             var glassMb = new MeshBuilder(1);
             for (int i = -1; i <= 1; i += 2)
-                glassMb.Quad(0, new Vector3(i * (w * .985f), bodyY - .55f, -l * .7f), new Vector3(i * (w * .985f), bodyY - .55f, l * .7f),
-                    new Vector3(i * (w * .985f), bodyY + .55f, l * .62f), new Vector3(i * (w * .985f), bodyY + .55f, -l * .62f),
+                glassMb.Quad(0, new Vector3(i * (w * .985f), bodyY - .78f, -l * .72f), new Vector3(i * (w * .985f), bodyY - .78f, l * .72f),
+                    new Vector3(i * (w * .985f), bodyY + .88f, l * .64f), new Vector3(i * (w * .985f), bodyY + .88f, -l * .64f),
                     Vector2.zero, Vector2.right, Vector2.one, Vector2.up, true);
             for (int i = -1; i <= 1; i += 2)
-                glassMb.Quad(0, new Vector3(-w * .68f, bodyY - .5f, i * (l * .985f)), new Vector3(w * .68f, bodyY - .5f, i * (l * .985f)),
-                    new Vector3(w * .6f, bodyY + .6f, i * (l * .985f)), new Vector3(-w * .6f, bodyY + .6f, i * (l * .985f)),
+                glassMb.Quad(0, new Vector3(-w * .7f, bodyY - .72f, i * (l * .985f)), new Vector3(w * .7f, bodyY - .72f, i * (l * .985f)),
+                    new Vector3(w * .62f, bodyY + .9f, i * (l * .985f)), new Vector3(-w * .62f, bodyY + .9f, i * (l * .985f)),
                     Vector2.zero, Vector2.right, Vector2.one, Vector2.up, true);
             Part(t, "Windows", glassMb, Glass);
 
             var seats = new MeshBuilder(1);
             for (int i = -1; i <= 1; i += 2)
             {
-                seats.Box(0, new Vector3(0, bodyY - .72f, i * .45f), new Vector3(1.7f, .12f, .45f), Quaternion.identity, 1f);
-                seats.Box(0, new Vector3(0, bodyY - .45f, i * .68f), new Vector3(1.7f, .5f, .1f), Quaternion.identity, 1f);
+                seats.Box(0, new Vector3(0, bodyY - .68f, i * .5f), new Vector3(1.75f, .12f, .5f), Quaternion.identity, 1f);
+                seats.Box(0, new Vector3(0, bodyY - .38f, i * .74f), new Vector3(1.75f, .56f, .1f), Quaternion.identity, 1f);
             }
-            seats.Box(0, new Vector3(0, bodyY - 1.05f, 0), new Vector3(1.85f, .1f, 2.1f), Quaternion.identity, 1f);  // floor
+            seats.Box(0, new Vector3(0, bodyY - 1.18f, 0), new Vector3(1.9f, .1f, 2.3f), Quaternion.identity, 1f);  // floor
             Part(t, "Interior", seats, Materials.Get("ElbSeat", new Color(.2f, .23f, .28f), smoothness: .2f));
 
             var ride = new GameObject("Seat"); ride.transform.SetParent(t, false);
-            ride.transform.localPosition = new Vector3(0, bodyY - 1.0f, 0);
+            ride.transform.localPosition = new Vector3(0, bodyY - 1.12f, 0);          // the floor: the eyes then sit in the glazing
             var box = new GameObject("Hull"); box.transform.SetParent(t, false);
             box.transform.localPosition = new Vector3(0, bodyY, 0);
-            var bc = box.AddComponent<BoxCollider>(); bc.size = new Vector3(2.1f, 2.1f, 2.3f);
+            var bc = box.AddComponent<BoxCollider>(); bc.size = new Vector3(2.1f, 2.5f, 2.6f);
             return Save(root);
         }
 
@@ -1368,9 +1370,9 @@ namespace Height1079.EditorTools.World
             mb.Tube(0, Vector3.zero, new Vector3(0, 2.3f, 0), .06f, .055f, 8, 1f, 0, true);
             mb.Box(0, new Vector3(0, 2.15f, 0), new Vector3(2.4f, .7f, .08f), Quaternion.identity, 1f);
             Part(t, "Post", mb, Steel);
+            // one face only: the text material draws over everything, so a second copy on the back shows through the board
             var label = new GameObject("Label"); label.transform.SetParent(t, false);
-            label.transform.localPosition = new Vector3(0, 2.15f, -.07f);
-            label.transform.localRotation = Quaternion.Euler(0, 180, 0);
+            label.transform.localPosition = new Vector3(0, 2.15f, .07f);
             var tm = label.AddComponent<TextMesh>();
             tm.text = "Эльбрус"; tm.characterSize = .06f; tm.fontSize = 90; tm.anchor = TextAnchor.MiddleCenter;
             tm.alignment = TextAlignment.Center; tm.color = new Color(.06f, .08f, .1f);

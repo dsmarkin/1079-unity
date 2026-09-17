@@ -58,7 +58,14 @@ namespace Height1079.Core
         /// <summary>Length of the slow zone at each end of a loop, metres.</summary>
         public const float SlowZone = 45f;
         /// <summary>How far a car hangs below the rope (grip and hanger), metres.</summary>
-        public static float Hang(RopewayKind kind) => kind == RopewayKind.Chair ? 2f : kind == RopewayKind.Pendulum ? 3.4f : 2.6f;
+        /// <summary>How far under the haul rope the car's own origin — its grip — rides. The body of the car hangs further
+        /// below that, see <see cref="Drop"/>.</summary>
+        public static float Hang(RopewayKind kind) => kind == RopewayKind.Chair ? .32f : .38f;
+
+        /// <summary>How far under the haul rope the lowest point of the car is: the floor of a cabin, the footrest of a
+        /// chair. Everything about the height of a line is measured against this, not against the rope — a cabin whose
+        /// rope clears the ground by four metres still ploughs through it.</summary>
+        public static float Drop(RopewayKind kind) => kind == RopewayKind.Chair ? 2.6f : kind == RopewayKind.Pendulum ? 4.4f : 4.25f;
 
         /// <summary>Seconds until a car can be boarded at this end (0 if one is there now, -1 if none ever comes).</summary>
         public float SecondsToBoard(double t, bool atBottom)
@@ -87,11 +94,12 @@ namespace Height1079.Core
             for (int i = 0; i < n; i++) Ground[i] = ground(spec.Towers[i].x, spec.Towers[i].z);
 
             float baseHeight = spec.Kind == RopewayKind.Chair ? 7f : spec.Kind == RopewayKind.Pendulum ? 16f : 11f;
-            // at a terminal the rope runs low, so the car's floor is about level with the platform: hanger + a step up
-            float terminal = spec.Kind == RopewayKind.Chair ? Hang(spec.Kind) + 1.1f : spec.Kind == RopewayKind.Pendulum ? Hang(spec.Kind) + 1.4f : Hang(spec.Kind) + 1.2f;
+            // at a terminal the rope runs low, so the floor of the car comes level with the platform of the hall
+            float platform = spec.Kind == RopewayKind.Chair ? 1f : 1.3f;
+            float terminal = Drop(spec.Kind) + platform;
             for (int i = 0; i < n; i++) TowerHeight[i] = i == 0 || i == n - 1 ? terminal : baseHeight;
-            // the clearance is measured to the car, not to the rope: a cabin hangs below it
-            float clear = Hang(spec.Kind) + (spec.Kind == RopewayKind.Chair ? 2.5f : 3.5f);
+            // clearance is measured to the floor of the car, not to the rope
+            float clear = Drop(spec.Kind) + (spec.Kind == RopewayKind.Chair ? 2.4f : 3.2f);
             RaiseTowers(ground, clear);
 
             Rope = BuildRope();

@@ -28,6 +28,7 @@ namespace Height1079.EditorTools
             Directory.CreateDirectory(ResourcesDir);
             EnsureInputHandling();
             EnsureFogVariants();
+            EnsureTerrainShaders();
             EnsureHikerModel(force);
             World.WorldImporter.Build(force);
             MakeMaterial("Flat", new Color(.886f, .91f, .93f));
@@ -81,6 +82,44 @@ namespace Height1079.EditorTools
             so.ApplyModifiedPropertiesWithoutUndo();
             AssetDatabase.SaveAssets();
             Debug.Log("1079: fog shader variants kept in builds (custom fog stripping).");
+        }
+
+        /// <summary>Terrain shaders the player build would otherwise strip. Nothing in Resources references them by name:
+        /// the terrain material points at "Nature/Terrain/Standard", and Unity picks the base-map, add-pass and grass
+        /// shaders at run time. Without them the ground renders blank white and the grass does not draw at all.</summary>
+        static void EnsureTerrainShaders()
+        {
+            string[] want =
+            {
+                "Nature/Terrain/Standard",
+                "Hidden/TerrainEngine/Splatmap/Standard-Base",
+                "Hidden/TerrainEngine/Splatmap/Standard-AddPass",
+                "Hidden/TerrainEngine/Details/BillboardWavingDoublePass",
+                "Hidden/TerrainEngine/Details/WavingDoublePass",
+                "Hidden/TerrainEngine/Details/Vertexlit",
+            };
+            var assets = AssetDatabase.LoadAllAssetsAtPath("ProjectSettings/GraphicsSettings.asset");
+            if (assets == null || assets.Length == 0) return;
+            var so = new SerializedObject(assets[0]);
+            var list = so.FindProperty("m_AlwaysIncludedShaders");
+            if (list == null) return;
+            bool changed = false;
+            foreach (var name in want)
+            {
+                var shader = Shader.Find(name);
+                if (shader == null) { Debug.LogWarning("1079: нет шейдера " + name); continue; }
+                bool present = false;
+                for (int i = 0; i < list.arraySize; i++)
+                    if (list.GetArrayElementAtIndex(i).objectReferenceValue == shader) { present = true; break; }
+                if (present) continue;
+                list.InsertArrayElementAtIndex(list.arraySize);
+                list.GetArrayElementAtIndex(list.arraySize - 1).objectReferenceValue = shader;
+                changed = true;
+            }
+            if (!changed) return;
+            so.ApplyModifiedPropertiesWithoutUndo();
+            AssetDatabase.SaveAssets();
+            Debug.Log("1079: шейдеры рельефа и травы добавлены в Always Included Shaders.");
         }
 
         static void EnsureHikerModel(bool force)

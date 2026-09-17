@@ -37,9 +37,29 @@ namespace Height1079.Runtime
             terrain.drawTreesAndFoliage = true;
             // grass on the Azau meadows: a short draw distance, it is only there where the ground is green anyway
             terrain.detailObjectDistance = World.IsElbrus ? 95f : 60f;
-            terrain.detailObjectDensity = .8f;
+            terrain.detailObjectDensity = 1f;
             terrain.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.TwoSided;
+            if (World.IsElbrus) ReportGround(data);
             return terrain;
+        }
+
+        /// <summary>What the terrain thinks is under the visitor's feet at Azau. The southern slope has no snow at 2 350 m,
+        /// so if the first weight comes back as 1 the splat map did not survive the import and the ground renders as snow.</summary>
+        static void ReportGround(TerrainData data)
+        {
+            var (x, z) = Elbrus.Start;
+            int n = data.alphamapResolution;
+            int c = Mathf.Clamp(Mathf.RoundToInt((x + Elbrus.Half) / Elbrus.Size * (n - 1)), 0, n - 1);
+            int r = Mathf.Clamp(Mathf.RoundToInt((z + Elbrus.Half) / Elbrus.Size * (n - 1)), 0, n - 1);
+            var a = data.GetAlphamaps(c, r, 1, 1);
+            var sb = new System.Text.StringBuilder();
+            for (int k = 0; k < data.alphamapLayers; k++)
+            {
+                var layer = k < data.terrainLayers.Length ? data.terrainLayers[k] : null;
+                string tex = layer != null && layer.diffuseTexture != null ? layer.diffuseTexture.name : "нет текстуры";
+                sb.Append($" {(layer != null ? layer.name : "null")}({tex})={a[0, 0, k]:0.00}");
+            }
+            Debug.Log($"1079 Эльбрус: грунт у Азау, слоёв {data.alphamapLayers}, alphamap {n}:{sb}");
         }
 
         /// <summary>Ground height at world x/z using the same math the server uses, so client and authority agree.</summary>
