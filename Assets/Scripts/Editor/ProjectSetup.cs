@@ -30,7 +30,6 @@ namespace Height1079.EditorTools
             EnsureHikerModel(force);
             World.WorldImporter.Build(force);
             MakeMaterial("Flat", new Color(.886f, .91f, .93f));
-            MakeMaterial("Snow", new Color(.96f, .98f, 1f, .75f), "Particles/Standard Unlit");
             EnsureHikerPrefab(force);
             EnsureSessionPrefab(force);
             EnsureScene(force);

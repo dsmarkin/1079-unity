@@ -19,6 +19,7 @@ namespace Height1079.Runtime
 
         Rigidbody body;
         CapsuleCollider capsule;
+        SnowTrail trail;
         Camera cam;
         Transform head;
         float yaw, pitch = .08f, orbit = 6f;
@@ -50,6 +51,8 @@ namespace Height1079.Runtime
             capsule.height = 1.8f; capsule.radius = .32f; capsule.center = new Vector3(0, .9f, 0);
             var mat = new PhysicsMaterial("hiker") { dynamicFriction = 0f, staticFriction = 0f, frictionCombine = PhysicsMaterialCombine.Minimum };
             capsule.material = mat;
+            trail = GetComponent<SnowTrail>();
+            if (trail == null) trail = gameObject.AddComponent<SnowTrail>();
         }
 
         public override void OnNetworkSpawn()
@@ -168,6 +171,12 @@ namespace Height1079.Runtime
             float speed = Controls.Run ? RunSpeed : WalkSpeed;
             // Cold slows the legs: clarity/heat below 40 costs up to 35 % of speed.
             if (session != null) speed *= Mathf.Lerp(.65f, 1f, Mathf.Clamp01(session.Heat / 40f));
+            // Trail-breaking: virgin powder is slow, a path already trodden by the group is fast.
+            if (SnowFx.Instance != null && Bootstrap.Dem != null)
+            {
+                var p = transform.position;
+                speed *= SnowFx.Instance.SpeedFactor(p.x, p.z, TerrainBuilder.Height(Bootstrap.Dem, p.x, p.z));
+            }
 
             float slope = Vector3.Angle(groundNormal, Vector3.up);
             if (grounded && slope <= SlopeLimit)
@@ -215,7 +224,8 @@ namespace Height1079.Runtime
             if (firstPerson)
             {
                 float shake = NightSession.Instance != null ? (100f - NightSession.Instance.Hands) * .00015f * Mathf.Sin(Time.time * 9f) : 0f;
-                cam.transform.SetPositionAndRotation(head.position + Vector3.up * shake, rot);
+                float sunk = trail != null ? trail.Sink : 0f;
+                cam.transform.SetPositionAndRotation(head.position + Vector3.up * (shake - sunk), rot);
                 return;
             }
             var pivot = transform.position + Vector3.up * 1.35f;

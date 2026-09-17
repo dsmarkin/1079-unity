@@ -42,6 +42,7 @@ namespace Height1079.Runtime
             Hud = HudController.Create();
             PlaceMenuCamera();
             Ambience.Create();
+            SnowFx.Create();
             var driver = new GameObject("Atmosphere", typeof(Atmosphere));
             Object.DontDestroyOnLoad(driver);
         }

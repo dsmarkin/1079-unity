@@ -2,10 +2,9 @@ using UnityEngine;
 
 namespace Height1079.Runtime
 {
-    /// <summary>Snow and synthesised sound around the local player: no samples, no microphone. Port of public/sound.js plus the snowfall points.</summary>
+    /// <summary>Synthesised sound around the local player: no samples, no microphone. Port of public/sound.js. Snowfall lives in SnowFx.</summary>
     public sealed class Ambience : MonoBehaviour
     {
-        ParticleSystem snow;
         AudioSource wind, steps;
         AudioLowPassFilter lowPass;
         AudioClip noise;
@@ -34,31 +33,14 @@ namespace Height1079.Runtime
             lowPass = gameObject.AddComponent<AudioLowPassFilter>(); lowPass.cutoffFrequency = 420f;
             steps = gameObject.AddComponent<AudioSource>(); steps.clip = noise; steps.loop = false; steps.spatialBlend = 0f; steps.volume = .22f;
 
-            snow = new GameObject("Snow", typeof(ParticleSystem)).GetComponent<ParticleSystem>();
-            snow.transform.SetParent(transform, false);
-            var main = snow.main;
-            main.startLifetime = 12f; main.startSpeed = 0f; main.startSize = .09f; main.maxParticles = 4000; main.simulationSpace = ParticleSystemSimulationSpace.World;
-            main.startColor = new Color(.96f, .98f, 1f, .75f);
-            var emission = snow.emission; emission.rateOverTime = 250f;
-            var shape = snow.shape; shape.shapeType = ParticleSystemShapeType.Box; shape.scale = new Vector3(60f, 30f, 60f);
-            var velocity = snow.velocityOverLifetime; velocity.enabled = true; velocity.space = ParticleSystemSimulationSpace.World;
-            velocity.x = new ParticleSystem.MinMaxCurve(2f); velocity.y = new ParticleSystem.MinMaxCurve(-1.5f); velocity.z = new ParticleSystem.MinMaxCurve(0f);
-            var renderer = snow.GetComponent<ParticleSystemRenderer>();
-            var snowMat = Resources.Load<Material>("Snow");
-            renderer.material = snowMat != null ? snowMat : new Material(Shader.Find("Particles/Standard Unlit")); renderer.renderMode = ParticleSystemRenderMode.Billboard;
         }
 
         void Update()
         {
             var s = NightSession.Instance;
             var me = Bootstrap.LocalHiker;
-            var cam = Camera.main;
             bool storm = s != null && s.Storm.Value;
             bool active = me != null && !me.Paused && s != null && s.MyOutcome == Core.Outcome.None;
-            if (cam != null) snow.transform.position = cam.transform.position + Vector3.up * 8f;
-            var velocity = snow.velocityOverLifetime;
-            velocity.x = new ParticleSystem.MinMaxCurve(storm ? 11f : 2f); velocity.y = new ParticleSystem.MinMaxCurve(storm ? -5f : -1.5f);
-            var emission = snow.emission; emission.rateOverTime = storm ? 900f : 250f;
 
             float target = active ? (storm ? .3f : .08f) * (1f + Mathf.Sin(Time.time * .7f) * .15f) : 0f;
             wind.volume = Mathf.Lerp(wind.volume, target * .42f, 1f - Mathf.Exp(-4f * Time.deltaTime));
