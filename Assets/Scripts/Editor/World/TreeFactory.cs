@@ -588,7 +588,7 @@ namespace Height1079.EditorTools.World
         static MeshBuilder SnowOnly(int seed, float size, float length = 0f)
         {
             var mb = new MeshBuilder(Subs);
-            Surf.Lump(mb, SubSnow, Vector3.zero, length > 0 ? new Vector3(.45f, .35f, length * .5f) : new Vector3(.5f, .3f, .5f) * size, seed, .3f);
+            Surf.Lump(mb, SubSnow, Vector3.zero, length > 0 ? new Vector3(.55f, .25f, length * .5f) : new Vector3(.5f, .3f, .5f) * size, seed, .5f);
             return mb;
         }
 
@@ -600,7 +600,7 @@ namespace Height1079.EditorTools.World
             var mb = new MeshBuilder(Subs);
             bool full = detail > .7f;
             float half = length * .5f;
-            Surf.Lump(mb, SubSnow, Vector3.zero, new Vector3(.55f, .4f, half), seed, .3f, skirt: .4f);
+            Surf.Lump(mb, SubSnow, Vector3.zero, new Vector3(.6f, .28f, half), seed, .55f, skirt: .2f);
             if (seed % 2 == 0)
             {
                 // root plate: an upturned disc of roots and earth, snow on its top edge

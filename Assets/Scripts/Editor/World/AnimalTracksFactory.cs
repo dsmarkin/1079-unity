@@ -16,7 +16,8 @@ namespace Height1079.EditorTools.World
         const float Chunk = 64f;
         // atlas cell per kind (4×2), print size (m) along and across the direction of travel
         static readonly int[] Cell = { 0, 1, 2, 3, 4, 5, 6, 1 };
-        static readonly Vector2[] Size = { new Vector2(.5f, .34f), new Vector2(.13f, .1f), new Vector2(.34f, .2f), new Vector2(.16f, .17f), new Vector2(.12f, .11f), new Vector2(.12f, .1f), new Vector2(.2f, .16f), new Vector2(.19f, .15f) };
+        // in deep powder a print is a hole wider than the paw
+        static readonly Vector2[] Size = { new Vector2(.75f, .5f), new Vector2(.24f, .19f), new Vector2(.6f, .36f), new Vector2(.3f, .3f), new Vector2(.2f, .18f), new Vector2(.2f, .17f), new Vector2(.34f, .28f), new Vector2(.32f, .26f) };
 
         public static void Build(HeightField dem)
         {
@@ -108,10 +109,11 @@ namespace Height1079.EditorTools.World
                         float u = (x + .5f) / CellPx * 2 - 1, v = (y + .5f) / CellPx * 2 - 1;   // v forward
                         float d = Depth(cell, u, v);
                         if (d <= 0) continue;
-                        float rim = Mathf.Clamp01(1 - Mathf.Abs(d - .08f) * 12f) * .5f;
-                        float hollow = Mathf.Clamp01((d - .1f) * 4f);
-                        float shade = Mathf.Lerp(.72f, .45f, hollow) * (.92f + .08f * Mathf.PerlinNoise(x * .3f + cell * 10, y * .3f));
-                        var c = new Color(shade * .82f, shade * .88f, shade, Mathf.Clamp01(hollow * .95f));
+                        float rim = Mathf.Clamp01(1 - Mathf.Abs(d - .06f) * 14f) * .3f;
+                        float hollow = Mathf.Clamp01((d - .06f) * 3f);
+                        // the hole is in its own shadow: blue-grey, darkest on the far wall
+                        float shade = Mathf.Lerp(.6f, .22f, hollow) * (.9f + .1f * Mathf.PerlinNoise(x * .3f + cell * 10, y * .3f)) * Mathf.Lerp(1f, .8f, (v + 1) * .5f);
+                        var c = new Color(shade * .78f, shade * .86f, shade * 1.05f, Mathf.Clamp01(hollow * 1.2f));
                         if (rim > c.a) c = new Color(.97f, .98f, 1f, rim);
                         // atlas cell origin: column = cell % 4, row = cell / 4; texture x = across (u), y = along (v), as in the quad UVs
                         int tx = (cell % 4) * CellPx + x, ty = (cell / 4) * CellPx + y;
