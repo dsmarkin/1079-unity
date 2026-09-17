@@ -109,8 +109,9 @@ docs/   — дизайн и данные (см. README).
 - **Клавиатура.** Ввод через Input System по физическим клавишам, иначе при русской раскладке на macOS WASD не работают. Используй `Controls.cs`.
 - **Кривые частиц.** У `velocityOverLifetime` x, y и z должны быть в одном режиме кривой (TwoConstants и т. п.), иначе Unity ругается.
 - **Неоднозначность `Object`.** В файлах с `using System` пиши `UnityEngine.Object`.
+- **Нет места на диске.** Если игра стартует с дефолтным небом без мира, а в `player.log` — `Mismatched serialization in the builtin class 'TextAsset'`, сначала посмотри в `build-editor.log` строку `No space left on device`: при полном диске Unity молча дописывает обрезанные файлы, а сборка при этом может отчитаться об успехе. Чистить: `Library/` проекта (кэш Unity, пересоздаётся), `Builds/`, корзину.
 - **Пустой мир в сборке.** Первая сборка после правки скриптов приносила плеер, в котором большой `TextAsset` пуст: игра стартует с дефолтным небом, в `player.log` — `Mismatched serialization in the builtin class 'TextAsset'`. Перед сборкой `ProjectSetup.EnsureData` переимпортирует все `Assets/Resources/**/*.bytes` и сверяет размер с файлом на диске.
-- **Устаревший кэш сборки.** Инкрементальный кэш данных плеера портится, как только меняется сгенерированный мир: игра стартует с дефолтным небом без рельефа, в `player.log` — `Mismatched serialization in the builtin class 'TextAsset'`. Поэтому сборка всегда полная (`BuildOptions.CleanBuildCache`), это около полуминуты.
+- **Сборка всегда полная** (`BuildOptions.CleanBuildCache`), это около полуминуты, и идёт в два прохода: первая сессия Unity (`ProjectSetup.Prepare`) генерирует мир, вторая собирает плеер.
 - **Процесс Unity на проект один.** Пока редактор открыт, batch-скрипты не запустятся.
 - **Тесты с UnityEngine в dotnet не собираются.** Новый тест, которому нужен Runtime или UnityEngine, добавь в `Exclude` в `Tools/CoreTests/CoreTests.csproj`.
 
