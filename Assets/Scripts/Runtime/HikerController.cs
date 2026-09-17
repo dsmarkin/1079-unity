@@ -13,6 +13,9 @@ namespace Height1079.Runtime
         public const float WalkSpeed = 2.8f, RunSpeed = 5.8f, SlopeLimit = 42f, HardLanding = 7f;
 
         public readonly NetworkVariable<FixedString64Bytes> Name = new NetworkVariable<FixedString64Bytes>(default, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Owner);
+        public readonly NetworkVariable<byte> Held = new NetworkVariable<byte>(0, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Owner);
+        public readonly NetworkVariable<bool> TorchOn = new NetworkVariable<bool>(false, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Owner);
+        public readonly NetworkVariable<byte> TorchLevel = new NetworkVariable<byte>(255, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Owner);
         public readonly NetworkVariable<byte> Action = new NetworkVariable<byte>(0, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Owner); // 0 idle, 1 cold, 2 kindle
 
         public string DisplayName => Name.Value.Length > 0 ? Name.Value.ToString() : "Путник";
@@ -20,6 +23,8 @@ namespace Height1079.Runtime
         Rigidbody body;
         CapsuleCollider capsule;
         SnowTrail trail;
+        Equipment equipment;
+        public Equipment Gear => equipment;
         Camera cam;
         Transform head;
         float yaw, pitch = .08f, orbit = 6f;
@@ -53,6 +58,8 @@ namespace Height1079.Runtime
             capsule.material = mat;
             trail = GetComponent<SnowTrail>();
             if (trail == null) trail = gameObject.AddComponent<SnowTrail>();
+            equipment = GetComponent<Equipment>();
+            if (equipment == null) equipment = gameObject.AddComponent<Equipment>();
         }
 
         public override void OnNetworkSpawn()
@@ -128,6 +135,7 @@ namespace Height1079.Runtime
             if (!paused && !finished && Input.GetMouseButtonDown(0) && Cursor.lockState != CursorLockMode.Locked) SetCursor(true);
             if (paused && Input.GetMouseButtonDown(0) && !Bootstrap.PointerOverUi()) { paused = false; SetCursor(true); }
             if (Controls.ToggleView) firstPerson = !firstPerson;
+            if (!paused && !finished) equipment.HandleInput();
             if (finished && Cursor.lockState == CursorLockMode.Locked) SetCursor(false);
 
             if (Cursor.lockState == CursorLockMode.Locked && !paused && !finished)

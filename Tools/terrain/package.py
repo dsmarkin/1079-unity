@@ -58,3 +58,10 @@ print(MIN,MAX)
 cx,cz=ll2xz(dms(61,45,53.2),dms(59,27,17.8)); jj=int((cz+HALF)/2); ii=int((cx+HALF)/2)
 print('cedar chm max 6m', c[jj-3:jj+4,ii-3:ii+4].max(), 'ground',ground[jj,ii])
 for f in sorted(os.listdir(out)): print(f, os.path.getsize(f'{out}/{f}'))
+
+# Stream network for the map (run flow.py first → acc4.npy): log-scaled drainage area ≥ 2·10⁴ m², 1025², row 0 = south.
+import os
+if os.path.exists('acc4.npy'):
+    acc = np.load('acc4.npy')
+    v = np.clip((np.log10(acc) - 4.3) / (7.0 - 4.3), 0, 1); v[acc < 2e4] = 0
+    (v * 255).astype(np.uint8)[::-1].tofile(f'{out}/streams_1025.r8')

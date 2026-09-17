@@ -69,6 +69,55 @@ namespace Height1079.Runtime
 #endif
             ;
 
+        static bool Pressed(KeyCode legacy
+#if ENABLE_INPUT_SYSTEM
+            , Key key
+#endif
+            ) => LegacyDown(legacy)
+#if ENABLE_INPUT_SYSTEM
+            || Down(key)
+#endif
+            ;
+
+        public static bool ItemCompass => Pressed(KeyCode.Alpha1
+#if ENABLE_INPUT_SYSTEM
+            , Key.Digit1
+#endif
+            );
+        public static bool ItemTorch => Pressed(KeyCode.Alpha2
+#if ENABLE_INPUT_SYSTEM
+            , Key.Digit2
+#endif
+            );
+        public static bool ItemMap => Pressed(KeyCode.Alpha3
+#if ENABLE_INPUT_SYSTEM
+            , Key.Digit3
+#endif
+            ) || Pressed(KeyCode.M
+#if ENABLE_INPUT_SYSTEM
+            , Key.M
+#endif
+            );
+        public static bool ItemNone => Pressed(KeyCode.Alpha0
+#if ENABLE_INPUT_SYSTEM
+            , Key.Digit0
+#endif
+            ) || Pressed(KeyCode.Q
+#if ENABLE_INPUT_SYSTEM
+            , Key.Q
+#endif
+            );
+        public static bool TorchSwitch => Pressed(KeyCode.F
+#if ENABLE_INPUT_SYSTEM
+            , Key.F
+#endif
+            );
+        public static bool MiniMap => Pressed(KeyCode.N
+#if ENABLE_INPUT_SYSTEM
+            , Key.N
+#endif
+            );
+
         public static string Debug => $"{(Forward ? "W" : "-")}{(Left ? "A" : "-")}{(Back ? "S" : "-")}{(Right ? "D" : "-")}";
     }
 }
