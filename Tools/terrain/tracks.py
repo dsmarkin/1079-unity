@@ -128,25 +128,25 @@ w_elk = np.exp(-creek_d / 40) * (ground < 700) * .02
 w_taiga = forest * (ground < 680) * .01
 w_tundra = (ground > 760) * (ground < 1000) * .01
 
-for _ in range(120):
+for _ in range(420):
     s = pick(w_hare)
     if s: walk(0, s, rng.uniform(60, 260), 1.8, .35, back=.01)
-for _ in range(25):
+for _ in range(60):
     s = pick(w_fox)
     if s: walk(1, s, rng.uniform(150, 600), .36, .08, pair=.03)
-for _ in range(15):
+for _ in range(25):
     s = pick(w_elk)
     if s: walk(2, s, rng.uniform(100, 400), .85, .12, pref=downhill_along_creek, pair=.22)
-for _ in range(40):
+for _ in range(130):
     s = pick(w_taiga)
     if s: walk(3, s, rng.uniform(40, 150), .75, .45, pref=to_forest)
-for _ in range(60):
+for _ in range(160):
     s = pick(w_taiga)
     if s: walk(4, s, rng.uniform(5, 30), .2, .3, pair=.04)
 for _ in range(40):
     s = pick(w_tundra)
     if s: walk(5, s, rng.uniform(20, 60), .18, .35, zig=.06)
-for _ in range(80):
+for _ in range(260):
     s = pick(w_taiga)
     if s: walk(6, s, rng.uniform(8, 30), .8, .6)
 for _ in range(4):

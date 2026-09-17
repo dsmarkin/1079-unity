@@ -7,13 +7,13 @@ using Height1079.Core;
 namespace Height1079.EditorTools.World
 {
     /// <summary>Animal trails on the snow (Tools/terrain/tracks.py → tracks.f32): each print is a small quad lying on the terrain,
-    /// merged into 256 m chunk meshes with an atlas of print shapes (hare group, canid, elk, mustelid pair, grouse, ptarmigan, squirrel).
+    /// merged into 64 m chunk meshes with an atlas of print shapes (hare group, canid, elk, mustelid pair, grouse, ptarmigan, squirrel).
     /// Prefab Resources/World/Prefabs/Tracks/AnimalTracks; runtime fades the material while a blizzard fills them.</summary>
     public static class AnimalTracksFactory
     {
         const string PrefabDir = WorldPaths.Generated + "/Prefabs/Tracks";
         const string MeshDir = WorldPaths.Generated + "/Meshes/Tracks";
-        const float Chunk = 256f;
+        const float Chunk = 64f;
         // atlas cell per kind (4×2), print size (m) along and across the direction of travel
         static readonly int[] Cell = { 0, 1, 2, 3, 4, 5, 6, 1 };
         static readonly Vector2[] Size = { new Vector2(.5f, .34f), new Vector2(.13f, .1f), new Vector2(.34f, .2f), new Vector2(.16f, .17f), new Vector2(.12f, .11f), new Vector2(.12f, .1f), new Vector2(.2f, .16f), new Vector2(.19f, .15f) };
@@ -64,7 +64,7 @@ namespace Height1079.EditorTools.World
                 r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
                 // chunks vanish when far (prints are centimetres)
                 var lg = go.AddComponent<LODGroup>();
-                lg.SetLODs(new[] { new LOD(.25f, new Renderer[] { r }) });
+                lg.SetLODs(new[] { new LOD(.3f, new Renderer[] { r }) });   // a 64 m chunk disappears beyond ~190 m
                 lg.RecalculateBounds();
             }
             PrefabUtility.SaveAsPrefabAsset(root, $"{PrefabDir}/AnimalTracks.prefab");
