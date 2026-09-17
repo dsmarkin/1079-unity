@@ -161,16 +161,24 @@ namespace Height1079.Runtime
         /// <summary>Per-frame environment: sky darkens with the night, fog thickens in storms, the fire glows while it burns.</summary>
         sealed class Atmosphere : MonoBehaviour
         {
-            // Dusk is the lobby backdrop and the first minute of the night; after that it is the real Ural night of 1 Feb:
-            // the moon (last quarter) rises only after midnight and the sky is overcast with snow, so the forest is almost black.
-            static readonly Color DuskSky = new Color(.62f, .67f, .71f), NightSky = new Color(.018f, .024f, .036f), StormSky = new Color(.075f, .085f, .1f);
-            static readonly Color DuskAmbSky = new Color(.89f, .94f, 1f), DuskAmbEq = new Color(.6f, .66f, .7f), DuskAmbGround = new Color(.35f, .38f, .4f);
+            // Light follows the real sky of 1 Feb 1959 (SkyDome): the sun set at 16:58, the game starts in civil twilight at 17:40,
+            // nautical dusk ends 18:49, full night from 19:41; the waning moon rises at 04:21. No direct sunlight during the night.
+            static readonly Color DuskAmbSky = new Color(.78f, .84f, .95f), DuskAmbEq = new Color(.52f, .56f, .64f), DuskAmbGround = new Color(.32f, .35f, .4f);
             static readonly Color NightAmbSky = new Color(.055f, .07f, .1f), NightAmbEq = new Color(.032f, .04f, .058f), NightAmbGround = new Color(.022f, .026f, .036f);
-            const float DuskSeconds = 75f;
 
             NightFilm film;
+            Light moonLight;
 
-            void Start() => film = NightFilm.Create();
+            void Start()
+            {
+                film = NightFilm.Create();
+                SkyDome.Create();
+                var go = new GameObject("MoonLight", typeof(Light));
+                DontDestroyOnLoad(go);
+                moonLight = go.GetComponent<Light>();
+                moonLight.type = LightType.Directional; moonLight.color = new Color(.62f, .7f, .92f); moonLight.intensity = 0f; moonLight.shadows = LightShadows.Soft; moonLight.shadowStrength = .6f;
+                moonLight.enabled = false;
+            }
 
             void Update()
             {
@@ -183,31 +191,54 @@ namespace Height1079.Runtime
                 }
                 var s = NightSession.Instance;
                 float blizzard = Weather.Storm;
-                bool storm = blizzard > .5f;
-                float night = s != null ? Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(s.Elapsed.Value / DuskSeconds)) : 0f;
+                // darkness by the sun under the horizon (and a bit more under a closed cloud deck)
+                float alt = SkyDome.SunAlt;
+                float night = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(-1.5f, -13f, alt));
+                night = Mathf.Clamp01(night + .08f * SkyDome.CloudCover * night);
+                if (s == null) night = 0f;
                 // site views are for looking at things: keep them readable
                 if (WorldDressing.ViewIndex >= 0) night = Mathf.Min(night, .35f);
                 Darkness = Mathf.MoveTowards(Darkness, night, Time.deltaTime * .5f);
                 float d = Darkness;
 
-                // in a blizzard the air itself is full of snow: a grey-blue wall instead of black depth
-                var sky = Color.Lerp(DuskSky, Color.Lerp(NightSky, StormSky, blizzard), d);
-                RenderSettings.fogColor = sky;
-                // clear dusk: long views; night: the dark eats everything past ~60 m; blizzard: ~25 m
+                // fog takes the colour of the horizon, so the far forest melts into the sky; in a blizzard it is the grey wall of snow
+                RenderSettings.fogColor = SkyDome.Horizon;
                 // clear dusk: long views; night: the dark eats everything past ~60 m; blizzard gusts: a few metres
                 float fog = s == null ? .0013f : Mathf.Lerp(.003f, .016f, d);
                 fog = Mathf.Lerp(fog, Mathf.Lerp(.05f, .12f, Weather.Gust), blizzard);
                 RenderSettings.fogDensity = fog;
-                RenderSettings.ambientSkyColor = Color.Lerp(DuskAmbSky, NightAmbSky, d);
-                RenderSettings.ambientEquatorColor = Color.Lerp(DuskAmbEq, NightAmbEq, d);
+                // ambient: the sky's own light, warmed by the afterglow while it lasts, greened a little by an aurora
+                var glow = SkyDome.Glow * .12f * (1f - d);
+                var aur = new Color(0f, .03f, .015f) * SkyDome.Aurora * (1f - SkyDome.CloudCover * .7f);
+                RenderSettings.ambientSkyColor = Color.Lerp(DuskAmbSky, NightAmbSky, d) + glow + aur;
+                RenderSettings.ambientEquatorColor = Color.Lerp(DuskAmbEq, NightAmbEq, d) + glow * 1.4f + aur;
                 RenderSettings.ambientGroundColor = Color.Lerp(DuskAmbGround, NightAmbGround, d);
-                var cam = Camera.main; if (cam != null) { cam.clearFlags = CameraClearFlags.SolidColor; cam.backgroundColor = sky; }
+                var cam = Camera.main; if (cam != null) { cam.clearFlags = CameraClearFlags.SolidColor; cam.backgroundColor = SkyDome.Horizon; }
                 if (sun != null)
                 {
-                    // what remains of the sky glow: faint, blue, no shadows
-                    sun.intensity = Mathf.Lerp(1.6f, .07f, d);
-                    sun.color = Color.Lerp(new Color(1f, .94f, .84f), new Color(.55f, .65f, .9f), d);
-                    sun.shadows = d > .6f ? LightShadows.None : LightShadows.Soft;
+                    // above the horizon: the low sun itself; below: the afterglow as a soft light from the sun's side, gone by nautical dusk
+                    var dir = SkyDome.SunDir;
+                    var flat = new Vector3(dir.x, 0, dir.z).normalized;
+                    float up = Mathf.Max(alt, 7f) * Mathf.Deg2Rad;
+                    var from = (flat * Mathf.Cos(up) + Vector3.up * Mathf.Sin(up)).normalized;
+                    sun.transform.rotation = Quaternion.LookRotation(-from);
+                    float direct = Mathf.InverseLerp(-.5f, 3f, alt);
+                    float after = Mathf.InverseLerp(-11f, -1f, alt) * .45f * (1f - SkyDome.CloudCover * .5f);
+                    sun.intensity = Mathf.Max(direct * 1.3f, after) * (1f - blizzard * .6f);
+                    sun.color = direct > .01f ? new Color(1f, .78f, .6f) : Color.Lerp(new Color(.55f, .6f, .85f), new Color(.95f, .6f, .5f), Mathf.InverseLerp(-8f, -1f, alt));
+                    sun.shadows = direct > .01f ? LightShadows.Soft : LightShadows.None;
+                    sun.enabled = sun.intensity > .005f;
+                }
+                if (moonLight != null)
+                {
+                    // the thin waning moon low in the south-east before dawn: faint, blue, long soft shadows
+                    float m = s == null ? 0f : Mathf.InverseLerp(0f, 8f, SkyDome.MoonAlt) * SkyDome.MoonLit * (1f - SkyDome.CloudCover * .8f) * (1f - blizzard);
+                    var md = SkyDome.MoonDir;
+                    var mflat = new Vector3(md.x, 0, md.z).normalized;
+                    float mup = Mathf.Max(SkyDome.MoonAlt, 4f) * Mathf.Deg2Rad;
+                    moonLight.transform.rotation = Quaternion.LookRotation(-(mflat * Mathf.Cos(mup) + Vector3.up * Mathf.Sin(mup)));
+                    moonLight.intensity = m * .22f;
+                    moonLight.enabled = moonLight.intensity > .003f;
                 }
                 float fire = s != null ? s.FireRemaining.Value : 0f;
                 if (ember != null) ember.enabled = fire > 0f;

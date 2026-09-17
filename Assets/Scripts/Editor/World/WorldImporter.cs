@@ -23,7 +23,7 @@ namespace Height1079.EditorTools.World
         public static void RebuildMenu() => Build(true);
 
         /// <summary>Bump when a factory changes so existing checkouts rebuild the generated world on next open/check.</summary>
-        public const int PipelineVersion = 30;
+        public const int PipelineVersion = 31;
         const string Stamp = WorldPaths.Generated + "/pipeline.version";
 
         public static bool IsBuilt => File.Exists(TerrainAsset) && File.Exists(HeightResource) && File.Exists(Stamp) && File.ReadAllText(Stamp).Trim() == PipelineVersion.ToString();
@@ -63,6 +63,7 @@ namespace Height1079.EditorTools.World
             if (branches == null) Debug.LogWarning("1079 world: Poly Haven dry branches model not imported (glTFast) — labaz is built without it.");
             SnowFxFactory.Build();
             AnimalTracksFactory.Build(dem);
+            SkyFactory.Build();
             ItemsFactory.Build();
             CreatureFactory.Build();
             SiteFactory.Tent();

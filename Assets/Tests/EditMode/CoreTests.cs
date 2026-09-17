@@ -228,6 +228,55 @@ namespace Height1079.Tests
         }
     }
 
+    public class SkyTests
+    {
+        // reference: PyEphem 4.2 for 61.7586 N 59.4297 E, no refraction, local time UTC+5
+        static double Jd(double localHours) => Sky.JulianDay(localHours * 60);
+
+        [Test]
+        public void SunMatchesTheEphemeris()
+        {
+            var (alt, az) = Sky.Sun(Jd(17.0));
+            Assert.AreEqual(-0.48, alt, .1); Assert.AreEqual(232.39, az, .2);
+            (alt, az) = Sky.Sun(Jd(20.0));
+            Assert.AreEqual(-20.3, alt, .1); Assert.AreEqual(271.29, az, .2);
+            (alt, _) = Sky.Sun(Jd(28.5));
+            Assert.AreEqual(-33.96, alt, .1);
+            // the game starts after sunset (16:58) in civil twilight
+            Assert.Less(Sky.Sun(Sky.JulianDay(Sky.ClockMinutes(0))).alt, -3.5);
+        }
+
+        [Test]
+        public void MoonRisesBeforeDawnAsAThinWaningCrescent()
+        {
+            var (alt, az, lit) = Sky.Moon(Jd(30.0));
+            Assert.AreEqual(6.95, alt, .6); Assert.AreEqual(149.72, az, .8); Assert.AreEqual(.361, lit, .02);
+            (alt, az, _) = Sky.Moon(Jd(20.0));
+            Assert.AreEqual(-44.33, alt, .6); Assert.AreEqual(5.64, az, 1.2);
+            (alt, _, _) = Sky.Moon(Jd(28.5));
+            Assert.AreEqual(.48, alt, .6);
+            // no moon above the horizon until after 4 a.m.
+            for (float e = 0; e < 900; e += 10) Assert.Less(Sky.Moon(Sky.JulianDay(Sky.ClockMinutes(e))).alt, 0, $"moon up at {e}s");
+            Assert.Greater(Sky.Moon(Sky.JulianDay(Sky.ClockMinutes(SurvivalRules.NightSeconds))).alt, 0);
+        }
+
+        [Test]
+        public void StarsLandWhereTheEphemerisPutsThem()
+        {
+            double jd = Jd(21.0);
+            var (alt, az) = Sky.Horizontal(88.2448, 7.3975, jd);   // Betelgeuse
+            Assert.AreEqual(34.09, alt, .15); Assert.AreEqual(158.65, az, .3);
+            (alt, az) = Sky.Horizontal(28.8536, 89.0782, jd);      // Polaris
+            Assert.AreEqual(62.44, alt, .15); Assert.AreEqual(358.67, az, 1.0);
+            // the rotation used for the star field agrees with the direct formula
+            var rot = Sky.CelestialRotation(jd);
+            double ra = 88.2448 * Math.PI / 180, dec = 7.3975 * Math.PI / 180;
+            var v = Sky.Rotate(rot, (Math.Cos(dec) * Math.Cos(ra), Math.Cos(dec) * Math.Sin(ra), Math.Sin(dec)));
+            var want = Sky.Direction(34.09, 158.65);
+            Assert.AreEqual(want.x, v.x, .005); Assert.AreEqual(want.y, v.y, .005); Assert.AreEqual(want.z, v.z, .005);
+        }
+    }
+
     public class NightRunTests
     {
         static float Ground(float x, float z) => WorldData.GroundHeight(TestData.Dem, x, z);
