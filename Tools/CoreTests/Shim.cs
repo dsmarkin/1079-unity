@@ -9,6 +9,7 @@ namespace NUnit.Framework {
     public static void IsTrue(bool c, string m = null) { if (!c) Fail(m ?? "expected true"); }
     public static void IsFalse(bool c, string m = null) { if (c) Fail(m ?? "expected false"); }
     public static void IsNull(object o, string m = null) { if (o != null) Fail(m ?? "expected null"); }
+    public static void IsNotNull(object o, string m = null) { if (o == null) Fail(m ?? "expected not null"); }
     public static void AreSame(object a, object b) { if (!ReferenceEquals(a, b)) Fail("not same"); }
     public static void AreEqual(object e, object a, string m = null) { if (!Equals(e, a) && !(e is IConvertible && a is IConvertible && Convert.ToDouble(e) == Convert.ToDouble(a))) Fail(m ?? $"expected {e} but was {a}"); }
     public static void AreEqual(double e, double a, double tol, string m = null) { if (Math.Abs(e - a) > tol) Fail(m ?? $"expected {e}±{tol} but was {a}"); }

@@ -8,7 +8,7 @@ namespace Height1079.Runtime
 {
     /// <summary>Server-authoritative night for the whole session. The host runs <see cref="NightRun"/>; clients only receive snapshots.
     /// Shared state travels in NetworkVariables, personal state and protocol events in RPCs.</summary>
-    public sealed class NightSession : NetworkBehaviour
+    public sealed partial class NightSession : NetworkBehaviour
     {
         public static NightSession Instance { get; private set; }
 
@@ -56,6 +56,7 @@ namespace Height1079.Runtime
                     MenkHitRpc(dir, damage, RpcTarget.Single(id, RpcTargetUse.Temp));
             };
             MenkPos.Value = menk.Pos; MenkYaw.Value = menk.Yaw;
+            InitPacks();
             NetworkManager.OnClientConnectedCallback += OnClientConnected;
             NetworkManager.OnClientDisconnectCallback += OnClientDisconnected;
             foreach (var id in NetworkManager.ConnectedClientsIds) OnClientConnected(id);
@@ -80,10 +81,15 @@ namespace Height1079.Runtime
             var p = run.AddPlayer(Token(clientId), name, Time.timeAsDouble);
             if (hiker != null) hiker.TeleportServer(p.X, p.Z);
             // Late joiners get the protocol so far.
+            PacksClientJoined(clientId);
             for (int i = 0; i < sentEvents; i++) EventRpc(run.Events[i].Time, run.Events[i].Text, RpcTarget.Single(clientId, RpcTargetUse.Temp));
         }
 
-        void OnClientDisconnected(ulong clientId) => run.SetOffline(Token(clientId), Time.timeAsDouble);
+        void OnClientDisconnected(ulong clientId)
+        {
+            run.SetOffline(Token(clientId), Time.timeAsDouble);
+            PacksClientLeft(clientId);
+        }
 
         /// <summary>Called by the server once a player object has its name; keeps the protocol readable.</summary>
         public void RenameServer(ulong clientId, string name)
@@ -133,6 +139,7 @@ namespace Height1079.Runtime
             if (Controls.MenkWake) menk.WakeNow();
             if (Controls.SkipMinute) run.SkipAhead(60);
             TickMenk();
+            SyncPacks();
             double now = Time.timeAsDouble;
             if (now - lastTick < TickSeconds) return;
             lastTick = now;

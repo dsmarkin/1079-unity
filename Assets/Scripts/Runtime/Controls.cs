@@ -135,6 +135,31 @@ namespace Height1079.Runtime
             || Held(Key.F)
 #endif
             ;
+        /// <summary>Tab: open the rucksack (own, one in the snow or a companion's).</summary>
+        public static bool PackOpen => Pressed(KeyCode.Tab
+#if ENABLE_INPUT_SYSTEM
+            , Key.Tab
+#endif
+            );
+        /// <summary>G: take the rucksack off / put it on.</summary>
+        public static bool PackWear => Pressed(KeyCode.G
+#if ENABLE_INPUT_SYSTEM
+            , Key.G
+#endif
+            );
+        /// <summary>R: pick up what lies in front / stow what is in the hands.</summary>
+        public static bool PackGrab => Pressed(KeyCode.R
+#if ENABLE_INPUT_SYSTEM
+            , Key.R
+#endif
+            );
+        /// <summary>X: drop what is in the hands into the snow.</summary>
+        public static bool PackDropHand => Pressed(KeyCode.X
+#if ENABLE_INPUT_SYSTEM
+            , Key.X
+#endif
+            );
+
         public static bool MiniMap => Pressed(KeyCode.N
 #if ENABLE_INPUT_SYSTEM
             , Key.N

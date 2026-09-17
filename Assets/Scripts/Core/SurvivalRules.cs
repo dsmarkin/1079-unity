@@ -36,6 +36,16 @@ namespace Height1079.Core
             return p.Outcome != Outcome.None;
         }
 
+        /// <summary>Kilograms on the back cost speed: up to 12 kg is felt only as work, 40 kg halves the pace in deep snow (×0.55).</summary>
+        public static float LoadSpeedFactor(float kg)
+        {
+            float t = Math.Max(0f, Math.Min(1f, (kg - 12f) / 28f));
+            return 1f - .45f * t;
+        }
+
+        /// <summary>Running needs a light load.</summary>
+        public const float RunLimitKg = 25f;
+
         /// <summary>Seconds of steady kindling needed with the given hand condition.</summary>
         public static float KindleSeconds(float hands) => 3.2f + (100f - hands) * .09f;
 

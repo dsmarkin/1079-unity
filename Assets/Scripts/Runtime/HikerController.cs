@@ -25,6 +25,16 @@ namespace Height1079.Runtime
         public readonly NetworkVariable<byte> TorchLevel = new NetworkVariable<byte>(255, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Owner);
         public readonly NetworkVariable<byte> Action = new NetworkVariable<byte>(0, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Owner); // 0 idle, 1 cold, 2 kindle
 
+        /// <summary>What the hiker carries in the hands out of a rucksack (Core.ItemId); written by the host's PackWorld.</summary>
+        public readonly NetworkVariable<byte> Carried = new NetworkVariable<byte>(0);
+        public static readonly System.Collections.Generic.List<HikerController> All = new System.Collections.Generic.List<HikerController>();
+
+        public static HikerController ByClient(ulong clientId)
+        {
+            foreach (var h in All) if (h != null && h.OwnerClientId == clientId) return h;
+            return null;
+        }
+
         public string DisplayName => Name.Value.Length > 0 ? Name.Value.ToString() : "Путник";
 
         Rigidbody body;
@@ -35,7 +45,7 @@ namespace Height1079.Runtime
         Camera cam;
         Transform head;
         float yaw, pitch = .08f, orbit = 6f;
-        bool firstPerson = true, grounded, kindling, paused, placed;
+        bool firstPerson = true, grounded, kindling, paused, placed, packUi;
         Vector3 groundNormal = Vector3.up;
         float lastVerticalSpeed, stumbleUntil, impact;
         public bool Stumbling => Time.time < stumbleUntil;
@@ -73,8 +83,11 @@ namespace Height1079.Runtime
             if (equipment == null) equipment = gameObject.AddComponent<Equipment>();
         }
 
+        public override void OnNetworkDespawn() { All.Remove(this); }
+
         public override void OnNetworkSpawn()
         {
+            if (!All.Contains(this)) All.Add(this);
             body.isKinematic = !IsOwner;
             if (!IsOwner) return;
             Name.Value = new FixedString64Bytes(Bootstrap.PlayerName);
@@ -143,10 +156,15 @@ namespace Height1079.Runtime
             var session = NightSession.Instance;
             bool finished = session != null && session.MyOutcome != Outcome.None;
             if (Controls.Pause) { paused = true; SetCursor(false); }
-            if (!paused && !finished && Input.GetMouseButtonDown(0) && Cursor.lockState != CursorLockMode.Locked) SetCursor(true);
+            if (!paused && !finished && !Backpacks.UiOpen && Input.GetMouseButtonDown(0) && Cursor.lockState != CursorLockMode.Locked) SetCursor(true);
             if (paused && Input.GetMouseButtonDown(0) && !Bootstrap.PointerOverUi()) { paused = false; SetCursor(true); }
             if (Controls.ToggleView) firstPerson = !firstPerson;
-            if (!paused && !finished) equipment.HandleInput();
+            if (!paused && !finished) { equipment.HandleInput(); Backpacks.HandleInput(this); }
+            if (Backpacks.UiOpen != packUi)
+            {
+                packUi = Backpacks.UiOpen;
+                if (!paused && !finished) SetCursor(!packUi);
+            }
             if (finished && Cursor.lockState == CursorLockMode.Locked) SetCursor(false);
 
             if (Cursor.lockState == CursorLockMode.Locked && !paused && !finished)
@@ -196,7 +214,10 @@ namespace Height1079.Runtime
             float r = locked ? 0f : (Controls.Right ? 1f : 0f) - (Controls.Left ? 1f : 0f);
             Vector3 forward = Quaternion.Euler(0, yaw, 0) * Vector3.forward, right = Quaternion.Euler(0, yaw, 0) * Vector3.right;
             var wish = (forward * f + right * r); if (wish.sqrMagnitude > 1f) wish.Normalize();
-            float speed = Controls.Run && !Crawling ? RunSpeed : WalkSpeed;
+            // what is carried: heavy loads slow the legs and running needs a light pack
+            float load = Backpacks.CarriedKg(this);
+            float speed = Controls.Run && !Crawling && load < SurvivalRules.RunLimitKg ? RunSpeed : WalkSpeed;
+            speed *= SurvivalRules.LoadSpeedFactor(load);
             speed *= Mathf.Lerp(1f, .35f, crouch);
             // Cold slows the legs: clarity/heat below 40 costs up to 35 % of speed.
             if (session != null) speed *= Mathf.Lerp(.65f, 1f, Mathf.Clamp01(session.Heat / 40f));

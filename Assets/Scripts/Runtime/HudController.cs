@@ -22,6 +22,12 @@ namespace Height1079.Runtime
         RectTransform miniRoot, miniMap, miniArrow, bigRoot, bigMark;
         RawImage miniImage;
         Text bigNote, heldLabel;
+        // rucksack window
+        RectTransform packPanel, packRows;
+        Text packTitle, packLoad, packHandLine;
+        Button packWearButton, packStowButton;
+        readonly System.Collections.Generic.List<Button> packRowPool = new System.Collections.Generic.List<Button>();
+        string packShown = "";
         Texture2D mapTex;
         bool miniOn = true;
         const float MiniMetres = 700f;
@@ -49,6 +55,7 @@ namespace Height1079.Runtime
             BuildMenu();
             BuildHud();
             BuildNavigation();
+            BuildPack();
             BuildProtocol();
             ShowMenu(true);
         }
@@ -134,7 +141,7 @@ namespace Height1079.Runtime
         void BuildHud()
         {
             hud = Rect("Night", canvas.transform, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero).gameObject;
-            var box = Rect("Box", hud.transform, Vector2.zero, Vector2.zero, new Vector2(20, 20), new Vector2(360, 250));
+            var box = Rect("Box", hud.transform, Vector2.zero, Vector2.zero, new Vector2(20, 20), new Vector2(360, 266));
             PanelImage(box, Panel);
             clock = Label("Clock", box, new Vector2(22, -14), new Vector2(320, 44), 34, Ink);
             direction = Label("Direction", box, new Vector2(22, -58), new Vector2(320, 24), 16, Ink);
@@ -144,7 +151,7 @@ namespace Height1079.Runtime
             heat = Meter("ТЕПЛО", box, new Vector2(22, -178));
             hands = Meter("РУКИ", box, new Vector2(132, -178));
             clarity = Meter("ЯСНОСТЬ", box, new Vector2(242, -178));
-            Label("Keys", box, new Vector2(22, -214), new Vector2(330, 32), 11, new Color(.69f, .76f, .8f)).text = "WASD · Shift бег · V вид · E костёр · Esc пауза\n1 компас · 2 фонарик (F — свет) · 3/M карта · Q убрать · N мини-карта";
+            Label("Keys", box, new Vector2(22, -214), new Vector2(330, 46), 11, new Color(.69f, .76f, .8f)).text = "WASD · Shift бег · V вид · E костёр · Esc пауза\n1 компас · 2 фонарик (F — свет) · 3/M карта · Q убрать · N мини-карта\nTab рюкзак · G снять/надеть · R взять/убрать · X бросить";
             var strip = Rect("DebugStrip", hud.transform, new Vector2(0, 1), new Vector2(1, 1), new Vector2(0, 0), new Vector2(0, 26));
             strip.pivot = new Vector2(0, 1); PanelImage(strip, new Color(0, 0, 0, .55f));
             debug = Label("Debug", strip, new Vector2(12, -5), new Vector2(1200, 18), 14, new Color(1f, .95f, .8f));
@@ -262,7 +269,7 @@ namespace Height1079.Runtime
             heldLabel.text = held == HeldItem.Compass ? "Компас: стрелка на магнитный север, склонение +19° (к востоку)"
                 : held == HeldItem.Flashlight && gear != null && gear.IsZhuchok ? (me.TorchOn.Value ? "«Жучок» · жмите F, пока нужен свет · 2 — другой фонарь" : "«Жучок» (динамо) · держите F, чтобы светить · 2 — трубчатый фонарик")
                 : held == HeldItem.Flashlight ? (me.TorchOn.Value ? (gear != null && gear.Battery <= 0f ? "Фонарик включён, батарея села" : $"Фонарик · батарея {Mathf.CeilToInt((gear != null ? gear.Battery : 1f) * 100f)}% · F — выключить") : "Фонарик · F — включить · 2 — «жучок»")
-                : "";
+                : Backpacks.Prompt(me);
         }
 
         Slider Meter(string title, Transform parent, Vector2 pos)
@@ -278,6 +285,87 @@ namespace Height1079.Runtime
             s.fillRect = fillRt; s.targetGraphic = null;
             fill.type = Image.Type.Simple;
             return s;
+        }
+
+        /// <summary>The rucksack window: what is inside, how full it is, and buttons to take things out or stow what is in the hands.</summary>
+        void BuildPack()
+        {
+            packPanel = Rect("Pack", hud.transform, new Vector2(1, .5f), new Vector2(1, .5f), new Vector2(-24, 0), new Vector2(340, 470));
+            packPanel.pivot = new Vector2(1, .5f);
+            PanelImage(packPanel, Panel);
+            packTitle = Label("Title", packPanel, new Vector2(20, -16), new Vector2(300, 26), 20, Ink);
+            packLoad = Label("Load", packPanel, new Vector2(20, -44), new Vector2(300, 20), 13, new Color(.71f, .79f, .81f));
+            packRows = Rect("Rows", packPanel, new Vector2(0, 1), new Vector2(0, 1), new Vector2(16, -70), new Vector2(308, 320));
+            packHandLine = Label("Hand", packPanel, new Vector2(20, -398), new Vector2(300, 20), 13, Amber);
+            packStowButton = ButtonUi("Stow", packPanel, new Vector2(20, -422), new Vector2(148, 30), "Убрать в рюкзак", new Color(.2f, .29f, .34f), Ink, () =>
+            {
+                var s = NightSession.Instance;
+                if (s != null) s.RequestPack(PackAction.Stow, Backpacks.OpenPack);
+            });
+            packWearButton = ButtonUi("Wear", packPanel, new Vector2(176, -422), new Vector2(148, 30), "Надеть", new Color(.2f, .29f, .34f), Ink, () =>
+            {
+                var s = NightSession.Instance;
+                var me = Bootstrap.LocalHiker;
+                if (s == null || me == null) return;
+                if (Backpacks.MyPackId(me) == Backpacks.OpenPack) { s.RequestPack(PackAction.Drop); Backpacks.Close(); }
+                else s.RequestPack(PackAction.Wear, Backpacks.OpenPack);
+            });
+            packPanel.gameObject.SetActive(false);
+        }
+
+        void UpdatePack(HikerController me)
+        {
+            bool open = Backpacks.UiOpen && Backpacks.TryPack(Backpacks.OpenPack, out _);
+            if (packPanel.gameObject.activeSelf != open) packPanel.gameObject.SetActive(open);
+            if (!open) { packShown = ""; return; }
+            Backpacks.TryPack(Backpacks.OpenPack, out var pack);
+            bool mine = pack.Wearer == me.OwnerClientId;
+            bool ground = pack.Wearer == PackNet.NoWearer;
+            string owner = "Рюкзак напарника";
+            if (!mine && !ground)
+            {
+                var h = HikerController.ByClient(pack.Wearer);
+                if (h != null) owner = "Рюкзак: " + h.DisplayName;
+            }
+            packTitle.text = mine ? "Ваш рюкзак" : ground ? "Рюкзак в снегу" : owner;
+            var contents = Backpacks.Contents(Backpacks.OpenPack);
+            float litres = 0f, kg = Backpack.OwnKg;
+            foreach (var i in contents) { litres += Items.Spec(i).Litres; kg += Items.Spec(i).Kg; }
+            packLoad.text = $"{litres:0.#} из {Backpack.CapacityLitres:0} л · {kg:0.0} кг · вместе с руками {Backpacks.CarriedKg(me):0.0} кг";
+            var carried = (ItemId)me.Carried.Value;
+            packHandLine.text = carried != ItemId.None ? "В руках: " + Items.Spec(carried).Name : "Руки свободны · Tab — закрыть";
+            packStowButton.gameObject.SetActive(carried != ItemId.None);
+            bool canWear = Backpacks.MyPackId(me) == Backpacks.OpenPack || ground;
+            packWearButton.gameObject.SetActive(canWear);
+            packWearButton.GetComponentInChildren<Text>().text = mine ? "Снять рюкзак" : "Надеть";
+
+            // rows are rebuilt only when the contents change
+            var key = new StringBuilder().Append(Backpacks.OpenPack).Append(':');
+            foreach (var i in contents) key.Append((int)i).Append(',');
+            if (key.ToString() == packShown) return;
+            packShown = key.ToString();
+            for (int i = packRowPool.Count; i < contents.Count; i++)
+            {
+                int index = i;
+                var b = ButtonUi("Row" + i, packRows, new Vector2(0, -i * 26), new Vector2(308, 24), "", new Color(.12f, .2f, .25f), Ink, () =>
+                {
+                    var s = NightSession.Instance;
+                    if (s != null) s.RequestPack(PackAction.Take, Backpacks.OpenPack, index);
+                });
+                var t = b.GetComponentInChildren<Text>();
+                t.alignment = TextAnchor.MiddleLeft;
+                t.rectTransform.offsetMin = new Vector2(10, 0); t.rectTransform.offsetMax = new Vector2(-10, 0);
+                t.fontSize = 14;
+                packRowPool.Add(b);
+            }
+            for (int i = 0; i < packRowPool.Count; i++)
+            {
+                bool show = i < contents.Count;
+                if (packRowPool[i].gameObject.activeSelf != show) packRowPool[i].gameObject.SetActive(show);
+                if (!show) continue;
+                var spec = Items.Spec(contents[i]);
+                packRowPool[i].GetComponentInChildren<Text>().text = $"{spec.Name}   {spec.Kg:0.0#} кг · {spec.Litres:0.#} л";
+            }
         }
 
         void BuildProtocol()
@@ -335,6 +423,7 @@ namespace Height1079.Runtime
                 : s.Heat < 30 ? "Холод мешает думать. Вернитесь к огню." : s.Storm.Value ? "Метель. Держитесь рядом." : "Свет уходит. Выбирайте путь.";
             heat.value = s.Heat; hands.value = s.Hands; clarity.value = s.Clarity;
             UpdateNavigation(me, x, z);
+            UpdatePack(me);
 
             if (s.MyOutcome != Outcome.None && !protocolShown)
             {

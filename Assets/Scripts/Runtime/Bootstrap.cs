@@ -53,6 +53,7 @@ namespace Height1079.Runtime
             Weather.Create();
             ForestMist.Create();
             MenkView.Create();
+            PackView.Create();
             var driver = new GameObject("Atmosphere", typeof(Atmosphere));
             Object.DontDestroyOnLoad(driver);
         }

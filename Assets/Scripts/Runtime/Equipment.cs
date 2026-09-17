@@ -64,6 +64,13 @@ namespace Height1079.Runtime
         /// <summary>Owner input, called from HikerController.Update.</summary>
         public void HandleInput()
         {
+            // a thing out of the rucksack fills the hands: no compass, map or torch until it is stowed or dropped
+            if (hiker.Carried.Value != 0)
+            {
+                if (hiker.Held.Value != (byte)HeldItem.None) hiker.Held.Value = (byte)HeldItem.None;
+                if (hiker.TorchOn.Value) hiker.TorchOn.Value = false;
+                return;
+            }
             if (Controls.ItemCompass) Toggle(HeldItem.Compass);
             if (Controls.ItemTorch)
             {
