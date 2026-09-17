@@ -109,6 +109,7 @@ docs/   — дизайн и данные (см. README).
 - **Клавиатура.** Ввод через Input System по физическим клавишам, иначе при русской раскладке на macOS WASD не работают. Используй `Controls.cs`.
 - **Кривые частиц.** У `velocityOverLifetime` x, y и z должны быть в одном режиме кривой (TwoConstants и т. п.), иначе Unity ругается.
 - **Неоднозначность `Object`.** В файлах с `using System` пиши `UnityEngine.Object`.
+- **Устаревший кэш сборки.** Если собранная игра стартует с дефолтным небом без мира, а в `player.log` есть `Mismatched serialization in the builtin class 'TextAsset'`, значит испортился инкрементальный кэш данных плеера. Создай пустой файл `clean.build` в корне проекта и собери заново: сборка будет полной, файл удалится сам.
 - **Процесс Unity на проект один.** Пока редактор открыт, batch-скрипты не запустятся.
 - **Тесты с UnityEngine в dotnet не собираются.** Новый тест, которому нужен Runtime или UnityEngine, добавь в `Exclude` в `Tools/CoreTests/CoreTests.csproj`.
 

@@ -163,7 +163,10 @@ namespace Height1079.EditorTools
             ProjectSetup.EnsureAll(false);
             PlayerSettings.productName = "1079 · Высота";
             PlayerSettings.companyName = "1079";
-            var report = BuildPipeline.BuildPlayer(new BuildPlayerOptions { scenes = Scenes, target = target, locationPathName = location, options = BuildOptions.None });
+            // a "clean.build" file in the project root forces a full rebuild (the incremental player data cache can go stale)
+            bool clean = File.Exists("clean.build");
+            var report = BuildPipeline.BuildPlayer(new BuildPlayerOptions { scenes = Scenes, target = target, locationPathName = location, options = clean ? BuildOptions.CleanBuildCache : BuildOptions.None });
+            if (clean && report.summary.result == UnityEditor.Build.Reporting.BuildResult.Succeeded) File.Delete("clean.build");
             Debug.Log($"Build {target}: {report.summary.result}, {report.summary.totalSize / 1048576} MB, {report.summary.totalErrors} errors");
             if (report.summary.result != UnityEditor.Build.Reporting.BuildResult.Succeeded) EditorApplication.Exit(1);
         }
