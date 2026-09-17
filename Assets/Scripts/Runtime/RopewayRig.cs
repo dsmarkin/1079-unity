@@ -165,7 +165,7 @@ namespace Height1079.Runtime
                 var dir = new Vector3(d.x, d.y, d.z);
                 var right = Vector3.Cross(Vector3.up, dir).normalized;
                 float side = c.Up ? 1f : -1f;
-                cars[i].position = new Vector3(p.x, p.y, p.z) + right * (gauge / 2 * side);
+                cars[i].position = new Vector3(p.x, p.y - Ropeway.Hang(Spec.Kind), p.z) + right * (gauge / 2 * side);
                 cars[i].rotation = Quaternion.LookRotation(dir * side, Vector3.up);
             }
         }

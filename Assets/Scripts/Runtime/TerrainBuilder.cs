@@ -30,7 +30,7 @@ namespace Height1079.Runtime
             if (mat != null) terrain.materialTemplate = mat;
             terrain.drawInstanced = false;
             terrain.heightmapPixelError = World.IsElbrus ? 6f : 3f;
-            terrain.basemapDistance = World.IsElbrus ? 900f : 350f;
+            terrain.basemapDistance = World.IsElbrus ? 2200f : 350f;
             terrain.treeDistance = World.IsElbrus ? 0f : 1400f;
             terrain.treeMaximumFullLODCount = 400;
             terrain.treeLODBiasMultiplier = 1f;

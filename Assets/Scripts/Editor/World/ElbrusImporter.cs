@@ -68,13 +68,14 @@ namespace Height1079.EditorTools.World
         /// <summary>0 firn (сухой фирн), 1 wind crust and bare glacier ice, 2 lava rock, 3 ash and moraine.</summary>
         static TerrainLayer[] Layers() => new[]
         {
-            Layer("ElbFirn", "snow_02", 7f, .3f, Color.white),
-            Layer("ElbIce", "snow_03", 11f, .55f, new Color(.86f, .92f, 1f)),
-            Layer("ElbLava", "rock_face_03", 5f, .1f, new Color(.62f, .6f, .6f)),
-            Layer("ElbAsh", "burned_ground_01", 6f, .06f, new Color(.72f, .68f, .64f)),
+            // small tiles and a strong normal, or the slope reads as white paper at arm's length
+            Layer("ElbFirn", "snow_02", 3.5f, .25f, new Color(.94f, .95f, .97f), 1.4f),
+            Layer("ElbIce", "snow_03", 5.5f, .5f, new Color(.8f, .88f, .98f), 1.2f),
+            Layer("ElbLava", "rock_face_03", 4f, .1f, new Color(.5f, .48f, .48f), 1.1f),
+            Layer("ElbAsh", "burned_ground_01", 5f, .06f, new Color(.62f, .58f, .54f), 1f),
         };
 
-        static TerrainLayer Layer(string name, string id, float tile, float smoothness, Color tint)
+        static TerrainLayer Layer(string name, string id, float tile, float smoothness, Color tint, float normal = .8f)
         {
             string dir = WorldPaths.Generated + "/TerrainLayers";
             Directory.CreateDirectory(dir);
@@ -84,7 +85,7 @@ namespace Height1079.EditorTools.World
             {
                 diffuseTexture = Materials.Tex(WorldPaths.PH(id, "diff")),
                 normalMapTexture = Materials.Tex(WorldPaths.PH(id, "nor_gl")),
-                tileSize = new Vector2(tile, tile), smoothness = smoothness, metallic = 0, normalScale = .8f,
+                tileSize = new Vector2(tile, tile), smoothness = smoothness, metallic = 0, normalScale = normal,
                 diffuseRemapMax = new Vector4(tint.r, tint.g, tint.b, 1),
             };
             AssetDatabase.CreateAsset(l, path);
@@ -107,12 +108,15 @@ namespace Height1079.EditorTools.World
                     float rk = rock[r * n + c] / 255f;
                     float sh = ash[r * n + c] / 255f;
                     float noise = Mathf.PerlinNoise(x * .0035f + 11, z * .0035f + 5);
+                    // sastrugi: wind-carved bands of hard crust across the firn, tens of metres wide
+                    float sastrugi = Mathf.PerlinNoise(x * .045f + 3.1f, z * .012f + 7.7f);
                     // firn line: nothing but snow above ~3 900 m, patchy between 3 300 and 3 900
                     float snowy = Mathf.Clamp01(Mathf.InverseLerp(3200f, 3900f, elev) + (noise - .5f) * .35f);
                     float rockW = rk * Mathf.Lerp(1f, .35f, snowy);
                     float ashW = sh * Mathf.Lerp(1f, .15f, snowy) * (1f - rockW);
                     // wind crust and bare ice: swept ridges and everything steep above the shelf
                     float ice = Mathf.Clamp01(Mathf.InverseLerp(14f, 30f, slope) * snowy * (.4f + .8f * noise));
+                    ice = Mathf.Max(ice, snowy * Mathf.InverseLerp(.56f, .78f, sastrugi) * .75f);
                     ice = Mathf.Max(ice, Mathf.InverseLerp(4850f, 5250f, elev) * Mathf.InverseLerp(12f, 24f, slope));
                     ice *= 1f - rockW;
                     float firn = Mathf.Max(0f, 1f - rockW - ashW - ice);

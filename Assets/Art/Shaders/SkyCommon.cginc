@@ -2,7 +2,7 @@
 #ifndef H1079_SKY_COMMON
 #define H1079_SKY_COMMON
 float3 _SkyZenith, _SkyHorizon, _SkyGlow, _SunDirW, _MoonDirW, _GalPoleW, _GalCentreW;
-float _SkyStorm, _MilkyWay, _StarVis, _CloudCover, _CloudTime, _Aurora, _AuroraTime, _MoonLit;
+float _SkyStorm, _MilkyWay, _StarVis, _CloudCover, _CloudTime, _Aurora, _AuroraTime, _MoonLit, _SunDisc;
 float2 _CloudWind;
 
 float h1079_hash(float2 p) { p = frac(p * float2(123.34, 456.21)); p += dot(p, p + 45.32); return frac(p.x * p.y); }
@@ -28,6 +28,14 @@ float3 h1079_skyColor(float3 dir)
     float toward = saturate(dot(sd, vd) * .5 + .5);
     float glow = pow(toward, 5) * exp(-h * 7) + pow(toward, 2) * exp(-h * 2.5) * .25;
     c += _SkyGlow * glow;
+    // daylight (Elbrus): the sun itself, its halo and the bright aureole around it
+    if (_SunDisc > .001)
+    {
+        float cd = dot(dir, normalize(_SunDirW));
+        float disc = smoothstep(.99975, .99991, cd);
+        float halo = pow(saturate(cd), 1400) * .45 + pow(saturate(cd), 90) * .14 + pow(saturate(cd), 8) * .03;
+        c += _SunDisc * (disc * 9 + halo);
+    }
     if (dir.y < 0) c = lerp(c, _SkyHorizon * .8, saturate(-dir.y * 8));
     return c;
 }

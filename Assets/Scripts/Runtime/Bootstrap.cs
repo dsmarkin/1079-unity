@@ -55,6 +55,7 @@ namespace Height1079.Runtime
             PackView.Create();
             var driver = new GameObject("Atmosphere", typeof(Atmosphere));
             Object.DontDestroyOnLoad(driver);
+            atmosphere = driver.GetComponent<Atmosphere>();
         }
 
         /// <summary>Root objects the world build created, so switching places can take them down again.</summary>
@@ -91,8 +92,11 @@ namespace Height1079.Runtime
                 placeExtras.Add(ForestMist.Create().gameObject);
                 placeExtras.Add(MenkView.Create().gameObject);
             }
+            atmosphere?.ApplyPlace();
             PlaceMenuCamera();
         }
+
+        static Atmosphere atmosphere;
 
         /// <summary>The menu looks up the valley from behind the 31 Jan camp toward the slope; the scene camera in Main.unity sits inside the mountain otherwise.</summary>
         static void PlaceMenuCamera()
@@ -230,8 +234,21 @@ namespace Height1079.Runtime
             void Start()
             {
                 film = NightFilm.Create();
-                if (Height1079.Core.World.IsElbrus) return;
-                SkyDome.Create();
+                ApplyPlace();
+            }
+
+            /// <summary>The 1959 night sky and its moonlight exist on Kholat only; switching places takes them down or puts them back.</summary>
+            public void ApplyPlace()
+            {
+                var dome = FindFirstObjectByType<SkyDome>();
+                if (Height1079.Core.World.IsElbrus)
+                {
+                    if (dome != null) Destroy(dome.gameObject);
+                    if (moonLight != null) { Destroy(moonLight.gameObject); moonLight = null; }
+                    return;
+                }
+                if (dome == null) SkyDome.Create();
+                if (moonLight != null) return;
                 var go = new GameObject("MoonLight", typeof(Light));
                 DontDestroyOnLoad(go);
                 moonLight = go.GetComponent<Light>();

@@ -57,6 +57,19 @@ namespace Height1079.Core
         public const float LoadSpeed = .8f;
         /// <summary>Length of the slow zone at each end of a loop, metres.</summary>
         public const float SlowZone = 45f;
+        /// <summary>How far a car hangs below the rope (grip and hanger), metres.</summary>
+        public static float Hang(RopewayKind kind) => kind == RopewayKind.Chair ? 2f : kind == RopewayKind.Pendulum ? 3.4f : 2.6f;
+
+        /// <summary>Seconds until a car can be boarded at this end (0 if one is there now, -1 if none ever comes).</summary>
+        public float SecondsToBoard(double t, bool atBottom)
+        {
+            if (BoardableCar(t, atBottom) >= 0) return 0f;
+            double span = CycleSeconds + 1;
+            for (double dt = .5; dt <= span; dt += .5)
+                if (BoardableCar(t + dt, atBottom) >= 0) return (float)dt;
+            return -1f;
+        }
+
         /// <summary>Lateral offset of the two strands of a loop (half the track gauge), metres.</summary>
         public const float Gauge = 3.2f;
 
@@ -74,7 +87,8 @@ namespace Height1079.Core
             for (int i = 0; i < n; i++) Ground[i] = ground(spec.Towers[i].x, spec.Towers[i].z);
 
             float baseHeight = spec.Kind == RopewayKind.Chair ? 7f : spec.Kind == RopewayKind.Pendulum ? 16f : 11f;
-            float terminal = spec.Kind == RopewayKind.Chair ? 6f : spec.Kind == RopewayKind.Pendulum ? 14f : 9f;
+            // at a terminal the rope runs low, so the car's floor is about level with the platform: hanger + a step up
+            float terminal = spec.Kind == RopewayKind.Chair ? Hang(spec.Kind) + 1.1f : spec.Kind == RopewayKind.Pendulum ? Hang(spec.Kind) + 1.4f : Hang(spec.Kind) + 1.2f;
             for (int i = 0; i < n; i++) TowerHeight[i] = i == 0 || i == n - 1 ? terminal : baseHeight;
             float clear = spec.Kind == RopewayKind.Chair ? 3.5f : Clearance;
             RaiseTowers(ground, clear);

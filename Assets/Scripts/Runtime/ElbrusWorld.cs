@@ -167,25 +167,27 @@ namespace Height1079.Runtime
         {
             if (sun != null)
             {
-                sun.color = new Color(1f, .97f, .92f);
-                sun.intensity = 1.75f;
+                sun.color = new Color(1f, .97f, .9f);
+                sun.intensity = 1.35f;                                   // snow blows out at 1.75: the slope turned into white paper
                 sun.shadows = LightShadows.Soft;
                 sun.enabled = true;
-                sun.transform.rotation = Quaternion.Euler(46f, 128f, 0f);   // mid-morning, sun in the south-east
+                sun.transform.rotation = Quaternion.LookRotation(-DaySky.SunDirection, Vector3.up);   // mid-morning, sun in the south-east
             }
             RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Trilight;
-            RenderSettings.ambientSkyColor = new Color(.52f, .62f, .82f);
-            RenderSettings.ambientEquatorColor = new Color(.68f, .72f, .8f);
-            RenderSettings.ambientGroundColor = new Color(.78f, .8f, .84f);   // snow throws a lot of light back up
+            // blue shadows on snow, but not a white-out: the ground bounce stays moderate so the relief keeps its shape
+            RenderSettings.ambientSkyColor = new Color(.42f, .54f, .78f);
+            RenderSettings.ambientEquatorColor = new Color(.54f, .6f, .7f);
+            RenderSettings.ambientGroundColor = new Color(.5f, .53f, .58f);
             RenderSettings.fog = true;
             RenderSettings.fogMode = FogMode.ExponentialSquared;
-            RenderSettings.fogDensity = .00016f;
-            RenderSettings.fogColor = new Color(.72f, .8f, .9f);
+            RenderSettings.fogDensity = .00032f;                         // aerial perspective: the far ridges recede
+            RenderSettings.fogColor = new Color(.66f, .76f, .88f);
+            DaySky.Create();
             var cam = Camera.main;
             if (cam != null)
             {
                 cam.clearFlags = CameraClearFlags.SolidColor;
-                cam.backgroundColor = new Color(.35f, .52f, .78f);
+                cam.backgroundColor = new Color(.6f, .72f, .86f);
                 cam.farClipPlane = 20000f;
             }
         }

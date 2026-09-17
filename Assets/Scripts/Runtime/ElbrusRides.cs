@@ -8,7 +8,7 @@ namespace Height1079.Runtime
     /// can run fast (a real ride from Azau to Gara-Bashi takes some twenty minutes).</summary>
     public sealed class ElbrusRides : MonoBehaviour
     {
-        /// <summary>How much faster the ropeways run while the passenger holds the view forward (F8).</summary>
+        /// <summary>How much faster the ropeways run when the passenger asks for it (F11).</summary>
         public const float Warp = 8f;
         const float TerminalReach = 14f, RatrakReach = 6f;
 
@@ -17,6 +17,9 @@ namespace Height1079.Runtime
         bool boardedAtBottom;
         RatrakRide ratrak;
         bool fast;
+        /// <summary>Waiting in the queue at a terminal: the next car that pulls in takes the passenger without another key press.</summary>
+        RopewayRig queued;
+        bool queuedAtBottom;
 
         void Update()
         {
@@ -51,7 +54,7 @@ namespace Height1079.Runtime
             bool arrived = state.Boardable && (boardedAtBottom ? state.S > rig.Line.Length - Ropeway.SlowZone : state.S < Ropeway.SlowZone);
             float left = Mathf.Abs(boardedAtBottom ? rig.Line.Length - state.S : state.S);
             var pos = rig.Car(car).position;
-            hud?.SetPrompt($"{rig.Spec.Name} · {pos.y:0} м · ещё {left:0} м" + (fast ? " · ×8 (F8)" : " · F8 — быстрее") + (state.Boardable ? " · E — выйти" : ""));
+            hud?.SetPrompt($"{rig.Spec.Name} · {pos.y:0} м · ещё {left:0} м" + (fast ? " · ×8 (F11)" : " · F11 — быстрее") + (state.Boardable ? " · E — выйти" : ""));
             if (arrived || (state.Boardable && Controls.Board))
             {
                 me.LeaveRide(rig.ExitPoint(car));
@@ -91,14 +94,27 @@ namespace Height1079.Runtime
                     bestD = d; bestRig = r; bestBottom = bottom; bestCar = r.Boardable(bottom);
                 }
             }
-            if (bestRig == null) { hud?.SetPrompt(""); return; }
+            if (bestRig == null) { hud?.SetPrompt(""); queued = null; return; }
+            if (queued != null && (queued != bestRig || queuedAtBottom != bestBottom)) queued = null;
             string dirText = bestBottom ? "наверх" : "вниз";
-            if (bestCar < 0) { hud?.SetPrompt($"{bestRig.Spec.Name} · {dirText} · ждём кабину"); return; }
-            hud?.SetPrompt($"{bestRig.Spec.Name} · {dirText} · E — сесть");
-            if (!Controls.Board) return;
+            bool waiting = queued == bestRig;
+            if (bestCar < 0)
+            {
+                // no car in the loading zone yet: E puts the hiker in the queue and the next one takes them
+                float wait = bestRig.Line.SecondsToBoard(RopewayRig.Clock, bestBottom);
+                string when = wait < 0 ? "" : $" · кабина через {Mathf.CeilToInt(wait / (fast ? Warp : 1f))} с";
+                hud?.SetPrompt(waiting
+                    ? $"{bestRig.Spec.Name} · {dirText} · ждём кабину{when}" + (fast ? " · ×8 (F11)" : " · F11 — быстрее")
+                    : $"{bestRig.Spec.Name} · {dirText} · E — встать на посадку{when}");
+                if (Controls.Board) queued = queued == bestRig ? null : bestRig;
+                queuedAtBottom = bestBottom;
+                return;
+            }
+            hud?.SetPrompt($"{bestRig.Spec.Name} · {dirText} · " + (waiting ? "садимся" : "E — сесть"));
+            if (!waiting && !Controls.Board) return;
             if (bestRig.Seat(bestCar) == null) return;
             me.BoardRide(bestRig.Seat(bestCar));
-            rig = bestRig; car = bestCar; boardedAtBottom = bestBottom;
+            rig = bestRig; car = bestCar; boardedAtBottom = bestBottom; queued = null;
         }
     }
 }
