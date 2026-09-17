@@ -27,3 +27,7 @@ Assets/Resources.meta
 Assets/Scenes/
 Assets/Scenes.meta
 !Tools/CoreTests/CoreTests.csproj
+# Batch scripts and player logs written to the project root
+/*.log
+/unity-tests.xml
+/*.command
