@@ -145,6 +145,9 @@ namespace Height1079.Runtime
             bool on = held == HeldItem.Flashlight && hiker.TorchOn.Value;
             float level = kind == 1 ? (mine ? Dynamo : hiker.TorchLevel.Value / 255f) : (mine ? Battery : hiker.TorchLevel.Value / 255f);
             UpdateBeam(on, level, kind);
+            // the beam goes where the player looks (a hand keeps the light on what the eyes watch); others see it follow their torch
+            if (beam != null && beam.enabled && beamOrigins[kind] != null)
+                beam.transform.rotation = mine && cam != null ? cam.transform.rotation * Quaternion.Euler(4f, 0f, 0f) : beamOrigins[kind].rotation;
         }
 
         void OnDestroy()

@@ -9,7 +9,7 @@ namespace Height1079.Runtime
     {
         RawImage vignette, grain, tint;
         float strength;
-        bool storm;
+        float storm;
 
         public static NightFilm Create()
         {
@@ -26,7 +26,7 @@ namespace Height1079.Runtime
             tint = Layer("Tint", Texture2D.whiteTexture);
             vignette = Layer("Vignette", Vignette());
             grain = Layer("Grain", Grain());
-            Set(0f, false);
+            Set(0f, 0f);
         }
 
         RawImage Layer(string name, Texture tex)
@@ -40,12 +40,13 @@ namespace Height1079.Runtime
             return img;
         }
 
-        public void Set(float night, bool isStorm)
+        public void Set(float night, float isStorm)
         {
             strength = night; storm = isStorm;
             if (vignette == null) return;
-            vignette.color = new Color(0f, 0f, 0f, .9f * night);
-            tint.color = new Color(.02f, .05f, .12f, .14f * night);
+            vignette.color = new Color(0f, 0f, 0f, (.9f + .08f * isStorm) * night);
+            // a blizzard washes the picture towards a cold grey
+            tint.color = Color.Lerp(new Color(.02f, .05f, .12f, .14f * night), new Color(.35f, .4f, .48f, .12f * night), isStorm);
             grain.enabled = night > .05f;
         }
 
@@ -56,7 +57,7 @@ namespace Height1079.Runtime
             float aspect = Screen.height > 0 ? (float)Screen.width / Screen.height : 1.7f;
             float scale = Screen.height / 256f;
             grain.uvRect = new Rect(Random.value, Random.value, scale * aspect, scale);
-            grain.color = new Color(1f, 1f, 1f, (storm ? .05f : .075f) * strength);
+            grain.color = new Color(1f, 1f, 1f, Mathf.Lerp(.075f, .11f, storm) * strength);
         }
 
         static Texture2D Vignette()

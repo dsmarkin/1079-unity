@@ -50,6 +50,7 @@ namespace Height1079.Runtime
             PlaceMenuCamera();
             Ambience.Create();
             SnowFx.Create();
+            Weather.Create();
             var driver = new GameObject("Atmosphere", typeof(Atmosphere));
             Object.DontDestroyOnLoad(driver);
         }
@@ -160,7 +161,7 @@ namespace Height1079.Runtime
         {
             // Dusk is the lobby backdrop and the first minute of the night; after that it is the real Ural night of 1 Feb:
             // the moon (last quarter) rises only after midnight and the sky is overcast with snow, so the forest is almost black.
-            static readonly Color DuskSky = new Color(.62f, .67f, .71f), NightSky = new Color(.018f, .024f, .036f), StormSky = new Color(.05f, .058f, .07f);
+            static readonly Color DuskSky = new Color(.62f, .67f, .71f), NightSky = new Color(.018f, .024f, .036f), StormSky = new Color(.075f, .085f, .1f);
             static readonly Color DuskAmbSky = new Color(.89f, .94f, 1f), DuskAmbEq = new Color(.6f, .66f, .7f), DuskAmbGround = new Color(.35f, .38f, .4f);
             static readonly Color NightAmbSky = new Color(.055f, .07f, .1f), NightAmbEq = new Color(.032f, .04f, .058f), NightAmbGround = new Color(.022f, .026f, .036f);
             const float DuskSeconds = 75f;
@@ -179,18 +180,21 @@ namespace Height1079.Runtime
                     Hud.SetStatus(WorldDressing.ViewIndex < 0 ? "" : $"Осмотр места: {WorldDressing.ViewName} (F3 — дальше)");
                 }
                 var s = NightSession.Instance;
-                bool storm = s != null && s.Storm.Value;
+                float blizzard = Weather.Storm;
+                bool storm = blizzard > .5f;
                 float night = s != null ? Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(s.Elapsed.Value / DuskSeconds)) : 0f;
                 // site views are for looking at things: keep them readable
                 if (WorldDressing.ViewIndex >= 0) night = Mathf.Min(night, .35f);
                 Darkness = Mathf.MoveTowards(Darkness, night, Time.deltaTime * .5f);
                 float d = Darkness;
 
-                var sky = Color.Lerp(DuskSky, storm ? StormSky : NightSky, d);
+                // in a blizzard the air itself is full of snow: a grey-blue wall instead of black depth
+                var sky = Color.Lerp(DuskSky, Color.Lerp(NightSky, StormSky, blizzard), d);
                 RenderSettings.fogColor = sky;
                 // clear dusk: long views; night: the dark eats everything past ~60 m; blizzard: ~25 m
+                // clear dusk: long views; night: the dark eats everything past ~60 m; blizzard gusts: a few metres
                 float fog = s == null ? .0013f : Mathf.Lerp(.003f, .016f, d);
-                if (storm) fog = Mathf.Max(fog, .045f);
+                fog = Mathf.Lerp(fog, Mathf.Lerp(.05f, .12f, Weather.Gust), blizzard);
                 RenderSettings.fogDensity = fog;
                 RenderSettings.ambientSkyColor = Color.Lerp(DuskAmbSky, NightAmbSky, d);
                 RenderSettings.ambientEquatorColor = Color.Lerp(DuskAmbEq, NightAmbEq, d);
@@ -208,7 +212,7 @@ namespace Height1079.Runtime
                 if (flames != null) { var fe = flames.emission; fe.enabled = fire > 0f; }
                 if (fireSmoke != null) { var em = fireSmoke.emission; em.enabled = fire > 0f; }
                 if (fireLight != null) fireLight.intensity = fire > 0f ? (3.2f + .8f * Mathf.PerlinNoise(Time.time * 6f, 0f)) * Mathf.Lerp(1f, 1.4f, d) : 0f;
-                if (film != null) film.Set(s != null ? d : 0f, storm);
+                if (film != null) film.Set(s != null ? d : 0f, blizzard);
             }
         }
     }

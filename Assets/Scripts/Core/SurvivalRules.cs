@@ -40,7 +40,8 @@ namespace Height1079.Core
         public static float KindleSeconds(float hands) => 3.2f + (100f - hands) * .09f;
 
         /// <summary>Scheduled storms: the first at 120 s, then alternating 150 s windows.</summary>
-        public static bool StormAt(float elapsed) => elapsed > 120f && (int)Math.Floor((elapsed - 120f) / 150f) % 2 == 0;
+        /// <summary>Blizzards: the first front at 110 s, then 170 s of пурга and 100 s of lull, again and again.</summary>
+        public static bool StormAt(float elapsed) => elapsed > 110f && (elapsed - 110f) % 270f < 170f;
 
         public static OutcomeText Describe(Outcome o) => o switch
         {

@@ -226,7 +226,7 @@ namespace Height1079.EditorTools.World
                 go.transform.SetParent(root.transform, false);
                 go.GetComponent<MeshFilter>().sharedMesh = SaveMesh(mb, $"{name}_LOD{i}");
                 var mr = go.GetComponent<MeshRenderer>();
-                mr.sharedMaterials = i < 2 ? new[] { bark, foliage, snowCard } : new[] { bark, farFoliage, snowCard };
+                mr.sharedMaterials = i < 2 ? new[] { Wind(bark, .6f), Wind(foliage, 1f), Wind(snowCard, 1f) } : new[] { Wind(bark, .6f), Wind(farFoliage, 0f), Wind(snowCard, 1f) };
                 mr.shadowCastingMode = i == 2 ? UnityEngine.Rendering.ShadowCastingMode.Off : UnityEngine.Rendering.ShadowCastingMode.On;
                 renderers.Add(new Renderer[] { mr });
                 i++;
@@ -241,6 +241,29 @@ namespace Height1079.EditorTools.World
             var prefab = PrefabUtility.SaveAsPrefabAsset(root, path);
             Object.DestroyImmediate(root);
             return prefab;
+        }
+
+        /// <summary>A copy of a library material on the wind shader, used only by standing trees (logs and cut branches keep the still original).</summary>
+        static Material Wind(Material src, float flutter)
+        {
+            if (src == null) return null;
+            var shader = Shader.Find("Height1079/TreeWind");
+            if (shader == null) { Debug.LogWarning("1079: Height1079/TreeWind shader missing, trees stay still"); return src; }
+            string name = $"{src.name}_Wind{(flutter > 0f ? "" : "Far")}";
+            string path = $"{WorldPaths.Generated}/Materials/{name}.mat";
+            var m = AssetDatabase.LoadAssetAtPath<Material>(path);
+            bool fresh = m == null;
+            if (fresh) { Directory.CreateDirectory(Path.GetDirectoryName(path)); m = new Material(shader); }
+            m.shader = shader;
+            m.CopyPropertiesFromMaterial(src);
+            m.name = name;
+            bool cut = src.IsKeywordEnabled("_ALPHATEST_ON");
+            m.SetFloat("_Cutoff", cut ? src.GetFloat("_Cutoff") : 0f);
+            m.SetFloat("_Flutter", flutter);
+            m.renderQueue = cut ? 2450 : 2000;
+            m.enableInstancing = true;
+            if (fresh) AssetDatabase.CreateAsset(m, path); else EditorUtility.SetDirty(m);
+            return m;
         }
 
         public struct Prototype { public GameObject Prefab; public TreeSpecies Species; public float Height; }

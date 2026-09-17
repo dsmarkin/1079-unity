@@ -27,6 +27,7 @@ namespace Height1079.EditorTools
         {
             Directory.CreateDirectory(ResourcesDir);
             EnsureInputHandling();
+            EnsureFogVariants();
             EnsureHikerModel(force);
             World.WorldImporter.Build(force);
             MakeMaterial("Flat", new Color(.886f, .91f, .93f));
@@ -50,6 +51,27 @@ namespace Height1079.EditorTools
             so.ApplyModifiedPropertiesWithoutUndo();
             AssetDatabase.SaveAssets();
             Debug.Log("1079: active input handling set to Both (restart the editor to apply).");
+        }
+
+        /// <summary>Fog is switched on from code, while the scene itself has fog off, so "Automatic" fog stripping removed every fog
+        /// shader variant from builds and the night fog never rendered. Keep linear, exp and exp² variants explicitly.</summary>
+        static void EnsureFogVariants()
+        {
+            var assets = AssetDatabase.LoadAllAssetsAtPath("ProjectSettings/GraphicsSettings.asset");
+            if (assets == null || assets.Length == 0) return;
+            var so = new SerializedObject(assets[0]);
+            bool changed = false;
+            void Set(string name, int v)
+            {
+                var p = so.FindProperty(name);
+                if (p != null && p.intValue != v) { p.intValue = v; changed = true; }
+            }
+            Set("m_FogStripping", 1);
+            Set("m_FogKeepLinear", 1); Set("m_FogKeepExp", 1); Set("m_FogKeepExp2", 1);
+            if (!changed) return;
+            so.ApplyModifiedPropertiesWithoutUndo();
+            AssetDatabase.SaveAssets();
+            Debug.Log("1079: fog shader variants kept in builds (custom fog stripping).");
         }
 
         static void EnsureHikerModel(bool force)

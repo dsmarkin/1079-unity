@@ -81,21 +81,21 @@ namespace Height1079.Runtime
         {
             var s = NightSession.Instance;
             var me = Bootstrap.LocalHiker;
-            bool storm = s != null && s.Storm.Value;
+            float blizzard = Weather.Storm;
+            bool storm = blizzard > .5f;
             bool active = me != null && !me.Paused && s != null && s.MyOutcome == Outcome.None;
             float dark = Bootstrap.Darkness;
             bool inside = me != null && me.Crawling; // crawling only happens inside the tent
             var listener = Camera.main != null ? Camera.main.transform : transform;
 
-            // gusts: slow Perlin swell, storms push it up
-            float gust = Mathf.PerlinNoise(gustSeed, Time.time * .07f);
-            gust = Mathf.Clamp01((gust - .25f) * 1.6f);
-            float windTarget = !active ? 0f : (storm ? .75f : .32f + .25f * gust) * (inside ? .45f : 1f);
-            float howlTarget = !active ? 0f : (storm ? .55f + .35f * gust : .08f + .32f * gust * gust) * (inside ? .35f : 1f) * (.4f + .6f * dark);
+            // wind follows the weather: gusts swell the bed, the howl rises in pitch, a blizzard roars and screams
+            float gust = Weather.Gust, strength = Weather.Wind;
+            float windTarget = !active ? 0f : Mathf.Clamp01(.25f + .75f * strength) * (inside ? .45f : 1f);
+            float howlTarget = !active ? 0f : Mathf.Clamp01(.06f + .3f * gust * gust + blizzard * (.45f + .5f * gust)) * (inside ? .35f : 1f) * (.4f + .6f * dark);
             wind.volume = Ease(wind.volume, windTarget, 2f);
             howl.volume = Ease(howl.volume, howlTarget, 1.5f);
-            howl.pitch = .92f + .12f * gust;
-            windLow.cutoffFrequency = Ease(windLow.cutoffFrequency, inside ? 260f : storm ? 1600f : 500f + 700f * gust, 3f);
+            howl.pitch = .9f + .12f * gust + .12f * blizzard * gust;
+            windLow.cutoffFrequency = Ease(windLow.cutoffFrequency, inside ? 260f : 450f + 700f * gust + 2200f * blizzard * (.4f + .6f * gust), 3f);
             howlLow.cutoffFrequency = Ease(howlLow.cutoffFrequency, inside ? 500f : 3000f, 3f);
 
             float fireOn = s != null && s.FireRemaining.Value > 0f ? 1f : 0f;
@@ -140,7 +140,7 @@ namespace Height1079.Runtime
             if (Time.time > nextEvent)
             {
                 SpawnEvent(listener, dark, storm, inside);
-                nextEvent = Time.time + Random.Range(7f, 20f) * Mathf.Lerp(2.2f, 1f, dark) * (storm ? 1.6f : 1f);
+                nextEvent = Time.time + Random.Range(7f, 20f) * Mathf.Lerp(2.2f, 1f, dark) * (storm ? .55f : 1f);
             }
         }
 
@@ -161,6 +161,7 @@ namespace Height1079.Runtime
             float roll = Random.value;
             AudioClip clip; float near, far, vol, pitch = Random.Range(.93f, 1.07f);
             bool behind = false;
+            if (storm) roll = roll < .55f ? roll * (.38f / .55f) : roll < .85f ? .6f + (roll - .55f) * (.2f / .3f) : .95f; // blizzard: trees and branches, no animals
             if (roll < .38f) { clip = creaks[Random.Range(0, creaks.Length)]; near = 8f; far = 35f; vol = .6f; }
             else if (roll < .6f) { clip = owls[Random.Range(0, owls.Length)]; near = 60f; far = 160f; vol = .8f; pitch = Random.Range(.97f, 1.03f); }
             else if (roll < .8f) { clip = cracks[Random.Range(0, cracks.Length)]; near = 10f; far = 40f; vol = .9f; behind = Random.value < .6f; }
