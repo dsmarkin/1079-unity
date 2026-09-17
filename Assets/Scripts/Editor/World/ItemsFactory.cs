@@ -20,6 +20,7 @@ namespace Height1079.EditorTools.World
             foreach (var f in new[] { "Caveat-400", "Caveat-700" }) CopyAsset($"Assets/Art/Fonts/{f}.ttf", $"{WorldPaths.Generated}/Fonts/{f}.ttf");
             Compass();
             Flashlight();
+            Zhuchok();
         }
 
         static void CopyAsset(string src, string dst)
@@ -195,6 +196,73 @@ namespace Height1079.EditorTools.World
             beam.SetParent(lensGo.transform, false); beam.localPosition = new Vector3(0, 0, .11f);
 
             PrefabUtility.SaveAsPrefabAsset(root, $"{PrefabDir}/Flashlight.prefab");
+            Object.DestroyImmediate(root);
+        }
+
+        /// <summary>Scanned model for an item, if one was downloaded (Sketchfab CC-BY, see Assets/Art/ThirdParty/Sketchfab/CREDITS.md).</summary>
+        public static GameObject SketchfabModel(string id)
+        {
+            string dir = $"{WorldPaths.Sketchfab}/{id}";
+            if (!Directory.Exists(dir)) return null;
+            foreach (var f in Directory.GetFiles(dir, "*.gl*", SearchOption.AllDirectories))
+                if (f.EndsWith(".gltf") || f.EndsWith(".glb"))
+                    return AssetDatabase.LoadMainAssetAtPath(f.Replace('\\', '/')) as GameObject;
+            return null;
+        }
+
+        /// <summary>"Жучок": hand-dynamo pocket lantern (the case inventory lists a "жучок" among the group's lights). A flat pressed-steel case,
+        /// round reflector and lens on the front, the squeeze lever on the back, a wire loop underneath. Lens faces +Z like the tube flashlight.
+        /// Uses the scanned "Old flashlight" when present, the procedural body otherwise; the Lens/BeamOrigin nodes are always procedural.</summary>
+        static void Zhuchok()
+        {
+            var root = new GameObject("FlashlightZhuchok");
+            var t = root.transform;
+            var paint = Materials.Get("ZhuchokPaint", new Color(.2f, .24f, .23f), smoothness: .35f);
+            var steel = Materials.Get("ZhuchokSteel", new Color(.62f, .62f, .6f), smoothness: .7f);
+            steel.SetFloat("_Metallic", .8f); EditorUtility.SetDirty(steel);
+            var lensMat = Emissive("ZhuchokLens", new Color(.92f, .9f, .8f), Color.black);
+            var scan = SketchfabModel("old_flashlight");
+            if (scan != null)
+            {
+                var g = Object.Instantiate(scan, t); g.name = "Scan";
+                // fit the scan into the 7 x 9 cm case, lens toward +Z
+                var rs = g.GetComponentsInChildren<Renderer>();
+                if (rs.Length > 0)
+                {
+                    var b = rs[0].bounds; foreach (var r in rs) b.Encapsulate(r.bounds);
+                    float k = .1f / Mathf.Max(.0001f, b.size.y);
+                    g.transform.localScale *= k;
+                    g.transform.localPosition -= (b.center * k) - new Vector3(0, 0, -.01f);
+                    foreach (var c in g.GetComponentsInChildren<Collider>()) Object.DestroyImmediate(c);
+                    foreach (var r in rs) r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                }
+            }
+            else
+            {
+                var body = new MeshBuilder(1);
+                body.Box(0, new Vector3(0, 0, -.01f), new Vector3(.066f, .088f, .034f), Quaternion.identity, 8f);
+                body.Tube(0, new Vector3(-.033f, .044f, -.01f), new Vector3(.033f, .044f, -.01f), .017f, .017f, 12, 8f, 0, true); // rounded top
+                Part(t, "Case", body, paint);
+                var metal = new MeshBuilder(1);
+                metal.Tube(0, new Vector3(0, .012f, .006f), new Vector3(0, .012f, .016f), .026f, .028f, 24, 20f, 0, false); // bezel
+                metal.Tube(0, new Vector3(0, .012f, .016f), new Vector3(0, .012f, .02f), .03f, .03f, 24, 20f, 0, false);
+                // squeeze lever on the back, a curved strip standing off the case
+                metal.Box(0, new Vector3(0, -.005f, -.035f), new Vector3(.05f, .07f, .004f), Quaternion.Euler(-8, 0, 0), 20f);
+                metal.Box(0, new Vector3(0, .03f, -.03f), new Vector3(.012f, .01f, .012f), Quaternion.identity, 20f);
+                // wire loop underneath
+                for (int i = 0; i < 8; i++)
+                {
+                    float a0 = i / 8f * Mathf.PI, a1 = (i + 1) / 8f * Mathf.PI;
+                    metal.Tube(0, new Vector3(-Mathf.Cos(a0) * .028f, -.044f - Mathf.Sin(a0) * .016f, -.012f), new Vector3(-Mathf.Cos(a1) * .028f, -.044f - Mathf.Sin(a1) * .016f, -.012f), .0015f, .0015f, 5, 20f);
+                }
+                Part(t, "Metal", metal, steel);
+            }
+            var lens = new MeshBuilder(1);
+            lens.Tube(0, new Vector3(0, .012f, .017f), new Vector3(0, .012f, .0205f), .024f, .024f, 24, 1f, 0, true);
+            var lensGo = Part(t, "Lens", lens, lensMat);
+            var beam = new GameObject("BeamOrigin").transform;
+            beam.SetParent(lensGo.transform, false); beam.localPosition = new Vector3(0, .012f, .03f);
+            PrefabUtility.SaveAsPrefabAsset(root, $"{PrefabDir}/FlashlightZhuchok.prefab");
             Object.DestroyImmediate(root);
         }
     }

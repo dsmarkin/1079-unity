@@ -112,6 +112,12 @@ namespace Height1079.Runtime
             , Key.F
 #endif
             );
+        /// <summary>F held — squeezing the lever of the dynamo "жучок".</summary>
+        public static bool TorchHold => LegacyHeld(KeyCode.F)
+#if ENABLE_INPUT_SYSTEM
+            || Held(Key.F)
+#endif
+            ;
         public static bool MiniMap => Pressed(KeyCode.N
 #if ENABLE_INPUT_SYSTEM
             , Key.N

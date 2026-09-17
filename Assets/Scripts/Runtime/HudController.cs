@@ -259,7 +259,8 @@ namespace Height1079.Runtime
             }
             var gear = me.Gear;
             heldLabel.text = held == HeldItem.Compass ? "Компас: стрелка на магнитный север, склонение +19° (к востоку)"
-                : held == HeldItem.Flashlight ? (me.TorchOn.Value ? (gear != null && gear.Battery <= 0f ? "Фонарик включён, батарея села" : $"Фонарик · батарея {Mathf.CeilToInt((gear != null ? gear.Battery : 1f) * 100f)}% · F — выключить") : "Фонарик · F — включить")
+                : held == HeldItem.Flashlight && gear != null && gear.IsZhuchok ? (me.TorchOn.Value ? "«Жучок» · жмите F, пока нужен свет · 2 — другой фонарь" : "«Жучок» (динамо) · держите F, чтобы светить · 2 — трубчатый фонарик")
+                : held == HeldItem.Flashlight ? (me.TorchOn.Value ? (gear != null && gear.Battery <= 0f ? "Фонарик включён, батарея села" : $"Фонарик · батарея {Mathf.CeilToInt((gear != null ? gear.Battery : 1f) * 100f)}% · F — выключить") : "Фонарик · F — включить · 2 — «жучок»")
                 : "";
         }
 

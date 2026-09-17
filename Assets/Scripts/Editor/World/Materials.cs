@@ -12,6 +12,7 @@ namespace Height1079.EditorTools.World
         public const string Generated = "Assets/Resources/World";
         public const string Source = "Assets/Data/World";
         public const string PolyHaven = "Assets/Art/ThirdParty/PolyHaven";
+        public const string Sketchfab = "Assets/Art/ThirdParty/Sketchfab";
         public static string PH(string id, string map) => $"{PolyHaven}/Textures/{id}/{id}_{map}_1k.jpg";
     }
 

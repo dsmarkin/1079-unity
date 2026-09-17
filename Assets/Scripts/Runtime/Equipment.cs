@@ -15,9 +15,16 @@ namespace Height1079.Runtime
         public const float BatterySeconds = 12f * 60f;
 
         HikerController hiker;
-        Transform compass, torch, needle, beamOrigin;
+        Transform compass, needle;
+        readonly Transform[] torches = new Transform[2];
+        readonly Transform[] beamOrigins = new Transform[2];
+        readonly Material[] lensMats = new Material[2];
         Light beam;
-        Material lensMat;
+        int beamKind = -1;
+        /// <summary>Dynamo charge of the "жучок": squeezing (F held) winds it up, it runs down in a few seconds.</summary>
+        public float Dynamo { get; private set; }
+        public const float DynamoWind = 1.4f, DynamoRunDown = .35f;
+        public bool IsZhuchok => hiker != null && hiker.TorchKind.Value == 1;
         float needleAngle, needleVel;
         public float Battery { get; private set; } = 1f;
 
@@ -26,21 +33,21 @@ namespace Height1079.Runtime
         void Start()
         {
             compass = Spawn("Compass");
-            torch = Spawn("Flashlight");
+            torches[0] = Spawn("Flashlight");
+            torches[1] = Spawn("FlashlightZhuchok");
             if (compass != null) needle = compass.Find("Needle");
-            if (torch != null)
+            for (int i = 0; i < 2; i++)
             {
-                beamOrigin = torch.Find("Lens/BeamOrigin");
-                if (beamOrigin == null) beamOrigin = torch;
-                var lens = torch.Find("Lens");
-                if (lens != null) lensMat = lens.GetComponent<MeshRenderer>().material;
-                var go = new GameObject("Beam", typeof(Light));
-                go.transform.SetParent(beamOrigin, false);
-                beam = go.GetComponent<Light>();
-                beam.type = LightType.Spot; beam.spotAngle = 38f; beam.innerSpotAngle = 12f; beam.range = 38f;
-                beam.color = new Color(1f, .83f, .6f); beam.shadows = LightShadows.Soft; beam.shadowStrength = .85f;
-                beam.enabled = false;
+                if (torches[i] == null) continue;
+                beamOrigins[i] = torches[i].Find("Lens/BeamOrigin") ?? torches[i];
+                var lens = torches[i].Find("Lens");
+                if (lens != null) lensMats[i] = lens.GetComponent<MeshRenderer>().material;
             }
+            var go = new GameObject("Beam", typeof(Light));
+            beam = go.GetComponent<Light>();
+            beam.type = LightType.Spot; beam.spotAngle = 38f; beam.innerSpotAngle = 12f; beam.range = 38f;
+            beam.color = new Color(1f, .83f, .6f); beam.shadows = LightShadows.Soft; beam.shadowStrength = .85f;
+            beam.enabled = false;
         }
 
         Transform Spawn(string name)
@@ -56,12 +63,30 @@ namespace Height1079.Runtime
         public void HandleInput()
         {
             if (Controls.ItemCompass) Toggle(HeldItem.Compass);
-            if (Controls.ItemTorch) Toggle(HeldItem.Flashlight);
+            if (Controls.ItemTorch)
+            {
+                // 2 takes a light; pressed again with a light in hand, it swaps the tube flashlight and the "жучок"
+                if ((HeldItem)hiker.Held.Value == HeldItem.Flashlight) { hiker.TorchKind.Value = (byte)(1 - hiker.TorchKind.Value); hiker.TorchOn.Value = false; }
+                else hiker.Held.Value = (byte)HeldItem.Flashlight;
+            }
             if (Controls.ItemMap) Toggle(HeldItem.Map);
             if (Controls.ItemNone) hiker.Held.Value = (byte)HeldItem.None;
+            bool holding = (HeldItem)hiker.Held.Value == HeldItem.Flashlight;
+            if (IsZhuchok)
+            {
+                // squeeze to light it: F held winds the dynamo, released it runs down
+                if (Controls.TorchSwitch && !holding) hiker.Held.Value = (byte)HeldItem.Flashlight;
+                bool squeeze = holding && Controls.TorchHold;
+                Dynamo = Mathf.Clamp01(Dynamo + (squeeze ? DynamoWind : -DynamoRunDown) * Time.deltaTime);
+                bool lit = holding && Dynamo > .02f;
+                if (hiker.TorchOn.Value != lit) hiker.TorchOn.Value = lit;
+                byte lv = (byte)Mathf.RoundToInt(Dynamo * 255f);
+                if (hiker.TorchLevel.Value != lv) hiker.TorchLevel.Value = lv;
+                return;
+            }
             if (Controls.TorchSwitch)
             {
-                if ((HeldItem)hiker.Held.Value != HeldItem.Flashlight) hiker.Held.Value = (byte)HeldItem.Flashlight;
+                if (!holding) hiker.Held.Value = (byte)HeldItem.Flashlight;
                 hiker.TorchOn.Value = !hiker.TorchOn.Value;
             }
             if (hiker.TorchOn.Value && (HeldItem)hiker.Held.Value == HeldItem.Flashlight)
@@ -95,25 +120,37 @@ namespace Height1079.Runtime
                     UpdateNeedle();
                 }
             }
-            if (torch != null)
+            int kind = hiker.TorchKind.Value == 1 ? 1 : 0;
+            for (int i = 0; i < 2; i++)
             {
-                bool show = held == HeldItem.Flashlight;
+                var torch = torches[i];
+                if (torch == null) continue;
+                bool show = held == HeldItem.Flashlight && i == kind;
                 if (torch.gameObject.activeSelf != show) torch.gameObject.SetActive(show);
-                if (show)
-                {
-                    if (firstPerson) Place(torch, cam.transform, new Vector3(.2f, -.2f + bob, .42f), Quaternion.Euler(2f, -4f, 0));
-                    else if (mine && cam != null) Place(torch, transform, new Vector3(.26f, 1.2f, .3f), Quaternion.Inverse(transform.rotation) * Quaternion.Euler(cam.transform.eulerAngles.x, cam.transform.eulerAngles.y, 0));
-                    else Place(torch, transform, new Vector3(.26f, 1.2f, .3f), Quaternion.Euler(12f, 0, 0));
-                }
-                UpdateBeam(show && hiker.TorchOn.Value, mine ? Battery : hiker.TorchLevel.Value / 255f);
+                if (!show) continue;
+                // the tube is held like a pistol grip, the "жучок" upright in the palm with the lever toward the fingers
+                var fp = i == 0 ? new Vector3(.2f, -.2f + bob, .42f) : new Vector3(.19f, -.19f + bob + (hiker.TorchOn.Value ? Mathf.Sin(Time.time * 40f) * .001f : 0f), .36f);
+                if (firstPerson) Place(torch, cam.transform, fp, Quaternion.Euler(2f, -4f, 0));
+                else if (mine && cam != null) Place(torch, transform, new Vector3(.26f, 1.2f, .3f), Quaternion.Inverse(transform.rotation) * Quaternion.Euler(cam.transform.eulerAngles.x, cam.transform.eulerAngles.y, 0));
+                else Place(torch, transform, new Vector3(.26f, 1.2f, .3f), Quaternion.Euler(12f, 0, 0));
             }
+            if (beam != null && torches[kind] != null && beamKind != kind)
+            {
+                beam.transform.SetParent(beamOrigins[kind], false);
+                beamKind = kind;
+                for (int i = 0; i < 2; i++) if (lensMats[i] != null) lensMats[i].SetColor("_EmissionColor", Color.black);
+            }
+            bool on = held == HeldItem.Flashlight && hiker.TorchOn.Value;
+            float level = kind == 1 ? (mine ? Dynamo : hiker.TorchLevel.Value / 255f) : (mine ? Battery : hiker.TorchLevel.Value / 255f);
+            UpdateBeam(on, level, kind);
         }
 
         void OnDestroy()
         {
             // Items can be parented to the shared camera; they leave with their owner.
             if (compass != null) Destroy(compass.gameObject);
-            if (torch != null) Destroy(torch.gameObject);
+            foreach (var t in torches) if (t != null) Destroy(t.gameObject);
+            if (beam != null) Destroy(beam.gameObject);
         }
 
         static void Place(Transform item, Transform parent, Vector3 localPos, Quaternion localRot)
@@ -138,17 +175,31 @@ namespace Height1079.Runtime
             needle.localRotation = Quaternion.Euler(0, needleAngle, 0);
         }
 
-        void UpdateBeam(bool on, float battery)
+        void UpdateBeam(bool on, float level, int kind)
         {
             if (beam == null) return;
-            float power = on ? Mathf.Clamp01(battery) : 0f;
-            float flicker = power > 0f && power < .15f ? (Mathf.PerlinNoise(Time.time * 9f, 0) > .35f ? 1f : .2f) : 1f;
-            float k = power <= 0f ? 0f : Mathf.Sqrt(power) * flicker;
+            float power = on ? Mathf.Clamp01(level) : 0f;
+            float k;
+            if (kind == 1)
+            {
+                // dynamo: brightness follows the speed of the flywheel, a fast shimmer, wide dim beam
+                k = power <= 0f ? 0f : Mathf.Sqrt(power) * (.9f + .1f * Mathf.Sin(Time.time * 55f));
+                beam.spotAngle = 52f; beam.innerSpotAngle = 18f;
+                beam.intensity = 1.9f * k;
+                beam.range = Mathf.Lerp(6f, 22f, k);
+                beam.color = Color.Lerp(new Color(.85f, .45f, .22f), new Color(1f, .8f, .55f), power);
+            }
+            else
+            {
+                float flicker = power > 0f && power < .15f ? (Mathf.PerlinNoise(Time.time * 9f, 0) > .35f ? 1f : .2f) : 1f;
+                k = power <= 0f ? 0f : Mathf.Sqrt(power) * flicker;
+                beam.spotAngle = 38f; beam.innerSpotAngle = 12f;
+                beam.intensity = 2.6f * k;
+                beam.range = Mathf.Lerp(12f, 38f, k);
+                beam.color = Color.Lerp(new Color(.9f, .55f, .3f), new Color(1f, .84f, .62f), Mathf.Clamp01(power * 1.5f));
+            }
             beam.enabled = k > .01f;
-            beam.intensity = 2.6f * k;
-            beam.range = Mathf.Lerp(12f, 38f, k);
-            beam.color = Color.Lerp(new Color(.9f, .55f, .3f), new Color(1f, .84f, .62f), Mathf.Clamp01(power * 1.5f));
-            if (lensMat != null) lensMat.SetColor("_EmissionColor", beam.color * (k * 2.2f));
+            if (lensMats[kind] != null) lensMats[kind].SetColor("_EmissionColor", beam.color * (k * 2.2f));
         }
     }
 }
