@@ -184,17 +184,18 @@ namespace Height1079.EditorTools.World
         /// <summary>Hanging shaggy hair: thin tapering strands pointing outward and down around a vertical body segment.</summary>
         static void Shag(MeshBuilder mb, int count, System.Func<float, Vector3> axis, float y0, float y1, float rx, float rz, float minLen, float maxLen)
         {
-            for (int i = 0; i < count; i++)
+            for (int i = 0; i < count * 2; i++)
             {
                 float y = R(Mathf.Min(y0, y1), Mathf.Max(y0, y1)), a = R(0f, Mathf.PI * 2f);
                 var c = axis(y);
                 var outward = new Vector3(Mathf.Cos(a), 0, Mathf.Sin(a));
                 var p = c + new Vector3(outward.x * rx, 0, outward.z * rz) * .95f;
-                var dir = (outward * R(.25f, .6f) + Vector3.down + new Vector3(R(-.2f, .2f), 0, R(-.2f, .2f))).normalized;
+                var dir = (outward * R(.12f, .35f) + Vector3.down + new Vector3(R(-.15f, .15f), 0, R(-.15f, .15f))).normalized;
                 float len = R(minLen, maxLen);
                 var mid = p + dir * len * .5f + outward * .03f;
-                mb.Tube(Hide, p, mid, R(.03f, .05f), .02f, 4, 1f);
-                mb.Tube(Hide, mid, mid + (dir + Vector3.down * .4f).normalized * len * .5f, .02f, .002f, 4, 1f);
+                float w = R(.014f, .026f);
+                mb.Tube(Hide, p, mid, w, w * .6f, 3, 1f);
+                mb.Tube(Hide, mid, mid + (dir + Vector3.down * .6f).normalized * len * .55f, w * .6f, .002f, 3, 1f);
             }
         }
 

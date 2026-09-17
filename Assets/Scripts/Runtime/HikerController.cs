@@ -208,7 +208,12 @@ namespace Height1079.Runtime
             }
 
             float slope = Vector3.Angle(groundNormal, Vector3.up);
-            if (grounded && slope <= SlopeLimit)
+            if (grounded && slope <= SlopeLimit && Stumbling && impact > 0f)
+            {
+                // thrown by a blow: let the body fly and skid, only gravity and snow drag it
+                body.linearVelocity = new Vector3(v.x * .96f, v.y, v.z * .96f);
+            }
+            else if (grounded && slope <= SlopeLimit)
             {
                 var along = Vector3.ProjectOnPlane(wish, groundNormal).normalized * wish.magnitude * speed;
                 var target = new Vector3(along.x, v.y, along.z);
