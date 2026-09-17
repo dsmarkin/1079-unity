@@ -55,6 +55,7 @@ namespace Height1079.EditorTools.World
             go.transform.localPosition = local;
             go.transform.localRotation = Quaternion.Euler(0, turn + 180f, 0);
             var tm = go.AddComponent<TextMesh>();
+            go.AddComponent<Height1079.Runtime.SignText>();   // paint on a board, not text through walls
             tm.text = text; tm.characterSize = size; tm.fontSize = 80;
             tm.anchor = TextAnchor.MiddleCenter; tm.alignment = TextAlignment.Center; tm.color = color;
             return go;

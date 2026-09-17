@@ -84,7 +84,7 @@ namespace Height1079.EditorTools
             Debug.Log("1079: fog shader variants kept in builds (custom fog stripping).");
         }
 
-        /// <summary>Terrain shaders the player build would otherwise strip. Nothing in Resources references them by name:
+        /// <summary>Terrain and sign shaders the player build would otherwise strip. Nothing in Resources references them by name:
         /// the terrain material points at "Nature/Terrain/Standard", and Unity picks the base-map, add-pass and grass
         /// shaders at run time. Without them the ground renders blank white and the grass does not draw at all.</summary>
         static void EnsureTerrainShaders()
@@ -97,6 +97,7 @@ namespace Height1079.EditorTools
                 "Hidden/TerrainEngine/Details/BillboardWavingDoublePass",
                 "Hidden/TerrainEngine/Details/WavingDoublePass",
                 "Hidden/TerrainEngine/Details/Vertexlit",
+                "1079/Text3D",
             };
             var assets = AssetDatabase.LoadAllAssetsAtPath("ProjectSettings/GraphicsSettings.asset");
             if (assets == null || assets.Length == 0) return;

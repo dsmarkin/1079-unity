@@ -198,7 +198,9 @@ namespace Height1079.Core
                 {
                     Moving = moving, Storm = storm, Fire = near && FireUntil > now, Companion = companion,
                     Sheltered = Plan.Sheltered != null && Plan.Sheltered(p.X, p.Z, groundHeight(p.X, p.Z)),
-                    Goal = Plan.AtGoal != null && Plan.AtGoal(p.X, p.Z)
+                    Goal = Plan.AtGoal != null && Plan.AtGoal(p.X, p.Z),
+                    // breaking trail on foot soaks the clothes and the heat goes with them; on skis you stay on top
+                    Mode = p.Mode, Sink = moving ? p.Sink : 0f,
                 };
                 if (SurvivalRules.Tick(p, dt, c, Plan.Profile))
                 {

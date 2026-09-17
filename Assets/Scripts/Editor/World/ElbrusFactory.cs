@@ -929,6 +929,7 @@ namespace Height1079.EditorTools.World
             var menu = new GameObject("Menu"); menu.transform.SetParent(t, false);
             menu.transform.localPosition = new Vector3(boardX, F + 1.98f, boardZ + .06f);
             var menuText = menu.AddComponent<TextMesh>();
+            menu.AddComponent<Height1079.Runtime.SignText>();   // paint on a board, not text through walls
             menuText.text = Refreshments.Board(9);
             menuText.characterSize = .035f; menuText.fontSize = 60;
             menuText.anchor = TextAnchor.MiddleCenter; menuText.alignment = TextAlignment.Left;
@@ -1150,6 +1151,7 @@ namespace Height1079.EditorTools.World
             var label = new GameObject("Label"); label.transform.SetParent(t, false);
             label.transform.localPosition = new Vector3(0, 2.75f, D / 2 + .13f);
             var tm = label.AddComponent<TextMesh>();
+            label.AddComponent<Height1079.Runtime.SignText>();   // paint on a board, not text through walls
             tm.text = "КАССЫ"; tm.characterSize = .05f; tm.fontSize = 90; tm.anchor = TextAnchor.MiddleCenter;
             tm.alignment = TextAlignment.Center; tm.color = new Color(.95f, .95f, .93f);
 
@@ -1374,6 +1376,7 @@ namespace Height1079.EditorTools.World
             var label = new GameObject("Label"); label.transform.SetParent(t, false);
             label.transform.localPosition = new Vector3(0, 2.15f, .07f);
             var tm = label.AddComponent<TextMesh>();
+            label.AddComponent<Height1079.Runtime.SignText>();   // paint on a board, not text through walls
             tm.text = "Эльбрус"; tm.characterSize = .06f; tm.fontSize = 90; tm.anchor = TextAnchor.MiddleCenter;
             tm.alignment = TextAlignment.Center; tm.color = new Color(.06f, .08f, .1f);
             return Save(root);

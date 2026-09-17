@@ -191,6 +191,72 @@ namespace Height1079.Runtime
 #endif
             );
 
+        // ---- skis, poles and the волокуша ------------------------------------
+        // Letter keys do not reach the game under UI automation, so every one of these has a digit and a keypad twin,
+        // and the two free function keys (F1, F12) cover the whole set: F1 steps through all four ways of travelling,
+        // F12 hitches and unhitches the sled. F2…F11 are taken (archive, sites, Menk, sky, view, turning, boarding, time).
+
+        /// <summary>K — put the skis on or take them off (they ride on the pack when they are off). Spares: 4, Numpad4.</summary>
+        public static bool SkiToggle => Pressed(KeyCode.K
+#if ENABLE_INPUT_SYSTEM
+            , Key.K
+#endif
+            ) || Pressed(KeyCode.Alpha4
+#if ENABLE_INPUT_SYSTEM
+            , Key.Digit4
+#endif
+            ) || Pressed(KeyCode.Keypad4
+#if ENABLE_INPUT_SYSTEM
+            , Key.Numpad4
+#endif
+            );
+
+        /// <summary>L — take the poles off the pack or lash them back on. Spares: 5, Numpad5.</summary>
+        public static bool PoleToggle => Pressed(KeyCode.L
+#if ENABLE_INPUT_SYSTEM
+            , Key.L
+#endif
+            ) || Pressed(KeyCode.Alpha5
+#if ENABLE_INPUT_SYSTEM
+            , Key.Digit5
+#endif
+            ) || Pressed(KeyCode.Keypad5
+#if ENABLE_INPUT_SYSTEM
+            , Key.Numpad5
+#endif
+            );
+
+        /// <summary>H — hitch the rucksack to the spare pair and tow it, or take the harness off. Spares: 6, Numpad6, F12.</summary>
+        public static bool HaulToggle => Pressed(KeyCode.H
+#if ENABLE_INPUT_SYSTEM
+            , Key.H
+#endif
+            ) || Pressed(KeyCode.Alpha6
+#if ENABLE_INPUT_SYSTEM
+            , Key.Digit6
+#endif
+            ) || Pressed(KeyCode.Keypad6
+#if ENABLE_INPUT_SYSTEM
+            , Key.Numpad6
+#endif
+            ) || Pressed(KeyCode.F12
+#if ENABLE_INPUT_SYSTEM
+            , Key.F12
+#endif
+            );
+
+        /// <summary>J, and F1 as the spare: step to the next way of travelling (пешком → с палками → на лыжах → с волокушей).
+        /// One key reaches every mode, which is what an automated check needs.</summary>
+        public static bool TravelCycle => Pressed(KeyCode.J
+#if ENABLE_INPUT_SYSTEM
+            , Key.J
+#endif
+            ) || Pressed(KeyCode.F1
+#if ENABLE_INPUT_SYSTEM
+            , Key.F1
+#endif
+            );
+
         public static string Debug => $"{(Forward ? "W" : "-")}{(Left ? "A" : "-")}{(Back ? "S" : "-")}{(Right ? "D" : "-")}";
     }
 }

@@ -16,6 +16,11 @@ namespace Height1079.Core
         public struct Conditions
         {
             public bool Moving, Storm, Fire, Companion, Sheltered, Goal;
+            /// <summary>How the participant is getting through the snow. Defaults to <see cref="Travel.Foot"/>.</summary>
+            public Travel Mode;
+            /// <summary>How deep they are sinking in right now, metres (<see cref="Skiing.Sink"/>). 0 by default,
+            /// and at 0 the snow costs nothing, so conditions built without it behave exactly as before.</summary>
+            public float Sink;
         }
 
         /// <summary>How hard the clock and the cold press in this scenario. The night on the slope uses <see cref="Night"/>;
@@ -38,7 +43,8 @@ namespace Height1079.Core
             if (p.Outcome != Outcome.None) return false;
             profile = profile ?? Profile.Night;
             p.Elapsed += dt;
-            float loss = (c.Storm ? .15f : .07f) * (c.Sheltered ? .45f : 1f) * (c.Companion ? .65f : 1f) * (c.Moving ? .8f : 1f) * profile.Cold;
+            float loss = (c.Storm ? .15f : .07f) * (c.Sheltered ? .45f : 1f) * (c.Companion ? .65f : 1f) * (c.Moving ? .8f : 1f) * profile.Cold
+                * TravelHeatFactor(c.Mode, c.Sink);
             p.Heat = Clamp(p.Heat + dt * (c.Fire ? .9f : -loss));
             p.Hands = Clamp(p.Hands + dt * (c.Fire ? 1.4f : p.Heat < 55f ? -.15f : -.025f));
             p.Clarity = Clamp(p.Clarity + dt * (c.Fire ? .3f : p.Heat < 30f ? -.12f : 0f));
@@ -47,6 +53,22 @@ namespace Height1079.Core
             else if (c.Goal) p.Outcome = Outcome.Arrival;
             else if (p.Elapsed >= profile.Seconds) p.Outcome = Outcome.Dawn;
             return p.Outcome != Outcome.None;
+        }
+
+        /// <summary>Mass of a hiker without the load, kg — the reference the snow rules press on the snow with
+        /// (<see cref="Skiing.PressureKPa"/>) and measure a pack against.</summary>
+        public const float HikerKg = 70f;
+
+        /// <summary>What wading costs in warmth. Snow pushed up the trouser legs and into the boots melts against the
+        /// skin, and the heat goes with it: knee-deep тропёжка on foot costs about a quarter more heat per second.
+        /// Skis keep you on top of it, and on a волокуша the back carries nothing and stays dry — the reason Russian
+        /// ski parties pull sledges at all ("мокрая одежда высасывает из вас тепло"). Returns 1 when nothing sinks,
+        /// so conditions that do not set <see cref="Conditions.Sink"/> are untouched.</summary>
+        public static float TravelHeatFactor(Travel mode, float sink)
+        {
+            float wet = Math.Max(0f, Math.Min(1f, sink / .5f));
+            float share = mode == Travel.Skis ? .12f : mode == Travel.Hauling ? .06f : mode == Travel.Poles ? .22f : .26f;
+            return 1f + share * wet;
         }
 
         /// <summary>Kilograms on the back cost speed: up to 12 kg is felt only as work, 40 kg halves the pace in deep snow (×0.55).</summary>
@@ -98,6 +120,13 @@ namespace Height1079.Core
         public float Elapsed, Heat = 100f, Hands = 100f, Clarity = 100f, Exposure;
         public Outcome Outcome = Outcome.None;
         public float X, Z;
+        /// <summary>How this one is travelling: on foot, with the poles out, on skis, or hauling the pack behind.
+        /// Mind the older field <see cref="Travel"/> below, which is metres covered since the last step and shadows the
+        /// enum name inside this class — write <c>Height1079.Core.Travel.Foot</c> if you ever need the enum in here.</summary>
+        public Travel Mode;
+        /// <summary>How deep this one is in the snow right now, metres — the host measures it every tick and the cold
+        /// rules read it (<see cref="TravelHeatFactor"/>): wading to the knee wets the clothes and costs heat.</summary>
+        public float Sink;
         public bool Online = true;
         public double LastSeen;
         public float Travel;

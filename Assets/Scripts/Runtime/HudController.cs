@@ -17,7 +17,7 @@ namespace Height1079.Runtime
         Text kicker, lede;
         static readonly Color PlaceOff = new Color(.13f, .22f, .27f), PlaceOn = new Color(.28f, .45f, .5f);
         InputField nameField, addressField;
-        Text status, clock, direction, party, hint, outcomeTitle, outcomeNote, summary, pairOutcome, events, prompt, keys;
+        Text status, clock, direction, party, hint, outcomeTitle, outcomeNote, summary, pairOutcome, events, prompt, keys, travel;
         Slider heat, hands, clarity;
         Button fireButton, workButton;
         float workStarted, workNeeded;
@@ -150,7 +150,8 @@ namespace Height1079.Runtime
             if (miniScale != null) miniScale.text = MiniMetres >= 1000f ? $"{MiniMetres / 1000f:0.#} км по диаметру" : $"{MiniMetres:0} м по диаметру";
             if (keys != null) keys.text = World.IsElbrus
                 ? "WASD · Shift бег · V вид · Esc пауза\nE — сесть в кабину, кресло или ратрак и выйти · F8 быстрее\n1 компас · 3/M карта · N мини-карта · Tab рюкзак"
-                : "WASD · Shift бег · V вид · E костёр · Esc пауза\n1 компас · 2 фонарик (F — свет) · 3/M карта · Q убрать · N мини-карта\nTab рюкзак · G снять/надеть · R взять/убрать · X бросить";
+                : "WASD · Shift бег · V вид · E костёр · Esc пауза\n1 компас · 2 фонарик (F — свет) · 3/M карта · Q убрать · N мини-карта\nTab рюкзак · G снять/надеть · R взять/убрать · X бросить\nK/4 лыжи · L/5 палки · H/6 волокуша · F1 — следующий способ";
+            if (travel != null) travel.gameObject.SetActive(!World.IsElbrus);
         }
 
         // ---- screens ---------------------------------------------------------
@@ -186,7 +187,7 @@ namespace Height1079.Runtime
         void BuildHud()
         {
             hud = Rect("Night", canvas.transform, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero).gameObject;
-            var box = Rect("Box", hud.transform, Vector2.zero, Vector2.zero, new Vector2(20, 20), new Vector2(360, 266));
+            var box = Rect("Box", hud.transform, Vector2.zero, Vector2.zero, new Vector2(20, 20), new Vector2(360, 316));
             PanelImage(box, Panel);
             clock = Label("Clock", box, new Vector2(22, -14), new Vector2(320, 44), 34, Ink);
             direction = Label("Direction", box, new Vector2(22, -58), new Vector2(320, 24), 16, Ink);
@@ -197,7 +198,9 @@ namespace Height1079.Runtime
             heat = Meter("ТЕПЛО", box, new Vector2(22, -178));
             hands = Meter("РУКИ", box, new Vector2(132, -178));
             clarity = Meter("ЯСНОСТЬ", box, new Vector2(242, -178));
-            keys = Label("Keys", box, new Vector2(22, -214), new Vector2(330, 46), 11, new Color(.69f, .76f, .8f));
+            // how you are getting through the snow, how deep it is under you, and what is left in the legs
+            travel = Label("Travel", box, new Vector2(22, -212), new Vector2(330, 34), 12, Amber);
+            keys = Label("Keys", box, new Vector2(22, -248), new Vector2(330, 62), 11, new Color(.69f, .76f, .8f));
             var promptBox = Rect("PromptBox", hud.transform, new Vector2(.5f, 0), new Vector2(.5f, 0), new Vector2(-300, 34), new Vector2(600, 34));
             promptBox.pivot = new Vector2(0, 0); PanelImage(promptBox, new Color(0, 0, 0, .45f));
             prompt = Label("Prompt", promptBox, Vector2.zero, new Vector2(600, 34), 16, new Color(1f, .93f, .78f), TextAnchor.MiddleCenter);
@@ -328,6 +331,20 @@ namespace Height1079.Runtime
                 : held == HeldItem.Flashlight && gear != null && gear.IsZhuchok ? (me.TorchOn.Value ? "«Жучок» · жмите F, пока нужен свет · 2 — другой фонарь" : "«Жучок» (динамо) · держите F, чтобы светить · 2 — трубчатый фонарик")
                 : held == HeldItem.Flashlight ? (me.TorchOn.Value ? (gear != null && gear.Battery <= 0f ? "Фонарик включён, батарея села" : $"Фонарик · батарея {Mathf.CeilToInt((gear != null ? gear.Battery : 1f) * 100f)}% · F — выключить") : "Фонарик · F — включить · 2 — «жучок»")
                 : Backpacks.Prompt(me);
+        }
+
+        /// <summary>The line about the snow: how you are getting through it, how deep you are in it, whether somebody has
+        /// already been this way, and what is left in the legs. The strength comes from the host
+        /// (<see cref="NightSession.TickSkisServer"/>); everything else is read off the ground under the feet.</summary>
+        void UpdateTravel(HikerController me)
+        {
+            if (travel == null) return;
+            var gear = me.Skis;
+            if (World.IsElbrus || gear == null) { travel.text = ""; return; }
+            string track = gear.OnTrack ? " · по лыжне" : "";
+            int left = Mathf.RoundToInt(me.Strength.Value / 255f * 100f);
+            string legs = left < 30 ? $" · силы {left}% — надо отдышаться" : $" · силы {left}%";
+            travel.text = $"{Skiing.Title(gear.Mode)} · {Skiing.SinkTitle(gear.Sink).ToLowerInvariant()}{track}{legs}";
         }
 
         /// <summary>The E-work button: it shows what E would do here and how far along the job is.</summary>
@@ -528,8 +545,10 @@ namespace Height1079.Runtime
             fireButton.GetComponentInChildren<Text>().text = Bootstrap.AutoKindle ? "Прекратить розжиг" : "Разжечь костёр";
             UpdateWorkButton(me, s);
             string kindle = s.KindleNeeded > 0 ? $" {Mathf.Min(99, Mathf.RoundToInt(s.KindleProgress / s.KindleNeeded * 100f))}%" : "";
+            UpdateTravel(me);
             hint.text = !NetworkManager.Singleton.IsConnectedClient && !NetworkManager.Singleton.IsHost ? "Связь потеряна · ночь идёт на сервере"
                 : me.Paused ? "Пауза · ночь продолжается, нажмите на сцену"
+                : me.Skis != null && me.Skis.Busy ? me.Skis.BusyNote()
                 : me.Crawling ? "Палатка · внутри только ползком"
                 : nearFire ? (fire > 0 ? $"У огня · ещё {Mathf.CeilToInt(fire)} с" : s.KindleNeeded > 0 ? $"Разжигаете… держите E{kindle}" : "Кострище · стойте и удерживайте E")
                 : World.IsElbrus ? (s.Heat < 40 ? "Холодно и мало воздуха. Не задерживайтесь наверху." : "Южный склон. Наверх — канаткой, ратраком или пешком.")

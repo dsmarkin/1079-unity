@@ -120,7 +120,9 @@ namespace Height1079.Runtime
             float drop = hi - lo;
             float baseY = sit == Sit.Anchor || sit == Sit.Lie ? Ground(x, z)
                 : sit == Sit.Flat ? (lo + hi) * .5f - .04f
-                : lo + Mathf.Min(drop * .45f, 1.6f);
+                // a building stands on the HIGHEST corner of its footprint, with a plinth filling the step below it:
+                // seated any lower, the hillside pokes up through the floor and you stand on grass indoors
+                : hi + .05f;
             var rot = sit == Sit.Lie ? Lay(x, z, yaw) : Quaternion.Euler(0, yaw, 0);
             var go = Object.Instantiate(prefab, new Vector3(x, baseY + dy, z), rot, parent);
             if (sit == Sit.Pad || sit == Sit.Anchor)

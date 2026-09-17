@@ -89,6 +89,7 @@ namespace Height1079.Runtime
             if (!World.IsElbrus)
             {
                 placeExtras.Add(SnowFx.Create().gameObject);
+                placeExtras.Add(SkiTrailFx.Create().gameObject);
                 placeExtras.Add(ForestMist.Create().gameObject);
                 placeExtras.Add(MenkView.Create().gameObject);
             }

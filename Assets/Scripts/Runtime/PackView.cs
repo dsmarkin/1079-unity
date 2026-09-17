@@ -71,6 +71,15 @@ namespace Height1079.Runtime
                     continue;
                 }
                 var h = HikerController.ByClient(p.Wearer);
+                // hauling: the pack is lashed to the skis and rides behind, not on the shoulders
+                var bed = h != null && h.Skis != null ? h.Skis.SledLoad : null;
+                if (bed != null)
+                {
+                    if (t.parent != bed) t.SetParent(bed, false);
+                    t.localPosition = Vector3.zero; t.localRotation = Quaternion.Euler(-80f, 0f, 0f); t.localScale = Vector3.one;
+                    if (!t.gameObject.activeSelf) t.gameObject.SetActive(true);
+                    continue;
+                }
                 var back = h != null ? h.transform.Find("Visual") : null;
                 if (back == null) { if (t.gameObject.activeSelf) t.gameObject.SetActive(false); continue; }
                 if (t.parent != back) t.SetParent(back, false);

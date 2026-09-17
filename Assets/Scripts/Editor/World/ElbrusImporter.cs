@@ -114,9 +114,11 @@ namespace Height1079.EditorTools.World
         {
             // small tiles and a strong normal, or the slope reads as white paper at arm's length
             Layer("ElbFirn", "snow_02", 3.5f, .3f, new Color(.93f, .95f, .98f), 1.4f),
-            Layer("ElbLava", "rock_face_03", 4f, .1f, new Color(.5f, .48f, .48f), 1.1f),
+            // the lava of Elbrus is dark andesite, almost black where it is fresh: the scan is a warm sandstone,
+            // so the tint has to pull it right down or the whole slope reads as a sand dune
+            Layer("ElbLava", "rock_face_03", 4f, .1f, new Color(.3f, .29f, .28f), 1.1f),
             Made("ElbTurf", 4f, .06f, TextureFactory.Ground("elb_turf", new Color(.24f, .3f, .15f), new Color(.46f, .5f, .27f), 6f, 91, .18f)),
-            Made("ElbScree", 5f, .05f, TextureFactory.Ground("elb_scree", new Color(.28f, .27f, .26f), new Color(.5f, .48f, .46f), 8f, 47, .26f)),
+            Made("ElbScree", 5f, .05f, TextureFactory.Ground("elb_scree", new Color(.22f, .22f, .21f), new Color(.42f, .41f, .38f), 8f, 47, .24f)),
         };
 
         /// <summary>A layer whose albedo we generate ourselves: the Poly Haven library here has no grass or scree scan.</summary>
@@ -173,11 +175,14 @@ namespace Height1079.EditorTools.World
                     snowy *= Mathf.Lerp(1f, .55f, Mathf.InverseLerp(26f, 42f, slope));
                     float bare = 1f - snowy;
 
-                    float lava = rk * bare * Mathf.Lerp(.55f, 1f, Mathf.InverseLerp(10f, 30f, slope));
+                    // bare lava belongs to the volcano itself: down in the Baksan valley the same mask means moraine
+                    // and grassy shelves, not black rock, so it only opens up above the tree line
+                    float lava = rk * bare * Mathf.Lerp(.55f, 1f, Mathf.InverseLerp(10f, 30f, slope))
+                               * Mathf.InverseLerp(2650f, 3150f, elev);
                     // meadow: the Azau bowl and the grassy shelves of the Baksan valley, gone above ~3 000 m
                     // the meadow follows the forest: green up to the tree line at about 2 700 m, thinning out to bare
                     // moraine by 3 150 m — the Azau bowl and the shelves above it are grass, not sand
-                    float grass = (1f - Mathf.InverseLerp(2780f, 3150f, elev)) * (1f - Mathf.InverseLerp(28f, 42f, slope)) * (.62f + .7f * noise);
+                    float grass = (1f - Mathf.InverseLerp(2860f, 3220f, elev)) * (1f - Mathf.InverseLerp(34f, 48f, slope)) * (.8f + .5f * noise);
                     float turf = Mathf.Clamp01(grass) * bare * (1f - lava);
                     // everything else that is bare: moraine gravel, and the volcanic ash fields higher up
                     float scree = Mathf.Max(0f, bare - lava - turf);
@@ -211,9 +216,9 @@ namespace Height1079.EditorTools.World
                 {
                     float x = -Elbrus.Half + (c + .5f) * step, z = -Elbrus.Half + (r + .5f) * step;
                     float elev = dem.Sample(x, z);
-                    if (elev > 3150f) continue;
+                    if (elev > 3220f) continue;
                     var (_, _, slope) = dem.Fall(x, z, 10f);
-                    float m = (1f - Mathf.InverseLerp(2780f, 3150f, elev)) * (1f - Mathf.InverseLerp(28f, 42f, slope));
+                    float m = (1f - Mathf.InverseLerp(2860f, 3220f, elev)) * (1f - Mathf.InverseLerp(30f, 44f, slope));
                     m *= .45f + .85f * Mathf.PerlinNoise(x * .006f + 5, z * .006f + 13);
                     if (m <= .02f) continue;
                     thick[r, c] = Mathf.RoundToInt(Mathf.Clamp01(m) * 14f);
@@ -245,7 +250,7 @@ namespace Height1079.EditorTools.World
             var trees = TreeFactory.BuildElbrusLibrary();
             foreach (var p in trees) protos.Add(new TreePrototype { prefab = p.Prefab, bendFactor = 0 });
             int rockBase = protos.Count;
-            var rocks = RockFactory.BuildLibrary();
+            var rocks = RockFactory.BuildElbrusLibrary();
             foreach (var g in rocks) protos.Add(new TreePrototype { prefab = g, bendFactor = 0 });
             data.treePrototypes = protos.ToArray();
 
@@ -259,14 +264,14 @@ namespace Height1079.EditorTools.World
                 {
                     float px = x + ((float)rnd.NextDouble() - .5f) * Grid, pz = z + ((float)rnd.NextDouble() - .5f) * Grid;
                     float elev = dem.Sample(px, pz);
-                    if (elev > 2700f) continue;
+                    if (elev > 2760f) continue;
                     var (_, _, slope) = dem.Fall(px, pz, 10f);
                     if (slope > 34f) continue;
                     // thinning out towards the tree line, and a clearing around the Azau terminals and their square
-                    float density = (1f - Mathf.InverseLerp(2440f, 2700f, elev)) * Mathf.Lerp(1f, .35f, Mathf.InverseLerp(20f, 34f, slope));
+                    float density = (1f - Mathf.InverseLerp(2500f, 2760f, elev)) * Mathf.Lerp(1f, .4f, Mathf.InverseLerp(22f, 34f, slope));
                     density *= .35f + .75f * Mathf.PerlinNoise(px * .004f + 3, pz * .004f + 9);
                     if (Elbrus.Distance(px, pz, azau.X, azau.Z) < 130f) continue;
-                    if (rnd.NextDouble() > density * .55f) continue;
+                    if (rnd.NextDouble() > density * .85f) continue;
                     int pi = rnd.Next(trees.Count);
                     float hs = .7f + (float)rnd.NextDouble() * .6f;
                     inst.Add(new TreeInstance

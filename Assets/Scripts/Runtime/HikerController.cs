@@ -11,6 +11,13 @@ namespace Height1079.Runtime
     public sealed class HikerController : NetworkBehaviour
     {
         public const float WalkSpeed = 2.8f, RunSpeed = 5.8f, SlopeLimit = 42f, HardLanding = 7f;
+        /// <summary>Game pace on top of <see cref="Skiing.Speed"/>. The snow rules are measured in real metres per second — a
+        /// loaded man walks 1.45 m/s on firm ground — but the night runs some thirteen hours in twenty minutes and the climb to
+        /// the tent is 1.7 km, so the legs run at the same multiple the rest of the game does. Only the pace is scaled: the
+        /// ratios between тропёжка, a лыжня, a crust and a descent are the core's, untouched.</summary>
+        public const float Pace = 1.9f;
+        /// <summary>Nobody outruns this on 1950s boards in the dark, m/s.</summary>
+        public const float TopGlide = 8f;
         /// <summary>Trigger name for spaces that can only be entered on all fours (the 31 Jan tent: ridge 1.05 m).</summary>
         public const string LowSpaceName = "LowSpace_TentInterior";
         const float StandHeight = 1.8f, CrawlHeight = .8f, StandEye = 1.72f, CrawlEye = .6f;
@@ -24,6 +31,13 @@ namespace Height1079.Runtime
         public readonly NetworkVariable<short> LookYaw = new NetworkVariable<short>(0, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Owner);
         public readonly NetworkVariable<byte> TorchLevel = new NetworkVariable<byte>(255, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Owner);
         public readonly NetworkVariable<byte> Action = new NetworkVariable<byte>(0, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Owner); // 0 idle, 1 cold, 2 kindle
+        /// <summary>How this hiker is getting through the snow (<see cref="Travel"/>). The host writes it: a change of gear is
+        /// asked for by RPC and granted in <see cref="NightSession.TravelRpc"/>. The group left the лабаз on skis, so a night
+        /// starts with the boards on the feet.</summary>
+        public readonly NetworkVariable<byte> Mode = new NetworkVariable<byte>((byte)Travel.Skis);
+        /// <summary>What is left in the legs, 0..255. The host spends it through <see cref="Skiing.Effort"/> and gives it back
+        /// when a hiker stands still (<see cref="NightSession.TickSkisServer"/>).</summary>
+        public readonly NetworkVariable<byte> Strength = new NetworkVariable<byte>(255);
 
         /// <summary>What the hiker carries in the hands out of a rucksack (Core.ItemId); written by the host's PackWorld.</summary>
         public readonly NetworkVariable<StackNet> Carried = new NetworkVariable<StackNet>();
@@ -41,17 +55,25 @@ namespace Height1079.Runtime
         CapsuleCollider capsule;
         SnowTrail trail;
         Equipment equipment;
+        SkiGear skis;
         public Equipment Gear => equipment;
+        /// <summary>Skis, poles and the волокуша, and the snow figures under the feet.</summary>
+        public SkiGear Skis => skis;
         Camera cam;
         Transform head;
         float yaw, pitch = .08f, orbit = 6f;
         bool firstPerson = true, grounded, kindling, paused, placed, packUi;
         Vector3 groundNormal = Vector3.up;
         float lastVerticalSpeed, stumbleUntil, impact;
+        /// <summary>A catch of the toe in the crust or a tip crossed: not a fall, half a second of nothing under you.</summary>
+        float tripUntil, gait;
         public bool Stumbling => Time.time < stumbleUntil;
+        public bool Tripping => Time.time < tripUntil;
         public bool Paused => paused;
         public bool FirstPerson => firstPerson;
         public bool Grounded => grounded;
+        /// <summary>Normal of the ground under the feet — the skis and the лыжня both lie along it.</summary>
+        public Vector3 GroundNormal => groundNormal;
         public float Yaw => yaw;
         /// <summary>On all fours (inside the tent): lower eye, short capsule, slow.</summary>
         public bool Crawling { get; private set; }
@@ -81,6 +103,8 @@ namespace Height1079.Runtime
             if (trail == null) trail = gameObject.AddComponent<SnowTrail>();
             equipment = GetComponent<Equipment>();
             if (equipment == null) equipment = gameObject.AddComponent<Equipment>();
+            skis = GetComponent<SkiGear>();
+            if (skis == null) skis = gameObject.AddComponent<SkiGear>();
         }
 
         public override void OnNetworkDespawn() { All.Remove(this); }
@@ -89,6 +113,8 @@ namespace Height1079.Runtime
         {
             if (!All.Contains(this)) All.Add(this);
             body.isKinematic = !IsOwner;
+            // the group came up the Auspiya on skis and camped on them; the southern slope of Elbrus is walked and ridden
+            if (IsServer) Mode.Value = (byte)(Height1079.Core.World.IsElbrus ? Travel.Foot : Travel.Skis);
             if (!IsOwner) return;
             Name.Value = new FixedString64Bytes(Bootstrap.PlayerName);
             head = new GameObject("Head").transform; head.SetParent(transform, false); head.localPosition = new Vector3(0, 1.72f, 0);
@@ -161,7 +187,7 @@ namespace Height1079.Runtime
             if (!paused && !finished && !Backpacks.UiOpen && Input.GetMouseButtonDown(0) && Cursor.lockState != CursorLockMode.Locked) SetCursor(true);
             if (paused && Input.GetMouseButtonDown(0) && !Bootstrap.PointerOverUi()) { paused = false; SetCursor(true); }
             if (Controls.ToggleView) firstPerson = !firstPerson;
-            if (!paused && !finished) { equipment.HandleInput(); Backpacks.HandleInput(this); }
+            if (!paused && !finished) { equipment.HandleInput(); Backpacks.HandleInput(this); skis.HandleInput(); }
             if (Backpacks.UiOpen != packUi)
             {
                 packUi = Backpacks.UiOpen;
@@ -227,24 +253,45 @@ namespace Height1079.Runtime
             if (grounded && lastVerticalSpeed < -HardLanding) { StumbleRpc(); stumbleUntil = Time.time + 1.2f; }
             lastVerticalSpeed = v.y;
 
-            bool locked = paused || finished || Stumbling;
+            bool locked = paused || finished || Stumbling || (skis != null && skis.Busy);
             float f = locked ? 0f : (Controls.Forward ? 1f : 0f) - (Controls.Back ? 1f : 0f);
             float r = locked ? 0f : (Controls.Right ? 1f : 0f) - (Controls.Left ? 1f : 0f);
             Vector3 forward = Quaternion.Euler(0, yaw, 0) * Vector3.forward, right = Quaternion.Euler(0, yaw, 0) * Vector3.right;
             var wish = (forward * f + right * r); if (wish.sqrMagnitude > 1f) wish.Normalize();
             // what is carried: heavy loads slow the legs and running needs a light pack
             float load = Backpacks.CarriedKg(this);
-            float speed = Controls.Run && !Crawling && load < SurvivalRules.RunLimitKg ? RunSpeed : WalkSpeed;
-            speed *= SurvivalRules.LoadSpeedFactor(load);
+            bool hurry = Controls.Run && !Crawling && load < SurvivalRules.RunLimitKg;
+            bool snow = skis != null && Bootstrap.Dem != null && !Height1079.Core.World.IsElbrus;
+            var mode = snow ? skis.Mode : Travel.Foot;
+            bool gliding = snow && (mode == Travel.Skis || mode == Travel.Hauling);
+            float sunk = 0f, speed;
+            if (snow)
+            {
+                // the whole difference between walking and skiing lives in this one call: how deep you are, what the surface
+                // bears, whether somebody has been here before you, and which way the ground tilts under the next step
+                skis.Sample();
+                sunk = skis.Sink;
+                float grade = skis.SlopeAlong(wish.sqrMagnitude > .01f ? wish : transform.forward);
+                float hands = session != null ? session.Hands : 100f;
+                speed = Skiing.Speed(mode, skis.Depth, skis.Crust, skis.Packed, grade, load, hands) * Pace;
+                if (hurry) speed *= gliding ? 1.3f : 1.9f;
+                // what the host says is left in the legs
+                speed *= Mathf.Lerp(.5f, 1f, Mathf.Clamp01(Strength.Value / 255f / .35f));
+                // a stumble is a chance per metre, so it is rolled against the metres actually covered
+                float step = new Vector2(v.x, v.z).magnitude * Time.fixedDeltaTime;
+                if (grounded && step > 0f && !Tripping
+                    && Random.value < Skiing.Stumble(mode, skis.Depth, skis.Crust, skis.Packed, grade, load, hands) * step)
+                    tripUntil = Time.time + .5f;
+                if (Tripping) speed *= .3f;
+            }
+            else
+            {
+                speed = hurry ? RunSpeed : WalkSpeed;
+                speed *= SurvivalRules.LoadSpeedFactor(load);
+            }
             speed *= Mathf.Lerp(1f, .35f, crouch);
             // Cold slows the legs: clarity/heat below 40 costs up to 35 % of speed.
             if (session != null) speed *= Mathf.Lerp(.65f, 1f, Mathf.Clamp01(session.Heat / 40f));
-            // Trail-breaking: virgin powder is slow, a path already trodden by the group is fast.
-            if (SnowFx.Instance != null && Bootstrap.Dem != null)
-            {
-                var p = transform.position;
-                speed *= SnowFx.Instance.SpeedFactor(p.x, p.z, TerrainBuilder.Height(Bootstrap.Dem, p.x, p.z));
-            }
 
             float slope = Vector3.Angle(groundNormal, Vector3.up);
             if (grounded && slope <= SlopeLimit && Stumbling && impact > 0f)
@@ -254,10 +301,34 @@ namespace Height1079.Runtime
             }
             else if (grounded && slope <= SlopeLimit)
             {
-                var along = Vector3.ProjectOnPlane(wish, groundNormal).normalized * wish.magnitude * speed;
-                var target = new Vector3(along.x, v.y, along.z);
-                body.linearVelocity = Vector3.Lerp(v, target, 1f - Mathf.Exp(-12f * Time.fixedDeltaTime));
-                if (wish.sqrMagnitude < .01f) body.linearVelocity = new Vector3(v.x * .6f, v.y, v.z * .6f);
+                bool pushing = wish.sqrMagnitude >= .01f;
+                if (gliding && !pushing)
+                {
+                    // stop pushing and the boards run on: metres of it on a crust or in a made лыжня, one stride in powder
+                    float keep = Mathf.Exp(-(.5f + 7f * Mathf.Clamp01(sunk / .3f)) * Time.fixedDeltaTime);
+                    body.linearVelocity = new Vector3(v.x * keep, v.y, v.z * keep);
+                }
+                else
+                {
+                    var along = Vector3.ProjectOnPlane(wish, groundNormal).normalized * wish.magnitude * speed;
+                    var target = new Vector3(along.x, v.y, along.z);
+                    // a boot bites, a board does not: skis take their time to come up to speed, and deep snow eats the step
+                    // before it is finished, so a man wading has little to push against either
+                    float grab = gliding ? 3.2f : Mathf.Lerp(12f, 6.5f, Mathf.Clamp01(sunk / .45f));
+                    body.linearVelocity = Vector3.Lerp(v, target, 1f - Mathf.Exp(-grab * Time.fixedDeltaTime));
+                    if (!pushing) body.linearVelocity = new Vector3(v.x * .6f, v.y, v.z * .6f);
+                }
+                if (gliding)
+                {
+                    // the fall line has hold of a waxed pair: they run away downhill and slip back on a hard climb, which is
+                    // why a steep blown-clear slope is walked and not skied
+                    var downhill = Vector3.ProjectOnPlane(Vector3.down, groundNormal);   // its length is sin(slope)
+                    float hold = Mathf.Lerp(.22f, .85f, skis.Crust) * (1f - .7f * Mathf.Clamp01(sunk / .25f)) * (1f - .35f * skis.Packed);
+                    body.AddForce(downhill * (9.81f * hold), ForceMode.Acceleration);
+                    var run = body.linearVelocity;
+                    var flat = new Vector2(run.x, run.z);
+                    if (flat.magnitude > TopGlide) { flat = flat.normalized * TopGlide; body.linearVelocity = new Vector3(flat.x, run.y, flat.y); }
+                }
                 if (v.y < .5f) body.AddForce(-groundNormal * 30f, ForceMode.Acceleration); // keep the feet on steep snow
             }
             else if (grounded)
@@ -344,6 +415,36 @@ namespace Height1079.Runtime
             run.Record($"{p.Name} падает на склоне.");
         }
 
+        /// <summary>How the head moves with the gait — the thing that has to feel different before anything else does.
+        /// On foot every stride is a leg pulled out of a hole and put back into one: the head heaves up and down, rolls, and
+        /// the deeper the snow the heavier it gets. On skis nothing is lifted at all: the body sways along the boards, rolls a
+        /// little from ski to ski, and the view stays level. <paramref name="heave"/> is metres up or down,
+        /// <paramref name="drift"/> the small push and glide along the way you are going.</summary>
+        Quaternion Gait(out float heave, out Vector3 drift)
+        {
+            heave = 0f; drift = Vector3.zero;
+            if (skis == null || body == null || Height1079.Core.World.IsElbrus) return Quaternion.identity;
+            float v = new Vector2(body.linearVelocity.x, body.linearVelocity.z).magnitude;
+            bool glide = skis.OnSkis;
+            float cadence = glide ? Mathf.Clamp(v / 1.9f, 0f, 1.5f) : Mathf.Clamp(v / .85f, 0f, 2.6f);
+            gait += Time.deltaTime * cadence * Mathf.PI;
+            if (gait > 2048f) gait -= 2048f;
+            float drive = Mathf.Clamp01(v / (glide ? 2.2f : 1.4f)) * (1f - crouch);
+            if (drive < .01f) return Quaternion.identity;
+            float wave = Mathf.Sin(gait);
+            if (glide)
+            {
+                heave = Mathf.Sin(gait * 2f) * .009f * drive;
+                drift = transform.forward * (wave * .035f * drive);
+                return Quaternion.Euler(Mathf.Sin(gait * 2f) * .6f * drive, 0f, wave * 1.4f * drive);
+            }
+            float deep = Mathf.Clamp01(skis.Sink / .45f);
+            heave = -Mathf.Abs(wave) * Mathf.Lerp(.012f, .06f, deep) * drive;
+            return Quaternion.Euler(Mathf.Sin(gait * 2f) * Mathf.Lerp(.8f, 2.2f, deep) * drive,
+                                    wave * .8f * drive,
+                                    wave * Mathf.Lerp(1f, 3.4f, deep) * drive);
+        }
+
         void UpdateCamera()
         {
             if (WorldDressing.UpdateView(cam, Bootstrap.Dem)) return;
@@ -358,12 +459,20 @@ namespace Height1079.Runtime
             if (firstPerson)
             {
                 float shake = NightSession.Instance != null ? (100f - NightSession.Instance.Hands) * .00015f * Mathf.Sin(Time.time * 9f) : 0f;
-                float sunk = (trail != null ? trail.Sink : 0f) * (1f - crouch); // the tent floor is trampled
+                // how far down into the snow you actually are (the tent floor is trampled, so crouching cancels it)
+                float sunk = Mathf.Max(trail != null ? trail.Sink : 0f, skis != null ? skis.Sink : 0f) * (1f - crouch);
                 // a blow or the giant's steps close by shake the view
                 float jolt = impact * impact * 9f + MenkView.Tremor * 1.2f;
                 if (jolt > .01f) rot *= Quaternion.Euler((Mathf.PerlinNoise(Time.time * 23f, 1f) - .5f) * jolt, (Mathf.PerlinNoise(Time.time * 19f, 7f) - .5f) * jolt, (Mathf.PerlinNoise(Time.time * 17f, 3f) - .5f) * jolt * 1.5f);
                 float drop = Stumbling ? .9f * Mathf.Clamp01((stumbleUntil - Time.time) * 1.5f) * impact : 0f;
-                cam.transform.SetPositionAndRotation(head.position + Vector3.up * (shake - sunk - drop), rot);
+                rot *= Gait(out float heave, out Vector3 drift);
+                if (Tripping)
+                {
+                    float catchUp = Mathf.Clamp01((tripUntil - Time.time) * 2.2f);
+                    rot *= Quaternion.Euler(8f * catchUp, 0f, 6f * catchUp);
+                    drop += .10f * catchUp;
+                }
+                cam.transform.SetPositionAndRotation(head.position + Vector3.up * (shake - sunk - drop + heave) + drift, rot);
                 return;
             }
             var pivot = transform.position + Vector3.up * Mathf.Lerp(1.35f, .55f, crouch);

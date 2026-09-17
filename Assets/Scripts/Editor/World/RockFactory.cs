@@ -66,30 +66,37 @@ namespace Height1079.EditorTools.World
             return mb;
         }
 
-        public static List<GameObject> BuildLibrary()
+        public static List<GameObject> BuildLibrary() => BuildLibrary("Boulder", Materials.Snow);
+
+        /// <summary>The same boulders in bare stone, for the summer moraines of Elbrus: what lies on the upward faces
+        /// there is grey lichen and dust, not snow.</summary>
+        public static List<GameObject> BuildElbrusLibrary()
+            => BuildLibrary("Boulder_Elb", Materials.Get("ElbBoulderTop", new Color(.66f, .64f, .6f), smoothness: .08f));
+
+        static List<GameObject> BuildLibrary(string name, Material top)
         {
             Directory.CreateDirectory(MeshDir); Directory.CreateDirectory(PrefabDir);
             var list = new List<GameObject>();
             var shapes = new[] { new Vector3(1.2f, .7f, 1f), new Vector3(1.6f, .9f, 1.1f), new Vector3(.9f, .6f, 1.3f), new Vector3(2.2f, 1.1f, 1.5f) };
             for (int k = 0; k < shapes.Length; k++)
             {
-                var root = new GameObject($"Boulder_{k}");
+                var root = new GameObject($"{name}_{k}");
                 var r = new List<Renderer>();
                 var lods = new List<LOD>();
                 for (int lod = 0; lod < 2; lod++)
                 {
-                    var mesh = Rock(k + 1, lod == 0 ? 3 : 1, shapes[k]).ToMesh($"Boulder_{k}_LOD{lod}");
-                    string path = $"{MeshDir}/Boulder_{k}_LOD{lod}.asset";
+                    var mesh = Rock(k + 1, lod == 0 ? 3 : 1, shapes[k]).ToMesh($"{name}_{k}_LOD{lod}");
+                    string path = $"{MeshDir}/{name}_{k}_LOD{lod}.asset";
                     AssetDatabase.DeleteAsset(path); AssetDatabase.CreateAsset(mesh, path);
                     var go = new GameObject($"LOD{lod}", typeof(MeshFilter), typeof(MeshRenderer));
                     go.transform.SetParent(root.transform, false);
                     go.GetComponent<MeshFilter>().sharedMesh = mesh;
-                    go.GetComponent<MeshRenderer>().sharedMaterials = new[] { Materials.Rock, Materials.Snow };
+                    go.GetComponent<MeshRenderer>().sharedMaterials = new[] { Materials.Rock, top };
                     lods.Add(new LOD(lod == 0 ? .08f : .01f, new Renderer[] { go.GetComponent<MeshRenderer>() }));
                 }
                 var lg = root.AddComponent<LODGroup>(); lg.SetLODs(lods.ToArray()); lg.RecalculateBounds();
                 var col = root.AddComponent<SphereCollider>(); col.radius = Mathf.Min(shapes[k].x, shapes[k].z) * .8f;
-                list.Add(PrefabUtility.SaveAsPrefabAsset(root, $"{PrefabDir}/Boulder_{k}.prefab"));
+                list.Add(PrefabUtility.SaveAsPrefabAsset(root, $"{PrefabDir}/{name}_{k}.prefab"));
                 Object.DestroyImmediate(root);
             }
             return list;
