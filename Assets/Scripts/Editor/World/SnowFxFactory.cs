@@ -20,7 +20,7 @@ namespace Height1079.EditorTools.World
 
             ParticleFade("Snowflakes", flakes, new Color(1f, 1f, 1f, 1f));
             ParticleFade("SnowPuff", flakes, new Color(.95f, .97f, 1f, .8f));
-            ParticleFade("Smoke", TextureFactory.Save("smoke", Smoke(), true, TextureWrapMode.Clamp), new Color(.72f, .72f, .74f, .55f));
+            ParticleFade("Smoke", TextureFactory.Save("smoke", Smoke(), true, TextureWrapMode.Clamp), new Color(.62f, .62f, .64f, .9f));
             for (int i = 0; i < FadeLevels; i++)
             {
                 float a = 1f - i / (float)FadeLevels;

@@ -105,7 +105,8 @@ namespace Height1079.Runtime
             fireLight = lightGo.GetComponent<Light>(); fireLight.type = LightType.Point; fireLight.color = new Color(1f, .64f, .28f); fireLight.range = 24f; fireLight.intensity = 0f; fireLight.shadows = LightShadows.Soft;
             fireSmoke = CampSmoke.Create("FireSmoke", camp.transform, new Vector3(0, .9f, 0), 6f, 1.1f, .9f);
             var pipe = GameObject.Find("StovePipeSmoke");
-            if (pipe != null) CampSmoke.Create("StoveSmoke", pipe.transform, Vector3.zero, 3f, .45f, .6f);
+            if (pipe != null) CampSmoke.Create("StoveSmoke", pipe.transform, Vector3.zero, 7f, .7f, .7f);
+            else Debug.LogWarning("1079: StovePipeSmoke anchor not found");
         }
 
         static void BuildNetwork()

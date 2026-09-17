@@ -335,11 +335,11 @@ namespace Height1079.EditorTools.World
 
             var pad = new MeshBuilder(1);
             pad.Box(0, new Vector3(0, -.4f, .5f), new Vector3(W + 1.6f, .82f, L + 3.2f), Quaternion.identity, .5f);
-            for (int k = 0; k < 18; k++)
+            for (int k = 0; k < 26; k++)
             {
-                float a = k / 18f * Mathf.PI * 2;
+                float a = k / 26f * Mathf.PI * 2;
                 if (Mathf.Sin(a) > .8f) continue; // opening toward the fire
-                Mound(pad, 0, new Vector3(Mathf.Cos(a) * (W / 2 + 1.9f), -.1f, .5f + Mathf.Sin(a) * (L / 2 + 2.3f)), new Vector3(1.0f, Sites.Camp31.PadDepth, .9f), 300 + k);
+                Mound(pad, 0, new Vector3(Mathf.Cos(a) * (W / 2 + 1.8f), -.15f, .5f + Mathf.Sin(a) * (L / 2 + 2.2f)), new Vector3(.62f, Sites.Camp31.PadDepth * .8f, .55f), 300 + k);
             }
             Part(t, "TrampledPad", pad, Materials.Snow);
 
@@ -431,10 +431,11 @@ namespace Height1079.EditorTools.World
             var fire = new GameObject("Site_Camp_31Jan_Fire");
             var f = fire.transform;
             var ring = new MeshBuilder(1);
-            for (int k = 0; k < 11; k++)
+            for (int k = 0; k < 16; k++)
             {
-                float a = k / 11f * Mathf.PI * 2;
-                Mound(ring, 0, new Vector3(Mathf.Cos(a) * 2.6f, -.15f, Mathf.Sin(a) * 2.6f), new Vector3(1.0f, .35f, .8f), 330 + k);
+                float a = k / 16f * Mathf.PI * 2;
+                if (Mathf.Sin(a) < -.8f) continue; // path to the tent (local -Z)
+                Mound(ring, 0, new Vector3(Mathf.Cos(a) * 2.7f, -.18f, Mathf.Sin(a) * 2.7f), new Vector3(.6f, .3f, .5f), 330 + k);
             }
             ring.Box(0, new Vector3(0, -.3f, 0), new Vector3(4.6f, .6f, 4.6f), Quaternion.identity, .5f);
             Part(f, "TrampledRing", ring, Materials.Snow);

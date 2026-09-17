@@ -8,7 +8,7 @@ namespace Height1079.Runtime
         public static ParticleSystem Create(string name, Transform parent, Vector3 localPos, float rate, float size, float rise)
         {
             var mat = Resources.Load<Material>("World/Materials/SnowFx/Smoke");
-            if (mat == null) return null;
+            if (mat == null) { Debug.LogWarning("1079: smoke material missing"); return null; }
             var ps = new GameObject(name, typeof(ParticleSystem)).GetComponent<ParticleSystem>();
             ps.transform.SetParent(parent, false);
             ps.transform.localPosition = localPos;
@@ -19,7 +19,7 @@ namespace Height1079.Runtime
             main.startSpeed = new ParticleSystem.MinMaxCurve(rise * .6f, rise);
             main.startSize = new ParticleSystem.MinMaxCurve(size * .6f, size);
             main.startRotation = new ParticleSystem.MinMaxCurve(0f, Mathf.PI * 2);
-            main.maxParticles = 200;
+            main.maxParticles = 200; main.startColor = Color.white;
             main.simulationSpace = ParticleSystemSimulationSpace.World;
             var emission = ps.emission; emission.rateOverTime = rate;
             var shape = ps.shape; shape.shapeType = ParticleSystemShapeType.Cone; shape.angle = 8f; shape.radius = .05f;
