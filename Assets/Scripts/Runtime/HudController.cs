@@ -16,6 +16,7 @@ namespace Height1079.Runtime
         Text status, clock, direction, party, hint, outcomeTitle, outcomeNote, summary, pairOutcome, events;
         Slider heat, hands, clarity;
         Button fireButton;
+        Text debug;
         bool protocolShown;
         int shownEvents;
 
@@ -52,6 +53,14 @@ namespace Height1079.Runtime
             return rt;
         }
 
+        /// <summary>A panel centred on the screen whose children lay out from its top-left corner.</summary>
+        RectTransform Centered(string name, Transform parent, Vector2 size)
+        {
+            var rt = Rect(name, parent, new Vector2(.5f, .5f), new Vector2(.5f, .5f), Vector2.zero, size);
+            rt.pivot = new Vector2(0, 1); rt.anchoredPosition = new Vector2(-size.x / 2f, size.y / 2f);
+            return rt;
+        }
+
         Image PanelImage(RectTransform rt, Color c) { var i = rt.gameObject.AddComponent<Image>(); i.color = c; return i; }
 
         Text Label(string name, Transform parent, Vector2 pos, Vector2 size, int fontSize, Color color, TextAnchor anchor = TextAnchor.UpperLeft, FontStyle style = FontStyle.Normal, Vector2? anchors = null)
@@ -70,6 +79,7 @@ namespace Height1079.Runtime
             PanelImage(rt, bg);
             var b = rt.gameObject.AddComponent<Button>();
             var t = Label("Text", rt, Vector2.zero, size, 18, fg, TextAnchor.MiddleCenter);
+            t.text = text;
             t.rectTransform.anchorMin = Vector2.zero; t.rectTransform.anchorMax = Vector2.one; t.rectTransform.sizeDelta = Vector2.zero; t.rectTransform.anchoredPosition = Vector2.zero;
             b.onClick.AddListener(() => onClick());
             return b;
@@ -91,7 +101,7 @@ namespace Height1079.Runtime
         {
             menu = Rect("Menu", canvas.transform, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero).gameObject;
             PanelImage(menu.GetComponent<RectTransform>(), new Color(.07f, .14f, .18f, .92f));
-            var card = Rect("Card", menu.transform, new Vector2(.5f, .5f), new Vector2(.5f, .5f), new Vector2(-220, -280), new Vector2(440, 560));
+            var card = Centered("Card", menu.transform, new Vector2(440, 560));
             PanelImage(card, new Color(.05f, .1f, .14f, .85f));
             Label("Kicker", card, new Vector2(32, -30), new Vector2(380, 20), 12, new Color(.71f, .79f, .81f)).text = "СЕВЕРНЫЙ УРАЛ / UNITY-ПРОТОТИП";
             Label("Title", card, new Vector2(32, -60), new Vector2(380, 90), 84, Ink, TextAnchor.UpperLeft, FontStyle.Bold).text = "1079";
@@ -126,6 +136,9 @@ namespace Height1079.Runtime
             hands = Meter("РУКИ", box, new Vector2(132, -178));
             clarity = Meter("ЯСНОСТЬ", box, new Vector2(242, -178));
             Label("Keys", box, new Vector2(22, -222), new Vector2(320, 18), 11, new Color(.69f, .76f, .8f)).text = "WASD · Shift бег · V вид · E костёр · Esc пауза";
+            var strip = Rect("DebugStrip", hud.transform, new Vector2(0, 1), new Vector2(1, 1), new Vector2(0, 0), new Vector2(0, 26));
+            strip.pivot = new Vector2(0, 1); PanelImage(strip, new Color(0, 0, 0, .55f));
+            debug = Label("Debug", strip, new Vector2(12, -5), new Vector2(1200, 18), 14, new Color(1f, .95f, .8f));
         }
 
         Slider Meter(string title, Transform parent, Vector2 pos)
@@ -147,7 +160,7 @@ namespace Height1079.Runtime
         {
             protocol = Rect("Protocol", canvas.transform, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero).gameObject;
             PanelImage(protocol.GetComponent<RectTransform>(), new Color(.03f, .07f, .11f, .92f));
-            var sheet = Rect("Sheet", protocol.transform, new Vector2(.5f, .5f), new Vector2(.5f, .5f), new Vector2(-320, -330), new Vector2(640, 660));
+            var sheet = Centered("Sheet", protocol.transform, new Vector2(640, 660));
             PanelImage(sheet, Paper);
             var inkDark = new Color(.13f, .19f, .24f);
             Label("Kicker", sheet, new Vector2(40, -36), new Vector2(560, 18), 11, inkDark).text = "1079 / ПОЛЕВОЙ ПРОТОКОЛ";
@@ -173,6 +186,11 @@ namespace Height1079.Runtime
             var me = Bootstrap.LocalHiker;
             if (menu.activeSelf || s == null || me == null) return;
             float x = me.transform.position.x, z = me.transform.position.z;
+            if (debug != null && Camera.main != null)
+            {
+                var c = Camera.main.transform.position;
+                debug.text = $"cam {c.x:0},{c.y:0},{c.z:0} · ground under cam {TerrainBuilder.Height(Bootstrap.Dem, c.x, c.z):0} · me {x:0},{me.transform.position.y:0},{z:0} · ground {TerrainBuilder.Height(Bootstrap.Dem, x, z):0} · fog {RenderSettings.fogDensity:0.0000} · v {me.Speed:0.0} · keys {(Input.GetKey(KeyCode.W) ? "W" : "-")}{(Input.GetKey(KeyCode.A) ? "A" : "-")}{(Input.GetKey(KeyCode.S) ? "S" : "-")}{(Input.GetKey(KeyCode.D) ? "D" : "-")} · {(me.FirstPerson ? "1st" : "3rd")} · grounded {me.Grounded}";
+            }
             clock.text = SurvivalRules.NightTime(s.Elapsed.Value);
             float dist = WorldData.Distance(x, z, WorldData.Tent.X, WorldData.Tent.Z);
             float bearing = Mathf.DeltaAngle(me.Yaw, Mathf.Atan2(WorldData.Tent.X - x, WorldData.Tent.Z - z) * Mathf.Rad2Deg);

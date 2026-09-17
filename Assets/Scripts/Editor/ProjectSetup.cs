@@ -48,7 +48,13 @@ namespace Height1079.EditorTools
         static void EnsureHikerPrefab(bool force)
         {
             string path = Path.Combine(ResourcesDir, "Hiker.prefab");
-            if (File.Exists(path) && !force) return;
+            if (File.Exists(path) && !force)
+            {
+                // Regenerate when a script moved files (Unity then reports the component as missing).
+                var existing = AssetDatabase.LoadAssetAtPath<GameObject>(path);
+                if (existing != null && existing.GetComponent<OwnerNetworkTransform>() != null && existing.GetComponent<HikerController>() != null && existing.GetComponent<HikerAnimator>() != null) return;
+                AssetDatabase.DeleteAsset(path);
+            }
             var go = new GameObject("Hiker", typeof(Rigidbody), typeof(CapsuleCollider), typeof(NetworkObject), typeof(OwnerNetworkTransform), typeof(HikerController), typeof(HikerAnimator));
             var visual = new GameObject("Visual");
             visual.transform.SetParent(go.transform, false);

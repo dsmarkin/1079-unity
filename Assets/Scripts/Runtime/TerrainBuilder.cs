@@ -37,7 +37,8 @@ namespace Height1079.Runtime
             go.transform.position = new Vector3(-half, min, -half);
             var terrain = go.GetComponent<Terrain>();
             terrain.materialTemplate = snow;
-            terrain.drawInstanced = true;
+            // No instancing: the Standard material has no heightmap displacement pass, so instanced patches would draw flat at the base height.
+            terrain.drawInstanced = false;
             terrain.heightmapPixelError = 4f;
             return terrain;
         }

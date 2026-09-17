@@ -6,12 +6,6 @@ using Height1079.Core;
 
 namespace Height1079.Runtime
 {
-    /// <summary>Owner-driven movement so the local player feels responsive; the server still decides the night.</summary>
-    public sealed class OwnerNetworkTransform : NetworkTransform
-    {
-        protected override bool OnIsServerAuthoritative() => false;
-    }
-
     /// <summary>Rigidbody hiker: capsule on the slope, slope sliding, stumble on hard landings, first/third-person camera, kindling intent.</summary>
     [RequireComponent(typeof(Rigidbody), typeof(CapsuleCollider))]
     public sealed class HikerController : NetworkBehaviour
@@ -28,13 +22,15 @@ namespace Height1079.Runtime
         Camera cam;
         Transform head;
         float yaw, pitch = .08f, orbit = 6f;
-        bool firstPerson = true, grounded, kindling, paused;
+        bool firstPerson = true, grounded, kindling, paused, placed;
         Vector3 groundNormal = Vector3.up;
         float lastVerticalSpeed, stumbleUntil;
         public bool Stumbling => Time.time < stumbleUntil;
         public bool Paused => paused;
         public bool FirstPerson => firstPerson;
+        public bool Grounded => grounded;
         public float Yaw => yaw;
+        public float Speed => body != null ? body.linearVelocity.magnitude : 0f;
 
         public static HikerController For(ulong clientId)
         {
@@ -84,14 +80,34 @@ namespace Height1079.Runtime
         public void TeleportServer(float x, float z)
         {
             float y = TerrainBuilder.Height(Bootstrap.Dem, x, z) + .05f;
-            if (IsOwner) transform.position = new Vector3(x, y, z); else TeleportRpc(new Vector3(x, y, z), RpcTarget.Single(OwnerClientId, RpcTargetUse.Temp));
+            placed = true;
+            if (IsOwner) Place(new Vector3(x, y, z)); else TeleportRpc(new Vector3(x, y, z), RpcTarget.Single(OwnerClientId, RpcTargetUse.Temp));
         }
 
         [Rpc(SendTo.SpecifiedInParams)]
-        void TeleportRpc(Vector3 pos, RpcParams rpc)
+        void TeleportRpc(Vector3 pos, RpcParams rpc) { placed = true; Place(pos); }
+
+        /// <summary>Owner-side hard placement: rigidbody, transform and the network transform all agree, velocity cleared.</summary>
+        void Place(Vector3 pos)
         {
-            GetComponent<NetworkTransform>().Teleport(pos, transform.rotation, transform.localScale);
-            body.position = pos;
+            var nt = GetComponent<NetworkTransform>();
+            if (nt != null && nt.CanCommitToTransform) nt.Teleport(pos, transform.rotation, transform.localScale);
+            body.position = pos; transform.position = pos; body.linearVelocity = Vector3.zero;
+            lastVerticalSpeed = 0f;
+        }
+
+        /// <summary>The player object can spawn before the night session exists (host) — keep asking until the run knows us.
+        /// Also a safety net: anything that ends up under the slope is put back on it.</summary>
+        void EnsurePlaced()
+        {
+            if (!IsOwner) return;
+            if (!placed && IsServer)
+            {
+                var run = NightSession.Instance?.Run;
+                if (run != null && run.Players.TryGetValue("c" + OwnerClientId, out var p)) TeleportServer(p.X, p.Z);
+            }
+            float x = transform.position.x, z = transform.position.z, g = TerrainBuilder.Height(Bootstrap.Dem, x, z);
+            if (transform.position.y < g - 3f) Place(new Vector3(x, g + .05f, z));
         }
 
         void SetCursor(bool locked)
@@ -134,6 +150,7 @@ namespace Height1079.Runtime
         void FixedUpdate()
         {
             if (!IsOwner) return;
+            EnsurePlaced();
             var session = NightSession.Instance;
             bool finished = session != null && session.MyOutcome != Outcome.None;
             // Ground probe: capsule cast a little below the feet.

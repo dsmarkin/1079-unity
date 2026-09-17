@@ -40,9 +40,21 @@ namespace Height1079.Runtime
             BuildWorld();
             BuildNetwork();
             Hud = HudController.Create();
+            PlaceMenuCamera();
             Ambience.Create();
             var driver = new GameObject("Atmosphere", typeof(Atmosphere));
             Object.DontDestroyOnLoad(driver);
+        }
+
+        /// <summary>The menu looks at the slope from above the camp; the scene camera in Main.unity sits inside the mountain otherwise.</summary>
+        static void PlaceMenuCamera()
+        {
+            var cam = Camera.main; if (cam == null) return;
+            var (cx, cz) = WorldData.Camp;
+            float y = TerrainBuilder.Height(Dem, cx, cz) + 28f;
+            cam.transform.position = new Vector3(cx - 90f, y, cz + 60f);
+            cam.transform.LookAt(new Vector3(WorldData.Tent.X, TerrainBuilder.Height(Dem, WorldData.Tent.X, WorldData.Tent.Z), WorldData.Tent.Z));
+            cam.nearClipPlane = .1f; cam.farClipPlane = 4500f;
         }
 
         static Material Flat(Color c)
