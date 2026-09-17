@@ -46,7 +46,9 @@ namespace Height1079.Runtime
             var go = new GameObject("Beam", typeof(Light));
             beam = go.GetComponent<Light>();
             beam.type = LightType.Spot; beam.spotAngle = 38f; beam.innerSpotAngle = 12f; beam.range = 38f;
-            beam.color = new Color(1f, .83f, .6f); beam.shadows = LightShadows.Soft; beam.shadowStrength = .85f;
+            beam.color = new Color(1f, .83f, .6f); beam.shadows = LightShadows.Soft; beam.shadowStrength = .9f;
+            beam.renderMode = LightRenderMode.ForcePixel; beam.shadowNearPlane = .3f;
+            beam.cookie = BeamCookie();
             beam.enabled = false;
         }
 
@@ -184,22 +186,46 @@ namespace Height1079.Runtime
             {
                 // dynamo: brightness follows the speed of the flywheel, a fast shimmer, wide dim beam
                 k = power <= 0f ? 0f : Mathf.Sqrt(power) * (.9f + .1f * Mathf.Sin(Time.time * 55f));
-                beam.spotAngle = 52f; beam.innerSpotAngle = 18f;
-                beam.intensity = 1.9f * k;
-                beam.range = Mathf.Lerp(6f, 22f, k);
+                beam.spotAngle = 58f; beam.innerSpotAngle = 20f;
+                beam.intensity = 2.6f * k;
+                beam.range = Mathf.Lerp(7f, 24f, k);
                 beam.color = Color.Lerp(new Color(.85f, .45f, .22f), new Color(1f, .8f, .55f), power);
             }
             else
             {
                 float flicker = power > 0f && power < .15f ? (Mathf.PerlinNoise(Time.time * 9f, 0) > .35f ? 1f : .2f) : 1f;
                 k = power <= 0f ? 0f : Mathf.Sqrt(power) * flicker;
-                beam.spotAngle = 38f; beam.innerSpotAngle = 12f;
-                beam.intensity = 2.6f * k;
-                beam.range = Mathf.Lerp(12f, 38f, k);
+                beam.spotAngle = 42f; beam.innerSpotAngle = 12f;
+                beam.intensity = 4.2f * k;
+                beam.range = Mathf.Lerp(14f, 48f, k);
                 beam.color = Color.Lerp(new Color(.9f, .55f, .3f), new Color(1f, .84f, .62f), Mathf.Clamp01(power * 1.5f));
             }
             beam.enabled = k > .01f;
             if (lensMats[kind] != null) lensMats[kind].SetColor("_EmissionColor", beam.color * (k * 2.2f));
+        }
+
+        static Texture2D cookie;
+
+        /// <summary>The beam of a cheap reflector: a hot centre, a brighter ring where the reflector focuses, a dim uneven halo.</summary>
+        static Texture2D BeamCookie()
+        {
+            if (cookie != null) return cookie;
+            const int n = 128;
+            cookie = new Texture2D(n, n, TextureFormat.Alpha8, false) { wrapMode = TextureWrapMode.Clamp, name = "beam_cookie" };
+            var px = new Color32[n * n];
+            for (int y = 0; y < n; y++)
+                for (int x = 0; x < n; x++)
+                {
+                    float u = (x + .5f) / n * 2f - 1f, v = (y + .5f) / n * 2f - 1f;
+                    float r = Mathf.Sqrt(u * u + v * v), ang = Mathf.Atan2(v, u);
+                    float core = Mathf.Exp(-r * r / .03f);
+                    float ring = .55f * Mathf.Exp(-(r - .3f) * (r - .3f) / .004f);
+                    float halo = .32f * (1f - Mathf.SmoothStep(.2f, .95f, r)) * (.8f + .2f * Mathf.PerlinNoise(ang * 2f + 3f, r * 6f));
+                    float a = Mathf.Clamp01(core + ring + halo) * (1f - Mathf.SmoothStep(.9f, 1f, r));
+                    px[y * n + x] = new Color32(255, 255, 255, (byte)(a * 255f));
+                }
+            cookie.SetPixels32(px); cookie.Apply();
+            return cookie;
         }
     }
 }

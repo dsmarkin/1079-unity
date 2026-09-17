@@ -26,6 +26,9 @@ namespace Height1079.Runtime
             }
         }
 
+        /// <summary>0 at dusk, 1 in full night: drives light, fog, film and the forest sounds.</summary>
+        public static float Darkness { get; private set; }
+
         static Light sun;
         static Light fireLight;
         static Renderer ember;
@@ -37,6 +40,9 @@ namespace Height1079.Runtime
         {
             if (Object.FindFirstObjectByType<NetworkManager>() != null) return;
             Application.targetFrameRate = 120;
+            // the night is lit by a handful of small lights (torches, fire, stove): keep them per-pixel with shadows close by
+            QualitySettings.pixelLightCount = Mathf.Max(QualitySettings.pixelLightCount, 6);
+            QualitySettings.shadowDistance = Mathf.Max(QualitySettings.shadowDistance, 45f);
             Dem = TerrainBuilder.LoadDem();
             BuildWorld();
             BuildNetwork();
@@ -152,7 +158,17 @@ namespace Height1079.Runtime
         /// <summary>Per-frame environment: sky darkens with the night, fog thickens in storms, the fire glows while it burns.</summary>
         sealed class Atmosphere : MonoBehaviour
         {
-            static readonly Color Dusk = new Color(.62f, .67f, .71f), Night = new Color(.1f, .17f, .25f);
+            // Dusk is the lobby backdrop and the first minute of the night; after that it is the real Ural night of 1 Feb:
+            // the moon (last quarter) rises only after midnight and the sky is overcast with snow, so the forest is almost black.
+            static readonly Color DuskSky = new Color(.62f, .67f, .71f), NightSky = new Color(.018f, .024f, .036f), StormSky = new Color(.05f, .058f, .07f);
+            static readonly Color DuskAmbSky = new Color(.89f, .94f, 1f), DuskAmbEq = new Color(.6f, .66f, .7f), DuskAmbGround = new Color(.35f, .38f, .4f);
+            static readonly Color NightAmbSky = new Color(.055f, .07f, .1f), NightAmbEq = new Color(.032f, .04f, .058f), NightAmbGround = new Color(.022f, .026f, .036f);
+            const float DuskSeconds = 75f;
+
+            NightFilm film;
+
+            void Start() => film = NightFilm.Create();
+
             void Update()
             {
                 if (Controls.Archive && Hud != null)
@@ -163,17 +179,36 @@ namespace Height1079.Runtime
                     Hud.SetStatus(WorldDressing.ViewIndex < 0 ? "" : $"Осмотр места: {WorldDressing.ViewName} (F3 — дальше)");
                 }
                 var s = NightSession.Instance;
-                float night = s != null ? Mathf.Clamp01(s.Elapsed.Value / 220f) : 0f;
                 bool storm = s != null && s.Storm.Value;
-                var sky = Color.Lerp(Dusk, Night, night);
-                RenderSettings.fogColor = sky; RenderSettings.fogDensity = storm ? .045f : s != null ? .003f : .0013f;
+                float night = s != null ? Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(s.Elapsed.Value / DuskSeconds)) : 0f;
+                // site views are for looking at things: keep them readable
+                if (WorldDressing.ViewIndex >= 0) night = Mathf.Min(night, .35f);
+                Darkness = Mathf.MoveTowards(Darkness, night, Time.deltaTime * .5f);
+                float d = Darkness;
+
+                var sky = Color.Lerp(DuskSky, storm ? StormSky : NightSky, d);
+                RenderSettings.fogColor = sky;
+                // clear dusk: long views; night: the dark eats everything past ~60 m; blizzard: ~25 m
+                float fog = s == null ? .0013f : Mathf.Lerp(.003f, .016f, d);
+                if (storm) fog = Mathf.Max(fog, .045f);
+                RenderSettings.fogDensity = fog;
+                RenderSettings.ambientSkyColor = Color.Lerp(DuskAmbSky, NightAmbSky, d);
+                RenderSettings.ambientEquatorColor = Color.Lerp(DuskAmbEq, NightAmbEq, d);
+                RenderSettings.ambientGroundColor = Color.Lerp(DuskAmbGround, NightAmbGround, d);
                 var cam = Camera.main; if (cam != null) { cam.clearFlags = CameraClearFlags.SolidColor; cam.backgroundColor = sky; }
-                if (sun != null) sun.intensity = 1.6f - night * 1.3f;
+                if (sun != null)
+                {
+                    // what remains of the sky glow: faint, blue, no shadows
+                    sun.intensity = Mathf.Lerp(1.6f, .07f, d);
+                    sun.color = Color.Lerp(new Color(1f, .94f, .84f), new Color(.55f, .65f, .9f), d);
+                    sun.shadows = d > .6f ? LightShadows.None : LightShadows.Soft;
+                }
                 float fire = s != null ? s.FireRemaining.Value : 0f;
                 if (ember != null) ember.enabled = fire > 0f;
                 if (flames != null) { var fe = flames.emission; fe.enabled = fire > 0f; }
                 if (fireSmoke != null) { var em = fireSmoke.emission; em.enabled = fire > 0f; }
-                if (fireLight != null) fireLight.intensity = fire > 0f ? 3.5f + Mathf.Sin(Time.time * 17f) * .5f : 0f;
+                if (fireLight != null) fireLight.intensity = fire > 0f ? (3.2f + .8f * Mathf.PerlinNoise(Time.time * 6f, 0f)) * Mathf.Lerp(1f, 1.4f, d) : 0f;
+                if (film != null) film.Set(s != null ? d : 0f, storm);
             }
         }
     }

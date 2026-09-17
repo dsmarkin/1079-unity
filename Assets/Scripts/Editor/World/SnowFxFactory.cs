@@ -18,10 +18,10 @@ namespace Height1079.EditorTools.World
             var print = TextureFactory.Save("footprint", Footprint(), true, TextureWrapMode.Clamp);
             var trod = TextureFactory.Save("trodden_snow", Trodden(), true, TextureWrapMode.Clamp);
 
-            ParticleFade("Snowflakes", flakes, new Color(1f, 1f, 1f, 1f));
-            ParticleFade("SnowPuff", flakes, new Color(.95f, .97f, 1f, .8f));
+            ParticleFade("Snowflakes", flakes, new Color(1f, 1f, 1f, 1f), lit: true);
+            ParticleFade("SnowPuff", flakes, new Color(.95f, .97f, 1f, .8f), lit: true);
             ParticleAdd("Flame", TextureFactory.Save("flame", Flame(), true, TextureWrapMode.Clamp));
-            ParticleFade("Smoke", TextureFactory.Save("smoke", Smoke(), true, TextureWrapMode.Clamp), new Color(.62f, .62f, .64f, .9f));
+            ParticleFade("Smoke", TextureFactory.Save("smoke", Smoke(), true, TextureWrapMode.Clamp), new Color(.62f, .62f, .64f, .9f), lit: true);
             for (int i = 0; i < FadeLevels; i++)
             {
                 float a = 1f - i / (float)FadeLevels;
@@ -38,10 +38,11 @@ namespace Height1079.EditorTools.World
             return m;
         }
 
-        /// <summary>Particles/Standard Unlit in Fade mode (what the shader's own inspector sets).</summary>
-        static Material ParticleFade(string name, Texture2D tex, Color c)
+        /// <summary>Particles/Standard Unlit (or Surface when lit — snow and smoke must stay dark at night and catch the torch beam) in Fade mode.</summary>
+        static Material ParticleFade(string name, Texture2D tex, Color c, bool lit = false)
         {
-            var m = new Material(Shader.Find("Particles/Standard Unlit")) { name = name, mainTexture = tex, color = c };
+            var m = new Material(Shader.Find(lit ? "Particles/Standard Surface" : "Particles/Standard Unlit")) { name = name, mainTexture = tex, color = c };
+            if (lit) { m.SetFloat("_Glossiness", 0f); m.SetFloat("_Metallic", 0f); }
             m.SetFloat("_Mode", 2); m.SetOverrideTag("RenderType", "Transparent");
             m.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
             m.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
