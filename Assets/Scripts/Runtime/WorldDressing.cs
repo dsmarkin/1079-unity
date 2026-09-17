@@ -40,7 +40,7 @@ namespace Height1079.Runtime
             campTent = Spawn("Sites/Site_Camp_31Jan_Tent", Ground(dem, px, pz, .02f), Quaternion.LookRotation(toFire), sites)?.transform;
             campFire = Spawn("Sites/Site_Camp_31Jan_Fire", Ground(dem, WorldData.Camp.x, WorldData.Camp.z, -.05f), Quaternion.LookRotation(-toFire), sites)?.transform;
 
-            Spawn("Tracks/AnimalTracks", Vector3.zero, Quaternion.identity, sites);
+            tracks = Spawn("Tracks/AnimalTracks", Vector3.zero, Quaternion.identity, sites)?.transform;
 
             var c = WorldData.Cedar;
             Spawn("Sites/Site_Cedar_1959", Ground(dem, c.X, c.Z, -.05f), Quaternion.identity, sites);
@@ -110,9 +110,10 @@ namespace Height1079.Runtime
 
         /// <summary>Site viewer (F3): orbit camera around the event sites in turn; the hiker keeps standing where it was. Index -1 = off.</summary>
         public static int ViewIndex { get; private set; } = -1;
-        static Transform campTent, campFire;
-        static readonly string[] ViewIds = { "tent", "cedar", "p4", "labaz", "camp-gear", "camp-inside", "camp-things", "camp-kitchen", "dyatlov", "forest-taiga", "forest-edge" };
-        static readonly float[] ViewRadius = { 9f, 14f, 8f, 13f, 2.4f, .7f, .42f, 2.6f, 10f, 22f, 22f };
+        static Transform campTent, campFire, tracks;
+        static Vector3? trackSpot;
+        static readonly string[] ViewIds = { "tent", "cedar", "p4", "labaz", "camp-gear", "camp-inside", "camp-things", "camp-kitchen", "dyatlov", "forest-taiga", "forest-edge", "forest-tracks" };
+        static readonly float[] ViewRadius = { 9f, 14f, 8f, 13f, 2.4f, .7f, .42f, 2.6f, 10f, 22f, 22f, 4f };
         public static string ViewName => ViewIndex < 0 ? "" : ViewIds[ViewIndex] switch
         {
             "labaz" => "Стоянка 31 января и лабаз",
@@ -122,6 +123,7 @@ namespace Height1079.Runtime
             "camp-kitchen" => "Стоянка 31 января · костёр на брёвнах",
             "forest-taiga" => "Лес · темнохвойная тайга в долине Ауспии",
             "forest-edge" => "Лес · граница леса на подъёме (~720 м)",
+            "forest-tracks" => "Лес · следы зверей у стоянки",
             _ => WorldData.Get(ViewIds[ViewIndex]).Label,
         };
 
@@ -147,6 +149,17 @@ namespace Height1079.Runtime
                 cam.transform.LookAt(c);
                 return true;
             }
+            if (vid == "forest-tracks")
+            {
+                var spot = TrackSpot();
+                if (spot == null) return false;
+                float ta = Time.unscaledTime * .1f;
+                var eyeT = spot.Value + new Vector3(Mathf.Cos(ta) * r, 0, Mathf.Sin(ta) * r);
+                eyeT.y = TerrainBuilder.Height(dem, eyeT.x, eyeT.z) + 1.7f;
+                cam.transform.position = eyeT;
+                cam.transform.LookAt(spot.Value);
+                return true;
+            }
             if (vid.StartsWith("forest-"))
             {
                 // walk slowly on a circle at eye height, looking ahead and a little inward
@@ -170,6 +183,23 @@ namespace Height1079.Runtime
             cam.transform.position = pos;
             cam.transform.LookAt(target);
             return true;
+        }
+
+        /// <summary>A print in the track chunk nearest to the 31 Jan camp.</summary>
+        static Vector3? TrackSpot()
+        {
+            if (trackSpot.HasValue || tracks == null) return trackSpot;
+            var camp = new Vector3(WorldData.Camp.x, 0, WorldData.Camp.z);
+            float best = float.MaxValue;
+            foreach (var mf in tracks.GetComponentsInChildren<MeshFilter>())
+            {
+                var m = mf.sharedMesh;
+                if (m == null || !m.isReadable) continue;
+                var c = m.bounds.center; c.y = 0;
+                float d = (c - camp).sqrMagnitude;
+                if (d < best) { best = d; var v = m.vertices; if (v.Length > 0) trackSpot = mf.transform.TransformPoint(v[v.Length / 2]); }
+            }
+            return trackSpot;
         }
 
         static Vector3 ForestSpot(HeightField dem, float elevation)
