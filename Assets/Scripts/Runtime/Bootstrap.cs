@@ -158,9 +158,9 @@ namespace Height1079.Runtime
             static readonly Color Dusk = new Color(.62f, .67f, .71f), Night = new Color(.1f, .17f, .25f);
             void Update()
             {
-                if (Input.GetKeyDown(KeyCode.F2) && Hud != null)
+                if (Controls.Archive && Hud != null)
                     Hud.SetStatus(WorldDressing.ToggleArchive() ? "Архивный слой: версии, ориентиры КАН, линия следов и подъём от лабаза (F2 — скрыть)." : "");
-                if (Input.GetKeyDown(KeyCode.F3) && Hud != null)
+                if (Controls.SiteView && Hud != null)
                 {
                     WorldDressing.NextView();
                     Hud.SetStatus(WorldDressing.ViewIndex < 0 ? "" : $"Осмотр места: {WorldDressing.ViewName} (F3 — дальше)");

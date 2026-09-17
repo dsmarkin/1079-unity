@@ -1,7 +1,7 @@
 {
   "name": "Height1079.Runtime",
   "rootNamespace": "Height1079.Runtime",
-  "references": ["Height1079.Core", "Unity.Netcode.Runtime", "Unity.Collections", "Unity.Networking.Transport", "glTFast"],
+  "references": ["Height1079.Core", "Unity.Netcode.Runtime", "Unity.Collections", "Unity.Networking.Transport", "glTFast", "Unity.InputSystem"],
   "includePlatforms": [],
   "excludePlatforms": [],
   "allowUnsafeCode": false,

@@ -189,7 +189,7 @@ namespace Height1079.Runtime
             if (debug != null && Camera.main != null)
             {
                 var c = Camera.main.transform.position;
-                debug.text = $"cam {c.x:0},{c.y:0},{c.z:0} · ground under cam {TerrainBuilder.Height(Bootstrap.Dem, c.x, c.z):0} · me {x:0},{me.transform.position.y:0},{z:0} · ground {TerrainBuilder.Height(Bootstrap.Dem, x, z):0} · fog {RenderSettings.fogDensity:0.0000} · v {me.Speed:0.0} · keys {(Input.GetKey(KeyCode.W) ? "W" : "-")}{(Input.GetKey(KeyCode.A) ? "A" : "-")}{(Input.GetKey(KeyCode.S) ? "S" : "-")}{(Input.GetKey(KeyCode.D) ? "D" : "-")} · {(me.FirstPerson ? "1st" : "3rd")} · grounded {me.Grounded}";
+                debug.text = $"cam {c.x:0},{c.y:0},{c.z:0} · ground under cam {TerrainBuilder.Height(Bootstrap.Dem, c.x, c.z):0} · me {x:0},{me.transform.position.y:0},{z:0} · ground {TerrainBuilder.Height(Bootstrap.Dem, x, z):0} · fog {RenderSettings.fogDensity:0.0000} · v {me.Speed:0.0} · keys {Controls.Debug} · {(me.FirstPerson ? "1st" : "3rd")} · grounded {me.Grounded}";
             }
             clock.text = SurvivalRules.NightTime(s.Elapsed.Value);
             float dist = WorldData.Distance(x, z, WorldData.Tent.X, WorldData.Tent.Z);

@@ -121,10 +121,10 @@ namespace Height1079.Runtime
             if (!IsOwner || cam == null) return;
             var session = NightSession.Instance;
             bool finished = session != null && session.MyOutcome != Outcome.None;
-            if (Input.GetKeyDown(KeyCode.Escape)) { paused = true; SetCursor(false); }
+            if (Controls.Pause) { paused = true; SetCursor(false); }
             if (!paused && !finished && Input.GetMouseButtonDown(0) && Cursor.lockState != CursorLockMode.Locked) SetCursor(true);
             if (paused && Input.GetMouseButtonDown(0) && !Bootstrap.PointerOverUi()) { paused = false; SetCursor(true); }
-            if (Input.GetKeyDown(KeyCode.V)) firstPerson = !firstPerson;
+            if (Controls.ToggleView) firstPerson = !firstPerson;
             if (finished && Cursor.lockState == CursorLockMode.Locked) SetCursor(false);
 
             if (Cursor.lockState == CursorLockMode.Locked && !paused && !finished)
@@ -135,7 +135,7 @@ namespace Height1079.Runtime
             orbit = Mathf.Clamp(orbit - Input.mouseScrollDelta.y * .6f, 3f, 14f);
 
             bool wantKindle = !paused && !finished && WorldData.NearCamp(transform.position.x, transform.position.z)
-                && (Input.GetKey(KeyCode.E) || Bootstrap.AutoKindle) && session != null && session.FireRemaining.Value <= 0f
+                && (Controls.Kindle || Bootstrap.AutoKindle) && session != null && session.FireRemaining.Value <= 0f
                 && new Vector2(body.linearVelocity.x, body.linearVelocity.z).magnitude < .3f;
             if (wantKindle != kindling)
             {
@@ -161,11 +161,11 @@ namespace Height1079.Runtime
             lastVerticalSpeed = v.y;
 
             bool locked = paused || finished || Stumbling;
-            float f = locked ? 0f : (Input.GetKey(KeyCode.W) ? 1f : 0f) - (Input.GetKey(KeyCode.S) ? 1f : 0f);
-            float r = locked ? 0f : (Input.GetKey(KeyCode.D) ? 1f : 0f) - (Input.GetKey(KeyCode.A) ? 1f : 0f);
+            float f = locked ? 0f : (Controls.Forward ? 1f : 0f) - (Controls.Back ? 1f : 0f);
+            float r = locked ? 0f : (Controls.Right ? 1f : 0f) - (Controls.Left ? 1f : 0f);
             Vector3 forward = Quaternion.Euler(0, yaw, 0) * Vector3.forward, right = Quaternion.Euler(0, yaw, 0) * Vector3.right;
             var wish = (forward * f + right * r); if (wish.sqrMagnitude > 1f) wish.Normalize();
-            float speed = Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift) ? RunSpeed : WalkSpeed;
+            float speed = Controls.Run ? RunSpeed : WalkSpeed;
             // Cold slows the legs: clarity/heat below 40 costs up to 35 % of speed.
             if (session != null) speed *= Mathf.Lerp(.65f, 1f, Mathf.Clamp01(session.Heat / 40f));
 

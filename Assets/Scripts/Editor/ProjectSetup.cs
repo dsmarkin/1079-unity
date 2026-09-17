@@ -26,6 +26,7 @@ namespace Height1079.EditorTools
         public static void EnsureAll(bool force)
         {
             Directory.CreateDirectory(ResourcesDir);
+            EnsureInputHandling();
             EnsureHikerModel(force);
             World.WorldImporter.Build(force);
             MakeMaterial("Flat", new Color(.886f, .91f, .93f));
@@ -35,6 +36,21 @@ namespace Height1079.EditorTools
             EnsureScene(force);
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
+        }
+
+        /// <summary>Active input handling = Both: the Input System reads physical keys (WASD work with a Russian layout on macOS),
+        /// the legacy manager keeps mouse axes. Takes effect after the editor restarts (the next check/build run).</summary>
+        static void EnsureInputHandling()
+        {
+            var assets = AssetDatabase.LoadAllAssetsAtPath("ProjectSettings/ProjectSettings.asset");
+            if (assets == null || assets.Length == 0) return;
+            var so = new SerializedObject(assets[0]);
+            var prop = so.FindProperty("activeInputHandler");
+            if (prop == null || prop.intValue == 2) return;
+            prop.intValue = 2;
+            so.ApplyModifiedPropertiesWithoutUndo();
+            AssetDatabase.SaveAssets();
+            Debug.Log("1079: active input handling set to Both (restart the editor to apply).");
         }
 
         static void EnsureHikerModel(bool force)
