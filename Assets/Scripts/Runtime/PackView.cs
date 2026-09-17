@@ -131,8 +131,9 @@ namespace Height1079.Runtime
                 if (firstPerson)
                 {
                     t.SetParent(cam.transform, false);
-                    t.localPosition = new Vector3(.17f, -.3f, .48f);
+                    t.localPosition = new Vector3(.24f, -.34f, .62f);
                     t.localRotation = Quaternion.Euler(6f, -18f, 4f);
+                    t.localScale = Vector3.one * .6f;
                 }
                 else
                 {
@@ -140,6 +141,7 @@ namespace Height1079.Runtime
                     t.SetParent(visual != null ? visual : h.transform, false);
                     t.localPosition = new Vector3(.27f, 1.02f, .26f);
                     t.localRotation = Quaternion.Euler(0, 12f, 0);
+                    t.localScale = Vector3.one;
                 }
                 if (!t.gameObject.activeSelf) t.gameObject.SetActive(true);
             }

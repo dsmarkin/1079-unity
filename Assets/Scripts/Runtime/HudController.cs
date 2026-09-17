@@ -25,7 +25,7 @@ namespace Height1079.Runtime
         // rucksack window
         RectTransform packPanel, packRows;
         Text packTitle, packLoad, packHandLine;
-        Button packWearButton, packStowButton;
+        Button packWearButton, packStowButton, packDropButton, packPickButton;
         readonly System.Collections.Generic.List<Button> packRowPool = new System.Collections.Generic.List<Button>();
         string packShown = "";
         Texture2D mapTex;
@@ -287,28 +287,42 @@ namespace Height1079.Runtime
             return s;
         }
 
-        /// <summary>The rucksack window: what is inside, how full it is, and buttons to take things out or stow what is in the hands.</summary>
+        /// <summary>The rucksack window: what is inside, how full it is, and buttons to take things out, stow, drop or pick up
+        /// (the same things the Tab/G/R/X keys do, so the window is enough on its own).</summary>
         void BuildPack()
         {
-            packPanel = Rect("Pack", hud.transform, new Vector2(1, .5f), new Vector2(1, .5f), new Vector2(-24, 0), new Vector2(340, 470));
+            packPanel = Rect("Pack", hud.transform, new Vector2(1, .5f), new Vector2(1, .5f), new Vector2(-24, 0), new Vector2(340, 580));
             packPanel.pivot = new Vector2(1, .5f);
             PanelImage(packPanel, Panel);
             packTitle = Label("Title", packPanel, new Vector2(20, -16), new Vector2(300, 26), 20, Ink);
-            packLoad = Label("Load", packPanel, new Vector2(20, -44), new Vector2(300, 20), 13, new Color(.71f, .79f, .81f));
-            packRows = Rect("Rows", packPanel, new Vector2(0, 1), new Vector2(0, 1), new Vector2(16, -70), new Vector2(308, 320));
-            packHandLine = Label("Hand", packPanel, new Vector2(20, -398), new Vector2(300, 20), 13, Amber);
-            packStowButton = ButtonUi("Stow", packPanel, new Vector2(20, -422), new Vector2(148, 30), "Убрать в рюкзак", new Color(.2f, .29f, .34f), Ink, () =>
-            {
-                var s = NightSession.Instance;
-                if (s != null) s.RequestPack(PackAction.Stow, Backpacks.OpenPack);
-            });
-            packWearButton = ButtonUi("Wear", packPanel, new Vector2(176, -422), new Vector2(148, 30), "Надеть", new Color(.2f, .29f, .34f), Ink, () =>
+            packLoad = Label("Load", packPanel, new Vector2(20, -44), new Vector2(300, 34), 13, new Color(.71f, .79f, .81f));
+            packRows = Rect("Rows", packPanel, new Vector2(0, 1), new Vector2(0, 1), new Vector2(16, -80), new Vector2(308, 400));
+            packHandLine = Label("Hand", packPanel, new Vector2(20, -486), new Vector2(300, 20), 13, Amber);
+            packWearButton = ButtonUi("Wear", packPanel, new Vector2(20, -510), new Vector2(148, 28), "Надеть", new Color(.2f, .29f, .34f), Ink, () =>
             {
                 var s = NightSession.Instance;
                 var me = Bootstrap.LocalHiker;
                 if (s == null || me == null) return;
                 if (Backpacks.MyPackId(me) == Backpacks.OpenPack) { s.RequestPack(PackAction.Drop); Backpacks.Close(); }
                 else s.RequestPack(PackAction.Wear, Backpacks.OpenPack);
+            });
+            packStowButton = ButtonUi("Stow", packPanel, new Vector2(176, -510), new Vector2(148, 28), "Убрать в рюкзак", new Color(.2f, .29f, .34f), Ink, () =>
+            {
+                var s = NightSession.Instance;
+                if (s != null) s.RequestPack(PackAction.Stow, Backpacks.OpenPack);
+            });
+            packDropButton = ButtonUi("DropHand", packPanel, new Vector2(20, -542), new Vector2(148, 28), "Бросить из рук", new Color(.2f, .29f, .34f), Ink, () =>
+            {
+                var s = NightSession.Instance;
+                if (s != null) s.RequestPack(PackAction.DropHand);
+            });
+            packPickButton = ButtonUi("PickUp", packPanel, new Vector2(176, -542), new Vector2(148, 28), "Поднять", new Color(.2f, .29f, .34f), Ink, () =>
+            {
+                var s = NightSession.Instance;
+                var me = Bootstrap.LocalHiker;
+                if (s == null || me == null) return;
+                int l = Backpacks.NearbyLooseId(me, out _);
+                if (l != 0) s.RequestPack(PackAction.PickUp, l);
             });
             packPanel.gameObject.SetActive(false);
         }
@@ -335,6 +349,10 @@ namespace Height1079.Runtime
             var carried = (ItemId)me.Carried.Value;
             packHandLine.text = carried != ItemId.None ? "В руках: " + Items.Spec(carried).Name : "Руки свободны · Tab — закрыть";
             packStowButton.gameObject.SetActive(carried != ItemId.None);
+            packDropButton.gameObject.SetActive(carried != ItemId.None);
+            int nearby = Backpacks.NearbyLooseId(me, out var nearbyItem);
+            packPickButton.gameObject.SetActive(nearby != 0 && carried == ItemId.None);
+            if (nearby != 0) packPickButton.GetComponentInChildren<Text>().text = "Поднять: " + Items.Spec(nearbyItem).Name;
             bool canWear = Backpacks.MyPackId(me) == Backpacks.OpenPack || ground;
             packWearButton.gameObject.SetActive(canWear);
             packWearButton.GetComponentInChildren<Text>().text = mine ? "Снять рюкзак" : "Надеть";
@@ -347,7 +365,7 @@ namespace Height1079.Runtime
             for (int i = packRowPool.Count; i < contents.Count; i++)
             {
                 int index = i;
-                var b = ButtonUi("Row" + i, packRows, new Vector2(0, -i * 26), new Vector2(308, 24), "", new Color(.12f, .2f, .25f), Ink, () =>
+                var b = ButtonUi("Row" + i, packRows, new Vector2(0, -i * 25), new Vector2(308, 23), "", new Color(.12f, .2f, .25f), Ink, () =>
                 {
                     var s = NightSession.Instance;
                     if (s != null) s.RequestPack(PackAction.Take, Backpacks.OpenPack, index);
