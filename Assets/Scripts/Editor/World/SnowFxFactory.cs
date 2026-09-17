@@ -21,7 +21,17 @@ namespace Height1079.EditorTools.World
             ParticleFade("Snowflakes", flakes, new Color(1f, 1f, 1f, 1f), lit: true);
             ParticleFade("SnowPuff", flakes, new Color(.95f, .97f, 1f, .8f), lit: true);
             ParticleAdd("Flame", TextureFactory.Save("flame", Flame(), true, TextureWrapMode.Clamp));
-            ParticleFade("Smoke", TextureFactory.Save("smoke", Smoke(), true, TextureWrapMode.Clamp), new Color(.62f, .62f, .64f, .9f), lit: true);
+            var smoke = TextureFactory.Save("smoke", Smoke(), true, TextureWrapMode.Clamp);
+            ParticleFade("Smoke", smoke, new Color(.62f, .62f, .64f, .9f), lit: true);
+            // ground mist between the trunks: lit, soft against the snow and the trees, fades near the camera
+            var mist = ParticleFade("Mist", TextureFactory.Save("mist", Mist(), true, TextureWrapMode.Clamp), new Color(.78f, .82f, .88f, 1f), lit: true);
+            mist.EnableKeyword("_SOFTPARTICLES_ON"); mist.SetFloat("_SoftParticlesEnabled", 1);
+            mist.SetFloat("_SoftParticlesNearFadeDistance", 0f); mist.SetFloat("_SoftParticlesFarFadeDistance", 2.5f);
+            mist.SetVector("_SoftParticleFadeParams", new Vector4(0f, 1f / 2.5f, 0, 0));
+            mist.EnableKeyword("_FADING_ON"); mist.SetFloat("_CameraFadingEnabled", 1);
+            mist.SetFloat("_CameraNearFadeDistance", 1.5f); mist.SetFloat("_CameraFarFadeDistance", 6f);
+            mist.SetVector("_CameraFadeParams", new Vector4(1.5f, 1f / 4.5f, 0, 0));
+            EditorUtility.SetDirty(mist);
             for (int i = 0; i < FadeLevels; i++)
             {
                 float a = 1f - i / (float)FadeLevels;
@@ -64,6 +74,24 @@ namespace Height1079.EditorTools.World
             m.EnableKeyword("_ALPHABLEND_ON");
             m.renderQueue = 3000;
             return Save(m, name);
+        }
+
+        /// <summary>Very soft, wide, uneven blob for ground mist.</summary>
+        static Texture2D Mist()
+        {
+            const int S = 128;
+            var t = new Texture2D(S, S, TextureFormat.RGBA32, false);
+            for (int y = 0; y < S; y++)
+                for (int x = 0; x < S; x++)
+                {
+                    float u = (x + .5f) / S * 2 - 1, v = (y + .5f) / S * 2 - 1;
+                    float r = Mathf.Sqrt(u * u + v * v * 2.2f);
+                    float n = Mathf.PerlinNoise(x * .05f, y * .05f) * .6f + Mathf.PerlinNoise(x * .13f + 7, y * .13f) * .4f;
+                    float a = Mathf.Clamp01(1 - r) * (.55f + .45f * n);
+                    t.SetPixel(x, y, new Color(1, 1, 1, a * a));
+                }
+            t.Apply();
+            return t;
         }
 
         /// <summary>Flame tongue: bright core, soft teardrop fading upward, wavy edge.</summary>

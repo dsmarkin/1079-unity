@@ -192,6 +192,24 @@ namespace Height1079.Tests
         }
 
         [Test]
+        public void AnimalTracksKeepAwayFromTheTentAndTheSites()
+        {
+            var tracks = Height1079.Core.Dem.LoadTracks(TestData.World("tracks.f32"));
+            Assert.Greater(tracks.Length, 20000);
+            var counts = new int[8];
+            foreach (var t in tracks)
+            {
+                counts[(int)t.Kind]++;
+                Assert.Greater(WorldData.Distance(t.X, t.Z, WorldData.Tent.X, WorldData.Tent.Z), 399f, "only the group's own footprints near the tent");
+                Assert.Greater(WorldData.Distance(t.X, t.Z, WorldData.Cedar.X, WorldData.Cedar.Z), 49f);
+                float el = TestData.Dem.Sample(t.X, t.Z);
+                if (t.Kind == TrackKind.Ptarmigan) Assert.Greater(el, 740f, "ptarmigan live above the tree line");
+                if (t.Kind == TrackKind.Elk) Assert.Less(el, 720f, "elk keep to the valleys");
+            }
+            foreach (var c in counts) Assert.Greater(c, 500);
+        }
+
+        [Test]
         public void UnderstoryFillsTheForestAndLeavesTheTentSlopeOpen()
         {
             var under = Height1079.Core.Dem.LoadUnderstory(TestData.World("understory.f32"));

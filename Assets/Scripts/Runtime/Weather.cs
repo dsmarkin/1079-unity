@@ -19,6 +19,8 @@ namespace Height1079.Runtime
         static readonly int WindParams = Shader.PropertyToID("_WindParams"), WindDir = Shader.PropertyToID("_WindDir");
 
         ParticleSystem driving, drift;
+        Material tracks;
+        float trackFill;
         float windTime, gustPhase, seed;
 
         public static Weather Create()
@@ -33,6 +35,7 @@ namespace Height1079.Runtime
             seed = Random.value * 50f;
             var flakes = Resources.Load<Material>("World/Materials/SnowFx/Snowflakes");
             var puff = Resources.Load<Material>("World/Materials/SnowFx/Smoke"); // soft round puff, lit
+            tracks = Resources.Load<Material>("World/Materials/AnimalTracks");
             driving = Driving(flakes);
             drift = Drift(puff != null ? puff : flakes);
         }
@@ -130,6 +133,10 @@ namespace Height1079.Runtime
             windTime += Time.deltaTime * (.6f + .9f * Wind);
             Shader.SetGlobalVector(WindParams, new Vector4(Wind, Gust, windTime, 0));
             Shader.SetGlobalVector(WindDir, new Vector4(Direction.x, Direction.y, 0, 0));
+
+            // a blizzard fills the animal tracks; they stay faint afterwards
+            trackFill = Mathf.MoveTowards(trackFill, Storm > .5f ? 1f : trackFill, Time.deltaTime / 120f);
+            if (tracks != null) tracks.color = new Color(1, 1, 1, Mathf.Lerp(1f, .3f, trackFill));
 
             var cam = Camera.main;
             if (cam == null) return;

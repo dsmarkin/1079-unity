@@ -40,6 +40,8 @@ namespace Height1079.Runtime
             campTent = Spawn("Sites/Site_Camp_31Jan_Tent", Ground(dem, px, pz, .02f), Quaternion.LookRotation(toFire), sites)?.transform;
             campFire = Spawn("Sites/Site_Camp_31Jan_Fire", Ground(dem, WorldData.Camp.x, WorldData.Camp.z, -.05f), Quaternion.LookRotation(-toFire), sites)?.transform;
 
+            Spawn("Tracks/AnimalTracks", Vector3.zero, Quaternion.identity, sites);
+
             var c = WorldData.Cedar;
             Spawn("Sites/Site_Cedar_1959", Ground(dem, c.X, c.Z, -.05f), Quaternion.identity, sites);
 

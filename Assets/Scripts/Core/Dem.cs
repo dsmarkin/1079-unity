@@ -77,8 +77,30 @@ namespace Height1079.Core
         public UnderRecord(float x, float z, float size, UnderKind kind, float yaw) { X = x; Z = z; Size = size; Kind = kind; Yaw = yaw; }
     }
 
+    /// <summary>Animal whose trail crosses the snow (Tools/terrain/tracks.py).</summary>
+    public enum TrackKind : byte { Hare = 0, Fox = 1, Elk = 2, Sable = 3, Grouse = 4, Ptarmigan = 5, Squirrel = 6, Wolf = 7 }
+
+    public readonly struct TrackRecord
+    {
+        public readonly float X, Z, Yaw; public readonly TrackKind Kind;
+        public TrackRecord(float x, float z, float yaw, TrackKind kind) { X = x; Z = z; Yaw = yaw; Kind = kind; }
+    }
+
     public static class Dem
     {
+        /// <summary>tracks.f32: records of 4 little-endian floats (x east, z north, heading degrees, kind).</summary>
+        public static TrackRecord[] LoadTracks(byte[] raw)
+        {
+            if (raw == null || raw.Length % 16 != 0) throw new InvalidDataException("tracks.f32 must hold 16-byte records");
+            var list = new TrackRecord[raw.Length / 16];
+            for (int i = 0; i < list.Length; i++)
+            {
+                int o = i * 16;
+                list[i] = new TrackRecord(BitConverter.ToSingle(raw, o), BitConverter.ToSingle(raw, o + 4), BitConverter.ToSingle(raw, o + 8), (TrackKind)(int)Math.Round(BitConverter.ToSingle(raw, o + 12)));
+            }
+            return list;
+        }
+
         /// <summary>trees.f32: records of 4 little-endian floats (x east, z north, canopy height m, species + 10 × form).</summary>
         public static TreeRecord[] LoadTrees(byte[] raw)
         {
