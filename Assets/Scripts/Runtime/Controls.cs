@@ -48,9 +48,10 @@ namespace Height1079.Runtime
             || Held(Key.E)
 #endif
             ;
-        public static bool ToggleView => LegacyDown(KeyCode.V)
+        /// <summary>V, and F7 as a spare: letter keys do not reach the game under UI automation, so the view can still be switched in tests.</summary>
+        public static bool ToggleView => LegacyDown(KeyCode.V) || LegacyDown(KeyCode.F7)
 #if ENABLE_INPUT_SYSTEM
-            || Down(Key.V)
+            || Down(Key.V) || Down(Key.F7)
 #endif
             ;
         public static bool Pause => LegacyDown(KeyCode.Escape)
