@@ -76,6 +76,18 @@ namespace Height1079.Runtime
             || Down(Key.F6)
 #endif
             ;
+        /// <summary>F8 / F9: turn the view 15° left or right. Mouse look does not reach the game under UI automation, so checks need this.</summary>
+        public static bool TurnLeft => LegacyDown(KeyCode.F8)
+#if ENABLE_INPUT_SYSTEM
+            || Down(Key.F8)
+#endif
+            ;
+        public static bool TurnRight => LegacyDown(KeyCode.F9)
+#if ENABLE_INPUT_SYSTEM
+            || Down(Key.F9)
+#endif
+            ;
+
         public static bool MenkWake => LegacyDown(KeyCode.F5)
 #if ENABLE_INPUT_SYSTEM
             || Down(Key.F5)

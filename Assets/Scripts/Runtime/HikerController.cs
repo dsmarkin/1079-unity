@@ -167,6 +167,8 @@ namespace Height1079.Runtime
             }
             if (finished && Cursor.lockState == CursorLockMode.Locked) SetCursor(false);
 
+            if (Controls.TurnLeft) yaw -= 15f;
+            if (Controls.TurnRight) yaw += 15f;
             if (Cursor.lockState == CursorLockMode.Locked && !paused && !finished)
             {
                 yaw += Input.GetAxis("Mouse X") * 2.2f;
