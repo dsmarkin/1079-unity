@@ -556,7 +556,7 @@ namespace Height1079.EditorTools.World
                 }
                 if (detail > .7f && R() < .4f) Pillow(mb, a + dir * h * .35f, mid + dir * h * .1f, radius * 4f, .03f, 2, rnd);
             }
-            Surf.Lump(mb, SubSnow, Vector3.zero, new Vector3(.3f, .18f, .3f) * Mathf.Min(1.5f, height), seed, .4f, skirt: .3f);
+            Surf.Lump(mb, SubSnow, Vector3.down * .05f, new Vector3(.3f, .15f, .3f) * Mathf.Min(1.5f, height), seed, .5f, skirt: .08f);
             return mb;
         }
 
@@ -641,7 +641,7 @@ namespace Height1079.EditorTools.World
         {
             var rnd = new System.Random(seed);
             var mb = new MeshBuilder(Subs);
-            Surf.Lump(mb, SubSnow, Vector3.zero, new Vector3(.55f, .35f, .5f), seed, .35f, skirt: .3f);
+            Surf.Lump(mb, SubSnow, Vector3.down * .08f, new Vector3(.6f, .3f, .55f), seed, .5f, skirt: .1f);
             if (twig)
                 for (int k = 0; k < 3; k++)
                 {
