@@ -10,7 +10,8 @@
   <ItemGroup>
     <Compile Include="Shim.cs" />
     <Compile Include="../../Assets/Scripts/Core/**/*.cs" />
-    <Compile Include="../../Assets/Tests/EditMode/**/*.cs" />
+    <!-- engine-free tests only: MenkTests needs the Runtime assembly and UnityEngine -->
+    <Compile Include="../../Assets/Tests/EditMode/**/*.cs" Exclude="../../Assets/Tests/EditMode/MenkTests.cs" />
     <None Include="../../Assets/Data/World/*" LinkBase="Assets/Data/World" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>
