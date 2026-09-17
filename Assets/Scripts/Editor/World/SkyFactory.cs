@@ -93,8 +93,8 @@ namespace Height1079.EditorTools.World
                 // the equatorial frame is right-handed, the game frame left-handed: store y negated (Runtime/SkyDome builds the rotation to match)
                 var p = new Vector3(x, -y, z);
                 float bright = Mathf.Pow(10f, -.4f * (mag - 1f));                 // relative flux, 1 at V = 1
-                float size = Mathf.Lerp(.0011f, .0042f, Mathf.Clamp01((6.2f - mag) / 7.5f));   // tan of the half-size angle
-                float b = Mathf.Clamp(Mathf.Pow(bright, .5f) * 1.1f, .05f, 2.2f);
+                float size = Mathf.Lerp(.0017f, .0062f, Mathf.Clamp01((6.2f - mag) / 7.5f));   // tan of the half-size angle
+                float b = Mathf.Clamp(Mathf.Pow(bright, .45f) * 2.4f, .16f, 4f);
                 var c = StarColor(kelvin);
                 float seed = (float)rnd.NextDouble();
                 int i0 = v.Count;

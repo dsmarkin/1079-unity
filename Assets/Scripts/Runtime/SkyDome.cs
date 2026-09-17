@@ -64,8 +64,8 @@ namespace Height1079.Runtime
 
         // twilight palette by the sun's altitude (degrees): zenith, horizon, glow
         static readonly float[] Alts = { 4f, 0f, -4f, -8f, -12f, -18f };
-        static readonly Color[] Zeniths = { new Color(.36f, .45f, .58f), new Color(.27f, .35f, .48f), new Color(.14f, .19f, .31f), new Color(.055f, .08f, .15f), new Color(.022f, .03f, .058f), new Color(.009f, .012f, .022f) };
-        static readonly Color[] Horizons = { new Color(.78f, .76f, .74f), new Color(.66f, .6f, .6f), new Color(.42f, .38f, .44f), new Color(.15f, .15f, .21f), new Color(.045f, .05f, .075f), new Color(.016f, .02f, .032f) };
+        static readonly Color[] Zeniths = { new Color(.36f, .45f, .58f), new Color(.27f, .35f, .48f), new Color(.14f, .19f, .31f), new Color(.055f, .08f, .15f), new Color(.032f, .042f, .072f), new Color(.022f, .028f, .046f) };
+        static readonly Color[] Horizons = { new Color(.78f, .76f, .74f), new Color(.66f, .6f, .6f), new Color(.42f, .38f, .44f), new Color(.15f, .15f, .21f), new Color(.062f, .068f, .092f), new Color(.036f, .042f, .058f) };
         static readonly Color[] Glows = { new Color(.9f, .55f, .3f), new Color(1.1f, .55f, .3f), new Color(.85f, .38f, .27f), new Color(.42f, .2f, .18f), new Color(.1f, .06f, .07f), Color.black };
 
         static Color Palette(Color[] table, float alt)
