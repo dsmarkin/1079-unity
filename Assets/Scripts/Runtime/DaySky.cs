@@ -57,6 +57,7 @@ namespace Height1079.Runtime
         {
             dome = Part("Sky", "Dome", "Sky", 14000f);
             clouds = Part("Clouds", "Dome", "Clouds", 13000f);
+            Debug.Log($"1079 day sky: dome {(dome != null ? "ok" : "MISSING")}, clouds {(clouds != null ? "ok" : "MISSING")}");
         }
 
         void LateUpdate()

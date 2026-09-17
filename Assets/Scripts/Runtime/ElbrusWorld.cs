@@ -39,6 +39,8 @@ namespace Height1079.Runtime
             var root = new GameObject("Elbrus").transform;
 
             Ropeways(root);
+            Azau(root);
+            Stations(root);
             Camp(root);
             Route(root);
             root.gameObject.AddComponent<ElbrusRides>();
@@ -81,6 +83,8 @@ namespace Height1079.Runtime
         static string TerminalPrefab(RopewaySpec spec, bool bottom)
         {
             if (spec.Kind == RopewayKind.Chair) return "Elb_Terminal_Small";
+            // the 1969 jig-back still works out of its own concrete halls, beside the modern gondola terminals
+            if (spec.Kind == RopewayKind.Pendulum) return "Elb_Terminal_Old";
             string id = bottom ? spec.BottomId : spec.TopId;
             switch (id)
             {
@@ -90,6 +94,104 @@ namespace Height1079.Runtime
                 case "garabashi": return "Elb_Terminal_Garabashi";
                 default: return "Elb_Terminal_Small";
             }
+        }
+
+
+        // ── Azau: the village at the bottom ───────────────────────────────────────────────────────────────
+        /// <summary>Поляна Азау, 2 350 м: the square between the two bottom stations — the old pendulum hall of 1969 to
+        /// the east, the gondola terminal to the west — with the ticket offices in front of them, a row of souvenir
+        /// stalls along the path, cafés and hotels around the meadow, the car park and the bus turn-round below.
+        /// Laid out from photographs of the real place, see docs/ELBRUS.md.</summary>
+        static void Azau(Transform root)
+        {
+            var village = new GameObject("Azau").transform; village.SetParent(root, false);
+            var a = Elbrus.Azau;
+            // local frame: +u runs down the meadow to the east (towards Terskol), +v uphill to the north-west
+            float yaw = 118f;                                   // the square faces the stations
+            float ca = Mathf.Cos(yaw * Mathf.Deg2Rad), sa = Mathf.Sin(yaw * Mathf.Deg2Rad);
+            (float x, float z) At(float u, float v) => (a.X + u * ca + v * sa, a.Z - u * sa + v * ca);
+
+            void Put(string prefab, float u, float v, float turn, float dy = 0f)
+            {
+                var (x, z) = At(u, v);
+                Place(Load(prefab), village, x, z, yaw + turn, dy);
+            }
+
+            // ticket offices in front of the terminals
+            Put("Elb_Booth", -26f, -34f, 0f);
+            Put("Elb_Booth", 16f, -36f, 6f);
+            // the souvenir market: two rows of stalls along the path from the car park to the stations
+            for (int k = 0; k < 9; k++)
+            {
+                Put("Elb_Kiosk", -38f + k * 7.5f, -58f, 0f);
+                if (k < 7) Put("Elb_Kiosk", -30f + k * 7.5f, -74f, 180f);
+            }
+            // cafés and shashlyk places along the east side of the square
+            Put("Elb_Cafe", 44f, -52f, -28f);
+            Put("Elb_Cafe", 52f, -78f, -14f);
+            Put("Elb_Cafe", -62f, -66f, 34f);
+            // hotels around the meadow: the big ones east of the square, chalets under the pines to the west
+            Put("Elb_Hotel", 78f, -34f, -22f);
+            Put("Elb_Hotel", 96f, -74f, -8f);
+            Put("Elb_Hotel", 60f, -108f, 12f);
+            Put("Elb_Chalet", -86f, -96f, 26f);
+            Put("Elb_Chalet", -66f, -122f, 8f);
+            Put("Elb_Chalet", 30f, -128f, -6f);
+            Put("Elb_Toilet", -52f, -46f, 90f);
+            // lamps along the path, benches on the square
+            for (int k = 0; k < 7; k++) Put("Elb_Lamp", -40f + k * 13f, -48f, 0f);
+            for (int k = 0; k < 4; k++) Put("Elb_Bench", -24f + k * 16f, -44f, 0f);
+            // the car park and the road below the village
+            for (int k = 0; k < 5; k++) Put("Elb_Rail", -34f + k * 17f, -92f, 0f);
+        }
+
+        // ── the three stations above ──────────────────────────────────────────────────────────────────────
+        /// <summary>What stands at Старый Кругозор, Мир and Гара-Баши, as a visitor finds it: cafés and toilets at every
+        /// station, the old cable-car wagon set up as a monument at Krugozor, the museum of the defence of Prielbrusye and
+        /// the monument to its defenders at Mir with the unfinished concrete beside them, the highest café and post box in
+        /// Russia at Gara-Bashi, and viewing rails wherever the ground falls away.</summary>
+        static void Stations(Transform root)
+        {
+            var group = new GameObject("Stations").transform; group.SetParent(root, false);
+
+            void Put(Elbrus.Poi p, string prefab, float east, float north, float turn, float dy = 0f)
+                => Place(Load(prefab), group, p.X + east, p.Z + north, turn, dy);
+
+            // Старый Кругозор, 3 000 м
+            var k = Elbrus.Krugozor;
+            Put(k, "Elb_Cafe", 34f, -16f, 120f);
+            Put(k, "Elb_Cafe", 44f, -34f, 150f);
+            Put(k, "Elb_Toilet", -34f, -26f, 70f);
+            Put(k, "Elb_Exhibit_Wagon", 20f, 22f, 28f);          // the 1969 wagon on its plinth
+            Put(k, "Elb_Monument", -26f, 16f, 160f);             // the wall of remembrance above the station
+            Put(k, "Elb_Bench", 12f, -40f, 180f);
+            Put(k, "Elb_Bench", 26f, -44f, 180f);
+            for (int i = 0; i < 4; i++) Put(k, "Elb_Rail", 6f + i * 8f, -50f, 96f);
+
+            // Мир, 3 500 м
+            var m = Elbrus.Mir;
+            Put(m, "Elb_Cafe", 30f, -20f, 128f);
+            Put(m, "Elb_Cafe", 40f, -40f, 150f);
+            Put(m, "Elb_Booth", -24f, -30f, 80f);                // the museum of the defence of Prielbrusye
+            Put(m, "Elb_Monument", -30f, 24f, 170f);
+            Put(m, "Elb_Toilet", 46f, 12f, 200f);
+            Put(m, "Elb_Foundation", -52f, -8f, 24f);            // concrete started and abandoned
+            Put(m, "Elb_Foundation", -64f, -36f, 10f);
+            Put(m, "Elb_Kiosk", 16f, -46f, 180f);
+            Put(m, "Elb_Kiosk", 23f, -47f, 180f);
+            Put(m, "Elb_Bench", -8f, -44f, 180f);
+            for (int i = 0; i < 5; i++) Put(m, "Elb_Rail", -14f + i * 8f, -52f, 92f);
+
+            // Гара-Баши, 3 847 м — the top station
+            var g = Elbrus.Garabashi;
+            Put(g, "Elb_Cafe", 26f, -18f, 134f);                 // the highest café in Russia
+            Put(g, "Elb_Postbox", 20f, -12f, 140f);
+            Put(g, "Elb_Toilet", -28f, -20f, 60f);
+            Put(g, "Elb_Bench", 8f, -30f, 180f);
+            for (int i = 0; i < 4; i++) Put(g, "Elb_Rail", -4f + i * 8f, -36f, 90f);
+            var sled = Load("Elb_Snowmobile");
+            for (int i = 0; i < 4; i++)
+                Place(sled, group, g.X - 14f + i * 5.5f, g.Z - 42f, 150f + i * 9f);
         }
 
         // ── Garabashi camp and the shelters ───────────────────────────────────────────────────────────────
@@ -180,9 +282,9 @@ namespace Height1079.Runtime
             RenderSettings.ambientGroundColor = new Color(.5f, .53f, .58f);
             RenderSettings.fog = true;
             RenderSettings.fogMode = FogMode.ExponentialSquared;
-            RenderSettings.fogDensity = .00032f;                         // aerial perspective: the far ridges recede
+            RenderSettings.fogDensity = .00012f;                         // aerial perspective, but the slope must stay readable to the far ridges
             RenderSettings.fogColor = new Color(.66f, .76f, .88f);
-            DaySky.Create();
+            if (Object.FindFirstObjectByType<DaySky>() == null) DaySky.Create();
             var cam = Camera.main;
             if (cam != null)
             {

@@ -55,6 +55,15 @@ namespace Height1079.EditorTools.World
         static Material Alu => Materials.Get("ElbAlu", new Color(.72f, .74f, .77f), smoothness: .65f);
         static Material Flag => Materials.Get("ElbFlag", new Color(.88f, .18f, .14f), smoothness: .1f);
         static Material Bamboo => Materials.Get("ElbBamboo", new Color(.78f, .71f, .45f), smoothness: .25f);
+        static Material Plank => Materials.PH("ElbPlank", "raw_plank_wall", new Color(.74f, .6f, .44f), 1.6f);
+        static Material PlankDark => Materials.PH("ElbPlankDark", "raw_plank_wall", new Color(.42f, .32f, .24f), 1.6f);
+        static Material Stone => Materials.PH("ElbStone", "lichen_rock", new Color(.72f, .7f, .68f), .7f, .1f);
+        static Material Plaster => Materials.Get("ElbPlaster", new Color(.86f, .83f, .76f), smoothness: .06f);
+        static Material RoofGreen => Materials.Get("ElbRoofGreen", new Color(.18f, .31f, .24f), smoothness: .42f);
+        static Material RoofRust => Materials.Get("ElbRoofRust", new Color(.46f, .24f, .16f), smoothness: .35f);
+        static Material Tarp => Materials.Get("ElbCanvas", new Color(.86f, .84f, .78f), smoothness: .08f);
+        static Material TarpRed => Materials.Get("ElbCanvasRed", new Color(.72f, .2f, .18f), smoothness: .08f);
+        static Material Rebar => Materials.Get("ElbRebar", new Color(.42f, .3f, .22f), smoothness: .3f);
 
         public static void Build()
         {
@@ -76,6 +85,21 @@ namespace Height1079.EditorTools.World
             Ratrak();
             Wand();
             Sign();
+            OldStation();
+            Hotel("Elb_Hotel", 18f, 11f, 3, RoofGreen);
+            Hotel("Elb_Chalet", 12f, 8f, 2, RoofRust);
+            Cafe();
+            Kiosk();
+            TicketOffice();
+            Toilets();
+            Monument();
+            WagonExhibit();
+            Railing();
+            Foundation();
+            PostBox();
+            Bench();
+            Lamp();
+            Snowmobile();
         }
 
         // ── ropeway terminal ──────────────────────────────────────────────────────────────────────────────
@@ -569,6 +593,441 @@ namespace Height1079.EditorTools.World
             var ride = new GameObject("Seat"); ride.transform.SetParent(t, false);
             ride.transform.localPosition = new Vector3(0, 1.75f, .3f);
             Solid(t, "Hull", new Vector3(0, 1.3f, 0), new Vector3(3.4f, 2.4f, 6.4f));
+            return Save(root);
+        }
+
+
+        // ── the village and the station squares ───────────────────────────────────────────────────────────
+        /// <summary>Gable roof over a rectangular block: two slopes, two gable ends, an eaves overhang.</summary>
+        static void Gable(MeshBuilder mb, int sub, Vector3 center, float width, float length, float rise, float overhang)
+        {
+            float hw = width / 2 + overhang, hl = length / 2 + overhang;
+            var ridgeA = center + new Vector3(0, rise, -hl);
+            var ridgeB = center + new Vector3(0, rise, hl);
+            for (int i = -1; i <= 1; i += 2)
+            {
+                var eaveA = center + new Vector3(i * hw, 0, -hl);
+                var eaveB = center + new Vector3(i * hw, 0, hl);
+                if (i < 0) mb.Quad(sub, eaveA, ridgeA, ridgeB, eaveB, Vector2.zero, new Vector2(1, 0), new Vector2(1, length / 2), new Vector2(0, length / 2), true);
+                else mb.Quad(sub, eaveB, ridgeB, ridgeA, eaveA, Vector2.zero, new Vector2(1, 0), new Vector2(1, length / 2), new Vector2(0, length / 2), true);
+            }
+        }
+
+        /// <summary>A band of windows down both long sides of a block.</summary>
+        static void Windows(MeshBuilder mb, int sub, float width, float length, float y0, float y1, int count, float gap = .6f)
+        {
+            float hw = width / 2, hl = length / 2, pitch = length / count;
+            for (int i = -1; i <= 1; i += 2)
+                for (int k = 0; k < count; k++)
+                {
+                    float z0 = -hl + k * pitch + gap / 2, z1 = z0 + pitch - gap;
+                    float x = i * (hw + .03f);
+                    mb.Quad(sub, new Vector3(x, y0, z0), new Vector3(x, y0, z1), new Vector3(x, y1, z1), new Vector3(x, y1, z0),
+                        Vector2.zero, Vector2.right, Vector2.one, Vector2.up, true);
+                }
+        }
+
+        /// <summary>The 1969 pendulum station: a concrete box with a wide mouth for the rope, a ribbon of windows,
+        /// a flat roof with a parapet and an outside stair. Azau and Krugozor still work out of these.</summary>
+        static GameObject OldStation()
+        {
+            var root = new GameObject("Elb_Terminal_Old");
+            var t = root.transform;
+            const float L = 24f, W = 14f, H = 9.5f;
+            float hw = W / 2, hl = L / 2;
+
+            var shell = new MeshBuilder(1);
+            shell.Box(0, new Vector3(0, -.5f, 0), new Vector3(W + 5f, 1f, L + 7f), Quaternion.identity, .3f);      // apron
+            shell.Box(0, new Vector3(-hw + .3f, H / 2, 0), new Vector3(.6f, H, L), Quaternion.identity, .5f);
+            shell.Box(0, new Vector3(hw - .3f, H / 2, 0), new Vector3(.6f, H, L), Quaternion.identity, .5f);
+            // both ends are open on the rope axis; above the opening the concrete carries on to the roof
+            for (int e = -1; e <= 1; e += 2)
+            {
+                shell.Box(0, new Vector3(0, H - 1.4f, e * (hl - .3f)), new Vector3(W, 2.8f, .6f), Quaternion.identity, .5f);
+                for (int i = -1; i <= 1; i += 2)
+                    shell.Box(0, new Vector3(i * (hw / 2 + 1.8f), H / 2, e * (hl - .3f)), new Vector3(W / 2 - 3.6f, H, .6f), Quaternion.identity, .5f);
+            }
+            shell.Box(0, new Vector3(0, H + .3f, 0), new Vector3(W + 1.2f, .6f, L + 1.2f), Quaternion.identity, .4f); // roof slab
+            shell.Box(0, new Vector3(0, H + 1.1f, hl + .3f), new Vector3(W + 1.2f, 1f, .4f), Quaternion.identity, .4f); // parapet
+            shell.Box(0, new Vector3(0, H + 1.1f, -hl - .3f), new Vector3(W + 1.2f, 1f, .4f), Quaternion.identity, .4f);
+            for (int i = -1; i <= 1; i += 2)
+                shell.Box(0, new Vector3(i * (hw + .3f), H + 1.1f, 0), new Vector3(.4f, 1f, L + 1.2f), Quaternion.identity, .4f);
+            // outside stair to the platform on the east wall
+            for (int k = 0; k < 7; k++)
+                shell.Box(0, new Vector3(hw + 1.6f, .3f + k * .32f, -hl + 2f + k * .5f), new Vector3(3f, .32f, .5f), Quaternion.identity, .4f);
+            Part(t, "Shell", shell, Concrete);
+
+            var glass = new MeshBuilder(1);
+            Windows(glass, 0, W - .1f, L - 3f, 4.2f, 7.2f, 7, .7f);
+            Part(t, "Glazing", glass, Glass);
+
+            var steel = new MeshBuilder(1);
+            steel.Tube(0, new Vector3(0, H - 2.2f, -hl - 3.5f), new Vector3(0, H - 2.2f, hl + 3.5f), .26f, .26f, 8, .5f);  // rope gantry
+            for (int k = 0; k < 7; k++)
+            {
+                float z = -hl - 2f + k * (L + 4f) / 6f;
+                for (int i = -1; i <= 1; i += 2)
+                    steel.Tube(0, new Vector3(i * 2.6f, H - 2.2f, z), new Vector3(i * 2.6f, H - 2.7f, z), .34f, .34f, 10, .5f, 0, true);
+            }
+            steel.Box(0, new Vector3(-hw / 2 - .6f, 1.4f, 0), new Vector3(W / 2 - 1.4f, .3f, L - 2f), Quaternion.identity, .6f);   // platform, both sides of the track
+            steel.Box(0, new Vector3(hw / 2 + .6f, 1.4f, 0), new Vector3(W / 2 - 1.4f, .3f, L - 2f), Quaternion.identity, .6f);
+            Part(t, "Steel", steel, Steel);
+
+            var paint = new MeshBuilder(1);
+            for (int e = -1; e <= 1; e += 2)
+                paint.Box(0, new Vector3(0, H - 1.4f, e * (hl - .62f)), new Vector3(W - 1.5f, 1.6f, .12f), Quaternion.identity, 1f); // name band
+            Part(t, "Band", paint, PaintBlue);
+
+            Solid(t, "Wall_W", new Vector3(-hw + .3f, H / 2, 0), new Vector3(.8f, H, L));
+            Solid(t, "Wall_E", new Vector3(hw - .3f, H / 2, 0), new Vector3(.8f, H, L));
+            Solid(t, "Apron", new Vector3(0, -.5f, 0), new Vector3(W + 5f, 1f, L + 7f));
+            Solid(t, "Deck_W", new Vector3(-hw / 2 - .6f, 1.4f, 0), new Vector3(W / 2 - 1.4f, .3f, L - 2f));
+            Solid(t, "Deck_E", new Vector3(hw / 2 + .6f, 1.4f, 0), new Vector3(W / 2 - 1.4f, .3f, L - 2f));
+            return Save(root);
+        }
+
+        /// <summary>A hotel of the Azau meadow: stone plinth, plastered walls, wooden balconies and a steep metal roof.
+        /// Two or three floors, the ground one usually a café or a rental shop with a glazed front.</summary>
+        static GameObject Hotel(string name, float length, float width, int floors, Material roof)
+        {
+            var root = new GameObject(name);
+            var t = root.transform;
+            float hw = width / 2, hl = length / 2, h = floors * 3.1f;
+
+            var body = new MeshBuilder(1);
+            body.Box(0, new Vector3(0, .35f, 0), new Vector3(width + .8f, .7f, length + .8f), Quaternion.identity, .5f);
+            Part(t, "Plinth", body, Stone);
+
+            var walls = new MeshBuilder(1);
+            walls.Box(0, new Vector3(0, .7f + h / 2, 0), new Vector3(width, h, length), Quaternion.identity, .4f);
+            Part(t, "Walls", walls, Plaster);
+
+            var glass = new MeshBuilder(1);
+            for (int f = 0; f < floors; f++)
+                Windows(glass, 0, width + .06f, length - 1.6f, 1.6f + f * 3.1f, 3.6f + f * 3.1f, Mathf.Max(2, Mathf.RoundToInt(length / 3.2f)), .9f);
+            Part(t, "Windows", glass, Glass);
+
+            var wood = new MeshBuilder(1);
+            for (int f = 1; f < floors; f++)
+            {
+                float y = .7f + f * 3.1f;
+                wood.Box(0, new Vector3(0, y, hl + .55f), new Vector3(width - .6f, .14f, 1.1f), Quaternion.identity, .8f);
+                for (int k = 0; k < 9; k++)
+                    wood.Box(0, new Vector3(-width / 2 + .4f + k * (width - .8f) / 8f, y + .5f, hl + 1.05f), new Vector3(.08f, 1f, .08f), Quaternion.identity, 1f);
+                wood.Box(0, new Vector3(0, y + 1.02f, hl + 1.05f), new Vector3(width - .6f, .1f, .14f), Quaternion.identity, .8f);
+            }
+            Part(t, "Balcony", wood, Plank);
+
+            var roofMb = new MeshBuilder(1);
+            Gable(roofMb, 0, new Vector3(0, .7f + h, 0), width, length, 2.6f, .7f);
+            roofMb.Box(0, new Vector3(-width / 4, .7f + h + 2.9f, -hl + 2f), new Vector3(.8f, 1.4f, .8f), Quaternion.identity, 1f); // chimney
+            Part(t, "Roof", roofMb, roof);
+
+            Solid(t, "Body", new Vector3(0, .7f + h / 2, 0), new Vector3(width, h, length));
+            return Save(root);
+        }
+
+        /// <summary>A café: a log-and-plank hut with a stove pipe, a terrace in front with two tables under umbrellas.
+        /// The same building serves as a shashlyk place at Azau and as the café at Krugozor, Mir and Gara-Bashi.</summary>
+        static GameObject Cafe()
+        {
+            var root = new GameObject("Elb_Cafe");
+            var t = root.transform;
+            const float L = 9f, W = 6.5f, H = 3.1f;
+
+            var walls = new MeshBuilder(1);
+            walls.Box(0, new Vector3(0, .18f, 0), new Vector3(W + 3.4f, .36f, L + 3f), Quaternion.identity, .5f);      // deck
+            walls.Box(0, new Vector3(0, .36f + H / 2, -1.2f), new Vector3(W, H, L - 2.4f), Quaternion.identity, .5f);
+            Part(t, "Walls", walls, PlankDark);
+
+            var glass = new MeshBuilder(1);
+            glass.Quad(0, new Vector3(-2.4f, 1.1f, L / 2 - 2.35f), new Vector3(2.4f, 1.1f, L / 2 - 2.35f),
+                new Vector3(2.4f, 2.7f, L / 2 - 2.35f), new Vector3(-2.4f, 2.7f, L / 2 - 2.35f),
+                Vector2.zero, Vector2.right, Vector2.one, Vector2.up, true);
+            Windows(glass, 0, W + .06f, L - 4f, 1.2f, 2.6f, 2, 1.2f);
+            Part(t, "Windows", glass, Glass);
+
+            var roof = new MeshBuilder(1);
+            Gable(roof, 0, new Vector3(0, .36f + H, -1.2f), W, L - 2.4f, 1.5f, .8f);
+            Part(t, "Roof", roof, RoofRust);
+
+            var pipe = new MeshBuilder(1);
+            pipe.Tube(0, new Vector3(1.6f, .36f + H + .6f, -2.6f), new Vector3(1.6f, .36f + H + 2.4f, -2.6f), .11f, .1f, 8, 1f, 0, true);
+            Part(t, "Pipe", pipe, Steel);
+
+            // terrace: two tables with parasols and a low rail
+            var furn = new MeshBuilder(1);
+            for (int k = -1; k <= 1; k += 2)
+            {
+                var c = new Vector3(k * 2.2f, .36f, L / 2 - .4f);
+                furn.Tube(0, c, c + new Vector3(0, .74f, 0), .05f, .05f, 6, 1f, 0, true);
+                furn.Box(0, c + new Vector3(0, .76f, 0), new Vector3(1.1f, .07f, 1.1f), Quaternion.identity, 1f);
+                furn.Tube(0, c, c + new Vector3(0, 2.3f, 0), .035f, .03f, 6, 1f);
+            }
+            for (int k = 0; k < 8; k++)
+                furn.Box(0, new Vector3(-W / 2 - 1.5f + k * (W + 3f) / 7f, .36f + .45f, L / 2 + 1.3f), new Vector3(.07f, .9f, .07f), Quaternion.identity, 1f);
+            furn.Box(0, new Vector3(0, .36f + .92f, L / 2 + 1.3f), new Vector3(W + 3f, .08f, .1f), Quaternion.identity, 1f);
+            Part(t, "Terrace", furn, Plank);
+
+            var shade = new MeshBuilder(1);
+            for (int k = -1; k <= 1; k += 2)
+                shade.Cone(0, new Vector3(k * 2.2f, .36f + 2.32f, L / 2 - .4f), 1.5f, -.45f, 8, 1f);
+            Part(t, "Parasols", shade, TarpRed);
+
+            Solid(t, "Body", new Vector3(0, .36f + H / 2, -1.2f), new Vector3(W, H, L - 2.4f));
+            Solid(t, "Deck", new Vector3(0, .18f, 0), new Vector3(W + 3.4f, .36f, L + 3f));
+            return Save(root);
+        }
+
+        /// <summary>A stall of the souvenir market: a frame, a striped awning, a counter with wool hats, hides and honey.</summary>
+        static GameObject Kiosk()
+        {
+            var root = new GameObject("Elb_Kiosk");
+            var t = root.transform;
+            const float W = 2.6f, D = 2f, H = 2.3f;
+
+            var frame = new MeshBuilder(1);
+            for (int i = -1; i <= 1; i += 2)
+                for (int j = -1; j <= 1; j += 2)
+                    frame.Tube(0, new Vector3(i * W / 2, 0, j * D / 2), new Vector3(i * W / 2, H, j * D / 2), .045f, .04f, 6, 1f, 0, true);
+            frame.Box(0, new Vector3(0, .85f, -D / 2 + .35f), new Vector3(W, .08f, .7f), Quaternion.identity, 1f);      // counter
+            frame.Box(0, new Vector3(0, .42f, -D / 2 + .6f), new Vector3(W - .2f, .84f, .08f), Quaternion.identity, 1f);
+            Part(t, "Frame", frame, Plank);
+
+            var awning = new MeshBuilder(1);
+            awning.Quad(0, new Vector3(-W / 2 - .35f, H + .35f, D / 2), new Vector3(W / 2 + .35f, H + .35f, D / 2),
+                new Vector3(W / 2 + .35f, H - .05f, -D / 2 - .7f), new Vector3(-W / 2 - .35f, H - .05f, -D / 2 - .7f),
+                Vector2.zero, new Vector2(3, 0), new Vector2(3, 1), Vector2.up, true);
+            Part(t, "Awning", awning, TarpRed);
+
+            var goods = new MeshBuilder(1);
+            for (int k = 0; k < 6; k++)
+                goods.Box(0, new Vector3(-W / 2 + .3f + k * (W - .6f) / 5f, .95f, -D / 2 + .35f), new Vector3(.3f, .14f, .42f), Quaternion.Euler(0, k * 17f, 0), 1f);
+            Part(t, "Goods", goods, Tarp);
+
+            Solid(t, "Counter", new Vector3(0, .5f, -D / 2 + .35f), new Vector3(W, 1f, .7f));
+            return Save(root);
+        }
+
+        /// <summary>The ticket office: a small glazed pavilion with two windows and a board of prices — everyone on the
+        /// meadow starts here before the first cabin.</summary>
+        static GameObject TicketOffice()
+        {
+            var root = new GameObject("Elb_Booth");
+            var t = root.transform;
+            const float W = 5.5f, D = 3.2f, H = 2.9f;
+            var body = new MeshBuilder(1);
+            body.Box(0, new Vector3(0, .12f, 0), new Vector3(W + 1f, .24f, D + 1f), Quaternion.identity, .5f);
+            body.Box(0, new Vector3(0, .24f + H / 2, 0), new Vector3(W, H, D), Quaternion.identity, .5f);
+            body.Box(0, new Vector3(0, .24f + H + .12f, .35f), new Vector3(W + 1.2f, .24f, D + 1.4f), Quaternion.identity, .5f);
+            Part(t, "Body", body, Plaster);
+
+            var glass = new MeshBuilder(1);
+            for (int k = -1; k <= 1; k += 2)
+                glass.Quad(0, new Vector3(k * 1.35f - .75f, 1.1f, D / 2 + .03f), new Vector3(k * 1.35f + .75f, 1.1f, D / 2 + .03f),
+                    new Vector3(k * 1.35f + .75f, 2.3f, D / 2 + .03f), new Vector3(k * 1.35f - .75f, 2.3f, D / 2 + .03f),
+                    Vector2.zero, Vector2.right, Vector2.one, Vector2.up, true);
+            Part(t, "Windows", glass, Glass);
+
+            var band = new MeshBuilder(1);
+            band.Box(0, new Vector3(0, 2.75f, D / 2 + .06f), new Vector3(W - .4f, .5f, .1f), Quaternion.identity, 1f);
+            Part(t, "Band", band, PaintBlue);
+
+            var label = new GameObject("Label"); label.transform.SetParent(t, false);
+            label.transform.localPosition = new Vector3(0, 2.75f, D / 2 + .13f);
+            var tm = label.AddComponent<TextMesh>();
+            tm.text = "КАССЫ"; tm.characterSize = .05f; tm.fontSize = 90; tm.anchor = TextAnchor.MiddleCenter;
+            tm.alignment = TextAlignment.Center; tm.color = new Color(.95f, .95f, .93f);
+
+            Solid(t, "Body", new Vector3(0, .24f + H / 2, 0), new Vector3(W, H, D));
+            return Save(root);
+        }
+
+        /// <summary>The toilets: a pair of containers on a frame, the shabbiest and the most photographed thing at every
+        /// station above 3 000 m.</summary>
+        static GameObject Toilets()
+        {
+            var root = new GameObject("Elb_Toilet");
+            var t = root.transform;
+            const float W = 4.4f, D = 2.4f, H = 2.5f;
+            var body = new MeshBuilder(1);
+            body.Box(0, new Vector3(0, .25f, 0), new Vector3(W + .4f, .5f, D + .4f), Quaternion.identity, .5f);
+            body.Box(0, new Vector3(0, .5f + H / 2, 0), new Vector3(W, H, D), Quaternion.identity, .6f);
+            body.Box(0, new Vector3(0, .5f + H + .1f, 0), new Vector3(W + .5f, .2f, D + .5f), Quaternion.identity, .5f);
+            Part(t, "Body", body, PaintBlue);
+            var doors = new MeshBuilder(1);
+            for (int k = -1; k <= 1; k += 2)
+                doors.Box(0, new Vector3(k * 1.05f, 1.5f, D / 2 + .04f), new Vector3(.9f, 2f, .08f), Quaternion.identity, 1f);
+            Part(t, "Doors", doors, PlankDark);
+            Solid(t, "Body", new Vector3(0, .5f + H / 2, 0), new Vector3(W, H, D));
+            return Save(root);
+        }
+
+        /// <summary>«Героям обороны Приэльбрусья»: a concrete stele with a star and a plaque. The one at Mir stands on the
+        /// open ground above the station, looking down the Baksan valley the German mountain troops came up in 1942.</summary>
+        static GameObject Monument()
+        {
+            var root = new GameObject("Elb_Monument");
+            var t = root.transform;
+            var stone = new MeshBuilder(1);
+            stone.Box(0, new Vector3(0, .2f, 0), new Vector3(4.4f, .4f, 4.4f), Quaternion.identity, .5f);
+            stone.Box(0, new Vector3(0, .55f, 0), new Vector3(3.2f, .3f, 3.2f), Quaternion.identity, .5f);
+            stone.Box(0, new Vector3(0, .7f + 2.3f, 0), new Vector3(1.5f, 4.6f, .9f), Quaternion.Euler(0, 0, 3f), .6f);
+            Part(t, "Stele", stone, Concrete);
+            var star = new MeshBuilder(1);
+            star.Box(0, new Vector3(0, 4.4f, .5f), new Vector3(.9f, .9f, .12f), Quaternion.Euler(0, 0, 45f), 1f);
+            star.Box(0, new Vector3(0, 1.5f, .48f), new Vector3(1f, .7f, .06f), Quaternion.identity, 1f);            // plaque
+            Part(t, "Star", star, Alu);
+            Solid(t, "Stele", new Vector3(0, 2.4f, 0), new Vector3(1.6f, 4.8f, 1f));
+            return Save(root);
+        }
+
+        /// <summary>The old cable car at Krugozor: a wagon of the 1969 jig-back set up on a plinth beside the station,
+        /// with its red paint and its round windows, as a monument to the line that carried everyone here for forty years.</summary>
+        static GameObject WagonExhibit()
+        {
+            var root = new GameObject("Elb_Exhibit_Wagon");
+            var t = root.transform;
+            var plinth = new MeshBuilder(1);
+            plinth.Box(0, new Vector3(0, .35f, 0), new Vector3(3.4f, .7f, 6.4f), Quaternion.identity, .5f);
+            plinth.Box(0, new Vector3(0, .9f, 0), new Vector3(.5f, .5f, 4.4f), Quaternion.identity, .5f);
+            Part(t, "Plinth", plinth, Concrete);
+
+            var body = new MeshBuilder(1);
+            RingBox(body, 0, 1.15f, 1.5f, 2.2f, 4.6f, 2.5f, 5.2f);
+            body.Box(0, new Vector3(0, 2.15f, 0), new Vector3(2.5f, 1.3f, 5.2f), Quaternion.identity, .5f);
+            RingBox(body, 0, 2.8f, 3.1f, 2.5f, 5.2f, 1.9f, 4.2f);
+            Part(t, "Body", body, Paint);
+
+            var glass = new MeshBuilder(1);
+            for (int i = -1; i <= 1; i += 2)
+                for (int k = 0; k < 3; k++)
+                {
+                    float z0 = -1.9f + k * 1.4f, z1 = z0 + 1.1f;
+                    float x = i * 1.27f;
+                    glass.Quad(0, new Vector3(x, 1.75f, z0), new Vector3(x, 1.75f, z1), new Vector3(x, 2.65f, z1), new Vector3(x, 2.65f, z0),
+                        Vector2.zero, Vector2.right, Vector2.one, Vector2.up, true);
+                }
+            Part(t, "Glazing", glass, Glass);
+            Solid(t, "Body", new Vector3(0, 2.1f, 0), new Vector3(2.6f, 2f, 5.3f));
+            Solid(t, "Plinth", new Vector3(0, .35f, 0), new Vector3(3.4f, .7f, 6.4f));
+            return Save(root);
+        }
+
+        /// <summary>Eight metres of the viewing-platform railing: tube posts, two rails, the paint half gone.</summary>
+        static GameObject Railing()
+        {
+            var root = new GameObject("Elb_Rail");
+            var t = root.transform;
+            var mb = new MeshBuilder(1);
+            for (int k = 0; k <= 4; k++)
+                mb.Tube(0, new Vector3(-4f + k * 2f, 0, 0), new Vector3(-4f + k * 2f, 1.05f, 0), .045f, .04f, 6, 1f, 0, true);
+            mb.Tube(0, new Vector3(-4f, 1.02f, 0), new Vector3(4f, 1.02f, 0), .045f, .045f, 6, 1f);
+            mb.Tube(0, new Vector3(-4f, .55f, 0), new Vector3(4f, .55f, 0), .035f, .035f, 6, 1f);
+            Part(t, "Rail", mb, Steel);
+            Solid(t, "Rail", new Vector3(0, .55f, 0), new Vector3(8f, 1.1f, .12f));
+            return Save(root);
+        }
+
+        /// <summary>Unfinished concrete: the columns and the slab of a building started at Mir and abandoned, rebar still
+        /// sticking out of the tops. There is a lot of this on the slope.</summary>
+        static GameObject Foundation()
+        {
+            var root = new GameObject("Elb_Foundation");
+            var t = root.transform;
+            var mb = new MeshBuilder(1);
+            mb.Box(0, new Vector3(0, .15f, 0), new Vector3(9f, .3f, 6f), Quaternion.identity, .5f);
+            for (int i = 0; i < 3; i++)
+                for (int j = 0; j < 2; j++)
+                {
+                    float x = -3.5f + i * 3.5f, z = -2f + j * 4f;
+                    float h = 1.2f + ((i + j) % 3) * .7f;
+                    mb.Box(0, new Vector3(x, .3f + h / 2, z), new Vector3(.55f, h, .55f), Quaternion.identity, .6f);
+                }
+            Part(t, "Concrete", mb, Concrete);
+            var bars = new MeshBuilder(1);
+            var rnd = new System.Random(12);
+            for (int i = 0; i < 3; i++)
+                for (int j = 0; j < 2; j++)
+                {
+                    float x = -3.5f + i * 3.5f, z = -2f + j * 4f;
+                    float h = 1.2f + ((i + j) % 3) * .7f;
+                    for (int k = 0; k < 4; k++)
+                    {
+                        float ox = ((k & 1) == 0 ? -.18f : .18f), oz = (k < 2 ? -.18f : .18f);
+                        var a = new Vector3(x + ox, .3f + h, z + oz);
+                        var b = a + new Vector3((float)(rnd.NextDouble() - .5) * .3f, .55f + (float)rnd.NextDouble() * .35f, (float)(rnd.NextDouble() - .5) * .3f);
+                        bars.Tube(0, a, b, .016f, .014f, 4, 1f);
+                    }
+                }
+            Part(t, "Rebar", bars, Rebar);
+            Solid(t, "Slab", new Vector3(0, .15f, 0), new Vector3(9f, .3f, 6f));
+            return Save(root);
+        }
+
+        /// <summary>The highest post box in Russia, on the wall of the Gara-Bashi café: people send themselves a card
+        /// from 3 847 m.</summary>
+        static GameObject PostBox()
+        {
+            var root = new GameObject("Elb_Postbox");
+            var t = root.transform;
+            var mb = new MeshBuilder(1);
+            mb.Tube(0, Vector3.zero, new Vector3(0, 1.15f, 0), .05f, .045f, 6, 1f, 0, true);
+            mb.Box(0, new Vector3(0, 1.45f, 0), new Vector3(.45f, .62f, .28f), Quaternion.identity, 1f);
+            mb.Box(0, new Vector3(0, 1.78f, 0), new Vector3(.5f, .06f, .33f), Quaternion.identity, 1f);
+            Part(t, "Box", mb, Paint);
+            return Save(root);
+        }
+
+        /// <summary>A bench of two planks on stone blocks — every viewing point has one.</summary>
+        static GameObject Bench()
+        {
+            var root = new GameObject("Elb_Bench");
+            var t = root.transform;
+            var stone = new MeshBuilder(1);
+            for (int i = -1; i <= 1; i += 2)
+                stone.Box(0, new Vector3(i * .75f, .22f, 0), new Vector3(.4f, .44f, .5f), Quaternion.identity, .8f);
+            Part(t, "Legs", stone, Stone);
+            var planks = new MeshBuilder(1);
+            planks.Box(0, new Vector3(0, .47f, 0), new Vector3(2.1f, .07f, .45f), Quaternion.identity, 1f);
+            Part(t, "Seat", planks, Plank);
+            Solid(t, "Seat", new Vector3(0, .3f, 0), new Vector3(2.1f, .6f, .5f));
+            return Save(root);
+        }
+
+        /// <summary>A lamp post of the Azau square: a steel pole with a bent arm and a flat lantern.</summary>
+        static GameObject Lamp()
+        {
+            var root = new GameObject("Elb_Lamp");
+            var t = root.transform;
+            var mb = new MeshBuilder(1);
+            mb.Tube(0, Vector3.zero, new Vector3(0, 5.2f, 0), .09f, .06f, 8, 1f, 0, true);
+            mb.Tube(0, new Vector3(0, 5.1f, 0), new Vector3(0, 5.5f, .9f), .055f, .05f, 6, 1f);
+            mb.Box(0, new Vector3(0, 5.44f, 1.15f), new Vector3(.32f, .12f, .55f), Quaternion.identity, 1f);
+            Part(t, "Pole", mb, Steel);
+            return Save(root);
+        }
+
+        /// <summary>A snowmobile of the Gara-Bashi carriers: skis in front, a track behind, a fuel can strapped on the back.</summary>
+        static GameObject Snowmobile()
+        {
+            var root = new GameObject("Elb_Snowmobile");
+            var t = root.transform;
+            var body = new MeshBuilder(1);
+            body.Box(0, new Vector3(0, .62f, -.1f), new Vector3(.85f, .5f, 2.1f), Quaternion.identity, .6f);
+            body.Box(0, new Vector3(0, .95f, .55f), new Vector3(.7f, .3f, .8f), Quaternion.Euler(-18f, 0, 0), .6f);
+            Part(t, "Body", body, Paint);
+            var black = new MeshBuilder(1);
+            black.Box(0, new Vector3(0, .25f, -.65f), new Vector3(.62f, .42f, 1.5f), Quaternion.identity, .6f);        // track
+            black.Box(0, new Vector3(0, .92f, -.55f), new Vector3(.72f, .18f, .9f), Quaternion.identity, .8f);         // seat
+            for (int i = -1; i <= 1; i += 2)
+                black.Box(0, new Vector3(i * .42f, .09f, 1f), new Vector3(.16f, .08f, 1.3f), Quaternion.identity, .8f); // skis
+            Part(t, "Track", black, Rubber);
+            var bars = new MeshBuilder(1);
+            bars.Tube(0, new Vector3(-.35f, 1.22f, .5f), new Vector3(.35f, 1.22f, .5f), .025f, .025f, 6, 1f);
+            bars.Box(0, new Vector3(0, .95f, -1.25f), new Vector3(.32f, .42f, .3f), Quaternion.identity, 1f);          // fuel can
+            Part(t, "Bars", bars, Steel);
+            Solid(t, "Body", new Vector3(0, .6f, -.1f), new Vector3(.9f, 1.1f, 3.2f));
             return Save(root);
         }
 

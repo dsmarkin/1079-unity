@@ -90,7 +90,8 @@ namespace Height1079.Core
             // at a terminal the rope runs low, so the car's floor is about level with the platform: hanger + a step up
             float terminal = spec.Kind == RopewayKind.Chair ? Hang(spec.Kind) + 1.1f : spec.Kind == RopewayKind.Pendulum ? Hang(spec.Kind) + 1.4f : Hang(spec.Kind) + 1.2f;
             for (int i = 0; i < n; i++) TowerHeight[i] = i == 0 || i == n - 1 ? terminal : baseHeight;
-            float clear = spec.Kind == RopewayKind.Chair ? 3.5f : Clearance;
+            // the clearance is measured to the car, not to the rope: a cabin hangs below it
+            float clear = Hang(spec.Kind) + (spec.Kind == RopewayKind.Chair ? 2.5f : 3.5f);
             RaiseTowers(ground, clear);
 
             Rope = BuildRope();

@@ -223,6 +223,63 @@ namespace Height1079.EditorTools.World
             return Save(name, t, false, TextureWrapMode.Repeat);
         }
 
+        /// <summary>A tuft of alpine grass on transparent background: the detail card the Elbrus meadows are drawn with.
+        /// A dozen blades bending out of one point, a few of them dry and yellow, as they stand around Azau in July.</summary>
+        public static Texture2D GrassTuft(string name, int seed, Color dark, Color light, Color dry)
+        {
+            const int W = 256, H = 256;
+            var rnd = new System.Random(seed);
+            float R() => (float)rnd.NextDouble();
+            var t = New(W, H, new Color(dark.r, dark.g, dark.b, 0));
+            int blades = 16;
+            for (int b = 0; b < blades; b++)
+            {
+                float x0 = W * .5f + (R() - .5f) * W * .35f;
+                float lean = (R() - .5f) * W * .55f;
+                float h = H * (.45f + .5f * R());
+                var c = R() < .22f ? dry : Color.Lerp(dark, light, R());
+                c.a = 1;
+                // a blade is a chain of short strokes that thins and bends towards the tip
+                var prev = new Vector2(x0, 2);
+                int steps = 9;
+                for (int k = 1; k <= steps; k++)
+                {
+                    float f = k / (float)steps;
+                    var next = new Vector2(x0 + lean * f * f, 2 + h * f);
+                    Stroke(t, prev, next, Mathf.Lerp(3.2f, .7f, f), Color.Lerp(c * .75f, c, f));
+                    prev = next;
+                }
+            }
+            t.Apply();
+            return Save(name, t, true, TextureWrapMode.Clamp);
+        }
+
+        /// <summary>Ground of the lower southern slope in late summer: alpine turf on the meadows and grey lava scree on the
+        /// moraines. Both are generated, since the Poly Haven library here has no grass or scree scan.</summary>
+        public static Texture2D Ground(string name, Color a, Color b, float grain, int seed, float speckle = .12f)
+        {
+            const int N = 512;
+            var t = new Texture2D(N, N, TextureFormat.RGBA32, true) { name = name, wrapMode = TextureWrapMode.Repeat };
+            var px = new Color[N * N];
+            var rnd = new System.Random(seed);
+            float off = seed * 3.7f;
+            for (int y = 0; y < N; y++)
+                for (int x = 0; x < N; x++)
+                {
+                    float u = x / (float)N, v = y / (float)N;
+                    float f = Mathf.PerlinNoise(u * grain + off, v * grain + off) * .6f
+                            + Mathf.PerlinNoise(u * grain * 3.1f + 7, v * grain * 3.1f + 3) * .3f
+                            + Mathf.PerlinNoise(u * grain * 9f + 13, v * grain * 9f + 19) * .1f;
+                    var c = Color.Lerp(a, b, Mathf.Clamp01(f * 1.25f - .1f));
+                    // stones and dry tufts: a sparse scatter of lighter and darker specks
+                    float s = (float)rnd.NextDouble();
+                    if (s < speckle) c = Color.Lerp(c, s < speckle * .45f ? Color.Lerp(c, Color.black, .5f) : Color.Lerp(c, Color.white, .45f), (float)rnd.NextDouble() * .8f);
+                    px[y * N + x] = c;
+                }
+            t.SetPixels(px); t.Apply();
+            return Save(name, t, false, TextureWrapMode.Repeat);
+        }
+
         /// <summary>Flat colour with slight noise (wool, charcoal, gaiter cloth).</summary>
         public static Texture2D Cloth(string name, Color c, float scale = .05f)
         {

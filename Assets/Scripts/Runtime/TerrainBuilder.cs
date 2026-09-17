@@ -31,10 +31,13 @@ namespace Height1079.Runtime
             terrain.drawInstanced = false;
             terrain.heightmapPixelError = World.IsElbrus ? 6f : 3f;
             terrain.basemapDistance = World.IsElbrus ? 2200f : 350f;
-            terrain.treeDistance = World.IsElbrus ? 0f : 1400f;
+            terrain.treeDistance = World.IsElbrus ? 900f : 1400f;
             terrain.treeMaximumFullLODCount = 400;
             terrain.treeLODBiasMultiplier = 1f;
-            terrain.drawTreesAndFoliage = !World.IsElbrus;
+            terrain.drawTreesAndFoliage = true;
+            // grass on the Azau meadows: a short draw distance, it is only there where the ground is green anyway
+            terrain.detailObjectDistance = World.IsElbrus ? 95f : 60f;
+            terrain.detailObjectDensity = .8f;
             terrain.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.TwoSided;
             return terrain;
         }
