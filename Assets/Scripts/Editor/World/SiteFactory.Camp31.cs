@@ -31,7 +31,7 @@ namespace Height1079.EditorTools.World
                 float trodden = .025f * Noise.Fbm(new Vector3(x * 3f, 0, z * 3f), 3) + .015f * Mathf.Abs(Mathf.Sin(x * 9 + Mathf.Sin(z * 4) * 2));
                 return new Vector3(x, .012f + trodden - .3f * edge, z);
             }, new Options { UvScale = new Vector2(W + 3.6f, L + 5f) * .8f });
-            Bank(snow, id, new Vector3(0, 0, .45f), W / 2 + 2.3f, L / 2 + 2.6f, Mathf.PI / 2, .42f, .55f, 1.2f, 31);
+            Bank(k.B("Walls", Materials.Snow), id, new Vector3(0, 0, .45f), W / 2 + 2.3f, L / 2 + 2.6f, Mathf.PI / 2, .42f, .55f, 1.2f, 31);
 
             TentBody(t, 1.25f, open: true, roofSnow: .025f);
 
@@ -259,7 +259,7 @@ namespace Height1079.EditorTools.World
                 float y = .01f + .03f * Noise.Fbm(new Vector3(Mathf.Cos(th) * r, 0, Mathf.Sin(th) * r) * 1.5f, 3) - .12f * Noise.Smooth(.2f, 0f, v) - .25f * Noise.Smooth(.85f, 1f, v);
                 return new Vector3(Mathf.Cos(th) * r, y, Mathf.Sin(th) * r);
             }, new Options { ClosedU = true, UvScale = new Vector2(8, 3) });
-            Bank(snow, id, Vector3.zero, 3.0f, 3.0f, -Mathf.PI / 2, .5f, .38f, .9f, 50);
+            Bank(k.B("Walls", Materials.Snow), id, Vector3.zero, 3.0f, 3.0f, -Mathf.PI / 2, .5f, .38f, .9f, 50);
 
             // scorched ground under the raft, raft of green logs, the burnt stack on it, ash and embers
             Emit(k.B("Scorch", BurnedGround), 0, 24, 4, (u, v) =>
