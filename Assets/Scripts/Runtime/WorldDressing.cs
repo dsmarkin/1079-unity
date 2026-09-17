@@ -37,8 +37,8 @@ namespace Height1079.Runtime
             Spawn("Sites/Site_Labaz_1959_Morning", Ground(dem, l.X, l.Z), labazRot, sites);
             var (px, pz) = WorldData.CampTentPad;
             var toFire = new Vector3(WorldData.Camp.x - px, 0, WorldData.Camp.z - pz);
-            Spawn("Sites/Site_Camp_31Jan_Tent", Ground(dem, px, pz, .02f), Quaternion.LookRotation(toFire), sites);
-            Spawn("Sites/Site_Camp_31Jan_Fire", Ground(dem, WorldData.Camp.x, WorldData.Camp.z, -.05f), Quaternion.LookRotation(-toFire), sites);
+            campTent = Spawn("Sites/Site_Camp_31Jan_Tent", Ground(dem, px, pz, .02f), Quaternion.LookRotation(toFire), sites)?.transform;
+            campFire = Spawn("Sites/Site_Camp_31Jan_Fire", Ground(dem, WorldData.Camp.x, WorldData.Camp.z, -.05f), Quaternion.LookRotation(-toFire), sites)?.transform;
 
             var c = WorldData.Cedar;
             Spawn("Sites/Site_Cedar_1959", Ground(dem, c.X, c.Z, -.05f), Quaternion.identity, sites);
@@ -108,9 +108,17 @@ namespace Height1079.Runtime
 
         /// <summary>Site viewer (F3): orbit camera around the event sites in turn; the hiker keeps standing where it was. Index -1 = off.</summary>
         public static int ViewIndex { get; private set; } = -1;
-        static readonly string[] ViewIds = { "tent", "cedar", "p4", "labaz", "dyatlov" };
-        static readonly float[] ViewRadius = { 9f, 14f, 8f, 13f, 10f };
-        public static string ViewName => ViewIndex < 0 ? "" : WorldData.Get(ViewIds[ViewIndex]).Label;
+        static Transform campTent, campFire;
+        static readonly string[] ViewIds = { "tent", "cedar", "p4", "labaz", "camp-gear", "camp-inside", "camp-kitchen", "dyatlov" };
+        static readonly float[] ViewRadius = { 9f, 14f, 8f, 13f, 2.4f, .7f, 2.6f, 10f };
+        public static string ViewName => ViewIndex < 0 ? "" : ViewIds[ViewIndex] switch
+        {
+            "labaz" => "Стоянка 31 января и лабаз",
+            "camp-gear" => "Стоянка 31 января · рюкзаки, лыжи, палки",
+            "camp-inside" => "Стоянка 31 января · в палатке",
+            "camp-kitchen" => "Стоянка 31 января · костёр на брёвнах",
+            _ => WorldData.Get(ViewIds[ViewIndex]).Label,
+        };
 
         public static void NextView() { ViewIndex = ViewIndex + 1 >= ViewIds.Length ? -1 : ViewIndex + 1; }
 
@@ -118,12 +126,26 @@ namespace Height1079.Runtime
         public static bool UpdateView(Camera cam, HeightField dem)
         {
             if (ViewIndex < 0 || cam == null || dem == null) return false;
-            var p = WorldData.Get(ViewIds[ViewIndex]);
-            float x = p.X, z = p.Z;
-            if (ViewIds[ViewIndex] == "p4") { x = WorldData.Den.x; z = WorldData.Den.z; }
-            if (ViewIds[ViewIndex] == "labaz") { x = (p.X + WorldData.CampTentPad.x + WorldData.Camp.x) / 3; z = (p.Z + WorldData.CampTentPad.z + WorldData.Camp.z) / 3; } // the whole 31 Jan camp
-            var target = new Vector3(x, TerrainBuilder.Height(dem, x, z) + 1f, z);
+            string vid = ViewIds[ViewIndex];
             float a = Time.unscaledTime * .12f, r = ViewRadius[ViewIndex];
+            if (vid.StartsWith("camp-"))
+            {
+                var anchor = vid == "camp-kitchen" ? campFire : campTent;
+                if (anchor == null) return false;
+                Vector3 local = vid == "camp-gear" ? new Vector3(.9f, .35f, 3.4f) : vid == "camp-inside" ? new Vector3(0, .35f, .4f) : new Vector3(0, .5f, .3f);
+                float h = vid == "camp-gear" ? 1.1f : vid == "camp-inside" ? .22f : 1.3f;
+                var c = anchor.TransformPoint(local);
+                var eye = c + new Vector3(Mathf.Cos(a) * r, h, Mathf.Sin(a) * r);
+                if (vid == "camp-inside") eye = anchor.TransformPoint(local + new Vector3(Mathf.Cos(a * 1.5f) * .55f, h, Mathf.Sin(a * 1.5f) * 1.2f));
+                cam.transform.position = eye;
+                cam.transform.LookAt(c);
+                return true;
+            }
+            var p = WorldData.Get(vid);
+            float x = p.X, z = p.Z;
+            if (vid == "p4") { x = WorldData.Den.x; z = WorldData.Den.z; }
+            if (vid == "labaz") { x = (p.X + WorldData.CampTentPad.x + WorldData.Camp.x) / 3; z = (p.Z + WorldData.CampTentPad.z + WorldData.Camp.z) / 3; } // the whole 31 Jan camp
+            var target = new Vector3(x, TerrainBuilder.Height(dem, x, z) + 1f, z);
             var pos = target + new Vector3(Mathf.Cos(a) * r, 0, Mathf.Sin(a) * r);
             pos.y = Mathf.Max(TerrainBuilder.Height(dem, pos.x, pos.z) + 1.6f, target.y + r * .35f);
             cam.transform.position = pos;

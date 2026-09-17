@@ -153,11 +153,15 @@ namespace Height1079.EditorTools.World
             foreach (var zz in new[] { sz0 + .005f, sz1 - .005f })
                 BoxM(stove, 0, id, new Vector3(0, sy + sh / 2, zz), new Vector3(sw + .008f, sh + .008f, .006f), Quaternion.identity, 3); // folded seams
             BoxM(k.B("CamBlack", SteelMat), 0, id, new Vector3(.06f, sy + .07f, sz1 + .006f), new Vector3(.03f, .02f, .01f), Quaternion.identity);
-            BoxM(k.B("CamBlack", SteelMat), 0, id, new Vector3(0, sy + .095f, sz1 + .004f), new Vector3(.19f, .13f, .003f), Quaternion.identity);
+            // the door: a steel plate a little smaller than its opening, so the fire shows as a glowing rim and through three vent slots
             var door = new MeshBuilder(1);
-            door.Quad(0, new Vector3(-.08f, sy + .04f, sz1 + .007f), new Vector3(.08f, sy + .04f, sz1 + .007f), new Vector3(.08f, sy + .15f, sz1 + .007f), new Vector3(-.08f, sy + .15f, sz1 + .007f), Vector2.zero, Vector2.right, Vector2.one, Vector2.up);
-            var glowMat = Materials.Get("StoveDoorGlow", new Color(.25f, .1f, .05f), smoothness: .2f);
-            glowMat.EnableKeyword("_EMISSION"); glowMat.SetColor("_EmissionColor", new Color(1f, .42f, .12f) * 1.6f);
+            door.Quad(0, new Vector3(-.075f, sy + .045f, sz1 + .0045f), new Vector3(.075f, sy + .045f, sz1 + .0045f), new Vector3(.075f, sy + .145f, sz1 + .0045f), new Vector3(-.075f, sy + .145f, sz1 + .0045f), Vector2.zero, Vector2.right, Vector2.one, Vector2.up);
+            var plate = k.B("StoveDoor", SteelMat);
+            BoxM(plate, 0, id, new Vector3(0, sy + .122f, sz1 + .0075f), new Vector3(.142f, .042f, .003f), Quaternion.identity);
+            BoxM(plate, 0, id, new Vector3(0, sy + .067f, sz1 + .0075f), new Vector3(.142f, .038f, .003f), Quaternion.identity);
+            for (int i = 0; i < 4; i++) BoxM(plate, 0, id, new Vector3(-.066f + i * .044f, sy + .094f, sz1 + .0075f), new Vector3(.01f, .016f, .003f), Quaternion.identity);
+            var glowMat = Materials.Get("StoveDoorGlow", new Color(.2f, .06f, .02f), smoothness: .2f);
+            glowMat.EnableKeyword("_EMISSION"); glowMat.SetColor("_EmissionColor", new Color(1f, .33f, .07f) * 1.3f);
             glowMat.globalIlluminationFlags = MaterialGlobalIlluminationFlags.None; EditorUtility.SetDirty(glowMat);
             Part(root, "StoveDoorGlow", door, glowMat);
             Sweep(stove, 0, new[] { new Vector3(0, sy + sh - .01f, sz0 + .07f), new Vector3(0, .69f, sz0 + .02f), new Vector3(0, .7f, -L / 2 + .02f) }, (tt, a) => .05f, 12, 6, new Options(), false, false);
@@ -206,8 +210,8 @@ namespace Height1079.EditorTools.World
             // socks and a pair of mittens on the drying line
             for (int i = 0; i < 6; i++)
                 Sock(k, TRS(new Vector3(-.35f, .77f - Mathf.Sin(Mathf.PI * i / 6f) * .04f, -L / 2 + .45f + i * .36f), Yaw(90 + (R() - .5f) * 30)), 990 + i);
-            Mitten(k, TRS(new Vector3(-.35f, .66f, .25f), Yaw(90) * Quaternion.Euler(180, 0, 0)), 996);
-            Mitten(k, TRS(new Vector3(-.35f, .66f, .38f), Yaw(95) * Quaternion.Euler(180, 0, 0)), 997);
+            Mitten(k, TRS(new Vector3(-.35f, .735f, .25f), Yaw(90) * Quaternion.Euler(180, 0, 0)), 996);
+            Mitten(k, TRS(new Vector3(-.35f, .74f, .38f), Yaw(95) * Quaternion.Euler(180, 0, 0)), 997);
 
             // small things near the doorway: the camera in its case, the diary with a pencil, Dyatlov's flashlight
             ZorkiyCamera(k, TRS(new Vector3(.62f, y0 + .004f, 1.42f), Yaw(25)));
