@@ -20,6 +20,7 @@ namespace Height1079.EditorTools.World
 
             ParticleFade("Snowflakes", flakes, new Color(1f, 1f, 1f, 1f));
             ParticleFade("SnowPuff", flakes, new Color(.95f, .97f, 1f, .8f));
+            ParticleAdd("Flame", TextureFactory.Save("flame", Flame(), true, TextureWrapMode.Clamp));
             ParticleFade("Smoke", TextureFactory.Save("smoke", Smoke(), true, TextureWrapMode.Clamp), new Color(.62f, .62f, .64f, .9f));
             for (int i = 0; i < FadeLevels; i++)
             {
@@ -49,6 +50,39 @@ namespace Height1079.EditorTools.World
             m.renderQueue = 3000;
             m.enableInstancing = true;
             return Save(m, name);
+        }
+
+        /// <summary>Particles/Standard Unlit in Additive mode (flames, sparks).</summary>
+        static Material ParticleAdd(string name, Texture2D tex)
+        {
+            var m = new Material(Shader.Find("Particles/Standard Unlit")) { name = name, mainTexture = tex, color = Color.white };
+            m.SetFloat("_Mode", 4); m.SetOverrideTag("RenderType", "Transparent");
+            m.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
+            m.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.One);
+            m.SetInt("_ZWrite", 0); m.SetFloat("_BlendOp", 0);
+            m.EnableKeyword("_ALPHABLEND_ON");
+            m.renderQueue = 3000;
+            return Save(m, name);
+        }
+
+        /// <summary>Flame tongue: bright core, soft teardrop fading upward, wavy edge.</summary>
+        static Texture2D Flame()
+        {
+            const int S = 128;
+            var t = new Texture2D(S, S, TextureFormat.RGBA32, false);
+            for (int y = 0; y < S; y++)
+                for (int x = 0; x < S; x++)
+                {
+                    float u = (x + .5f) / S * 2 - 1, v = (y + .5f) / S;
+                    float width = .75f * Mathf.Pow(Mathf.Sin(Mathf.PI * Mathf.Min(1, v * 1.1f + .02f)), .8f) * (1 - v * .55f);
+                    float wave = .08f * Mathf.Sin(v * 11 + Mathf.PerlinNoise(x * .05f, y * .05f) * 3);
+                    float d = Mathf.Abs(u - wave) / Mathf.Max(.02f, width);
+                    float a = Mathf.Clamp01(1 - d); a = a * a * Mathf.Clamp01((1 - v) * 1.6f);
+                    float core = Mathf.Clamp01(1 - d * 1.8f) * Mathf.Clamp01(1 - v * 1.4f);
+                    t.SetPixel(x, y, new Color(1, .75f + .25f * core, .5f + .5f * core, a));
+                }
+            t.Apply();
+            return t;
         }
 
         /// <summary>Standard (lit) in Fade mode, so prints darken at night with the rest of the scene.</summary>
