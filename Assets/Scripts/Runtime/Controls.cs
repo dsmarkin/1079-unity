@@ -69,6 +69,12 @@ namespace Height1079.Runtime
             || Down(Key.F4)
 #endif
             ;
+        /// <summary>F6 (host): the night clock jumps a minute ahead (testing the sky).</summary>
+        public static bool SkipMinute => LegacyDown(KeyCode.F6)
+#if ENABLE_INPUT_SYSTEM
+            || Down(Key.F6)
+#endif
+            ;
         public static bool MenkWake => LegacyDown(KeyCode.F5)
 #if ENABLE_INPUT_SYSTEM
             || Down(Key.F5)

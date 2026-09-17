@@ -21,6 +21,10 @@ namespace Height1079.Core
         public readonly double StartedAt;
         double tickedAt;
         public float Elapsed { get; private set; }
+        double skipped;
+
+        /// <summary>Testing: move the night clock forward (sky, storms, dawn) without charging the players for the skipped time.</summary>
+        public void SkipAhead(double seconds) => skipped += Math.Max(0, seconds);
         public bool Storm { get; private set; }
         /// <summary>Absolute time until which the shared fire burns; 0 when out.</summary>
         public double FireUntil { get; private set; }
@@ -105,7 +109,7 @@ namespace Height1079.Core
             if (Outcome != Outcome.None) return false;
             float dt = (float)Math.Min(1.0, now - tickedAt);
             tickedAt = now;
-            Elapsed = (float)(now - StartedAt);
+            Elapsed = (float)(now - StartedAt + skipped);
             int before = Events.Count;
             bool storm = SurvivalRules.StormAt(Elapsed);
             if (storm != Storm) { Storm = storm; Record(storm ? "Видимость упала. Началась метель." : "Ветер ослаб."); }
