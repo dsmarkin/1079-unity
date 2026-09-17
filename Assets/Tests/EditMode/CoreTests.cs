@@ -141,6 +141,10 @@ namespace Height1079.Tests
             Assert.AreEqual(Sites.Camp31.SkiPairs, Sites.Camp31.SkiPairsUnderFloor + Sites.Camp31.SkiPairsAsStand);
             Assert.AreEqual(Sites.Tent.SkiPairsUnderFloor, Sites.Camp31.SkiPairsUnderFloor);
             Assert.AreEqual(8, Sites.Camp31.PolesLeftFree);
+            // the tent pad is level where the tent and its entrance stand
+            float pad = WorldData.PadHeight(dem);
+            foreach (var (ox, oz) in new[] { (0f, 0f), (2.5f, 1f), (-2.5f, -1f), (4f, 0f), (0f, 1.5f), (0f, -1.5f) })
+                Assert.AreEqual(pad, WorldData.GroundHeight(dem, WorldData.CampTentPad.x + ox, WorldData.CampTentPad.z + oz), .01f, $"pad at {ox},{oz}");
         }
 
         [Test]

@@ -69,8 +69,9 @@ namespace Height1079.EditorTools.World
         }
 
         /// <summary>Canvas, skis under the floor, ski-pole stands and guys, middle stand, ice axe — shared by the slope tent and the forest camp.
-        /// <paramref name="skiRow"/> = centre of each ski row from the middle (1.07 keeps the skis under the floor; larger pushes the tips out at the ends).</summary>
-        static void TentBody(Transform t, float skiRow)
+        /// <paramref name="skiRow"/> = centre of each ski row from the middle (1.07 keeps the skis under the floor; larger pushes the tips out at the ends).
+        /// <paramref name="open"/>: the entrance end has a doorway (±<see cref="DoorHalf"/>) and the sheet is rolled up — the tent can be entered.</summary>
+        static void TentBody(Transform t, float skiRow, bool open = false)
         {
             float L = Sites.Tent.Length, W = Sites.Tent.Width, Hr = Sites.Tent.RidgeHeight, wall = Hr - Mathf.Sqrt(Sites.Tent.SlopeLength * Sites.Tent.SlopeLength - W * W / 4);
             // 8 pairs of skis under the floor: two rows along the tent
@@ -113,13 +114,25 @@ namespace Height1079.EditorTools.World
             foreach (int end in new[] { -1, 1 })
             {
                 float z = end * L / 2;
+                if (open && end > 0)
+                {
+                    float roofAtDoor = Hr - (Hr - wall) * DoorHalf / (W / 2);
+                    foreach (int side in new[] { -1, 1 })
+                    {
+                        Vector3 o = new Vector3(side * W / 2, y0, z), d0 = new Vector3(side * DoorHalf, y0, z), d1 = new Vector3(side * DoorHalf, roofAtDoor, z), w = new Vector3(side * (W / 2 - .02f), wall, z);
+                        cv.Quad(0, o, d0, d1, w, Vector2.zero, new Vector2(.6f, 0), new Vector2(.6f, roofAtDoor), new Vector2(0, wall), true);
+                    }
+                    // the entrance sheet rolled up above the doorway
+                    cv.Tube(1, new Vector3(-DoorHalf, roofAtDoor - .02f, z + .04f), new Vector3(DoorHalf, roofAtDoor - .02f, z + .04f), .05f, .05f, 8, 1, 0, true);
+                    continue;
+                }
                 Vector3 bl = new Vector3(-W / 2, y0, z), br = new Vector3(W / 2, y0, z), tl = new Vector3(-W / 2 + .02f, wall, z), tr = new Vector3(W / 2 - .02f, wall, z), ap = new Vector3(0, Hr, z);
                 cv.Quad(0, bl, br, tr, tl, new Vector2(0, 0), new Vector2(W, 0), new Vector2(W, wall), new Vector2(0, wall), true);
                 int a = cv.Vert(tl, Vector3.forward * end, new Vector2(0, wall)), b = cv.Vert(tr, Vector3.forward * end, new Vector2(W, wall)), c = cv.Vert(ap, Vector3.forward * end, new Vector2(W / 2, Hr));
                 cv.Tri(0, a, c, b); cv.Tri(0, a, b, c);
             }
             // entrance (+Z): sleeve draped with a white sheet
-            cv.Quad(1, new Vector3(-.35f, y0, L / 2 + .03f), new Vector3(.35f, y0, L / 2 + .03f), new Vector3(.22f, .92f, L / 2 + .05f), new Vector3(-.22f, .92f, L / 2 + .05f), Vector2.zero, Vector2.right, Vector2.one, Vector2.up, true);
+            if (!open) cv.Quad(1, new Vector3(-.35f, y0, L / 2 + .03f), new Vector3(.35f, y0, L / 2 + .03f), new Vector3(.22f, .92f, L / 2 + .05f), new Vector3(-.22f, .92f, L / 2 + .05f), Vector2.zero, Vector2.right, Vector2.one, Vector2.up, true);
             // back end (-Z): round sleeve opening
             cv.Tube(0, new Vector3(0, .7f, -L / 2), new Vector3(.02f, .66f, -L / 2 - .28f), .14f, .12f, 10, 2f);
             Part(t, "Canvas", cv, Materials.Canvas, Materials.Sheet);
@@ -157,6 +170,16 @@ namespace Height1079.EditorTools.World
             Part(t, "IceAxeShaft", axeWood, Materials.Wood);
             Part(t, "IceAxeHead", axeHead, Materials.Metal);
 
+        }
+
+        const float DoorHalf = .42f;
+
+        /// <summary>Invisible collider as a child (rotated boxes are not possible on the root).</summary>
+        static void Solid(Transform t, string name, Vector3 center, Vector3 size, Vector3 euler)
+        {
+            var go = new GameObject(name); go.transform.SetParent(t, false);
+            go.transform.localPosition = center; go.transform.localRotation = Quaternion.Euler(euler);
+            go.AddComponent<BoxCollider>().size = size;
         }
 
         // ------------------------------------------------------------------ tent
@@ -343,7 +366,8 @@ namespace Height1079.EditorTools.World
             }
             Part(t, "TrampledPad", pad, Materials.Snow);
 
-            TentBody(t, 1.25f); // ski tips show at both ends
+            TentBody(t, 1.25f, open: true); // ski tips show at both ends; the doorway is open
+            Camp31Interior(t);
 
             // stove pipe: out of the rear sleeve, horizontal, then a short rise; ring of raw bars round the sleeve; two cut sticks hold the pipe
             var pipe = new MeshBuilder(1);
@@ -371,7 +395,7 @@ namespace Height1079.EditorTools.World
             var rnd = new System.Random(311);
             for (int k = 0; k < 22; k++)
             {
-                var a = new Vector3(-1.2f + (float)rnd.NextDouble() * 2.4f, .02f, L / 2 + .5f + (float)rnd.NextDouble() * 1.6f);
+                var a = new Vector3(-1.0f + (float)rnd.NextDouble() * 3.2f, .02f, L / 2 + .45f + (float)rnd.NextDouble() * 1.8f);
                 var b = a + Quaternion.Euler(0, (float)rnd.NextDouble() * 360, 0) * Vector3.forward * (.7f + (float)rnd.NextDouble() * .4f);
                 FirBranch(mat, a, b, .55f);
             }
@@ -381,13 +405,13 @@ namespace Height1079.EditorTools.World
             var sacks = new[] { khaki, grey, khaki, brown, grey, khaki, brown, khaki, grey };
             for (int i = 0; i < Sites.Camp31.Rucksacks; i++)
             {
-                bool back = i >= 5;
-                float x = back ? -.75f + (i - 5) * .5f : -1.0f + i * .5f, z = L / 2 + (back ? 1.95f : 1.2f);
+                // 3 × 3 to the right of the doorway, so the way in stays free
+                float x = .85f + (i % 3) * .5f, z = L / 2 + .7f + (i / 3) * .55f;
                 Rucksack(sacks[i], leather, new Vector3(x, .03f, z), 180 + (i * 37 % 30) - 15, .95f + (i % 3) * .05f, 400 + i * 7);
             }
             // Slobodin's rucksack as on the 31 Jan photo: felt boots and an axe tied on top (the first in the front row)
             var felt = new MeshBuilder(1);
-            Vector3 top0 = new Vector3(-1.0f, .03f + .52f, L / 2 + 1.2f);
+            Vector3 top0 = new Vector3(.85f, .03f + .52f, L / 2 + .7f);
             FeltBoot(felt, top0 + new Vector3(-.12f, .02f, .02f), Vector3.right, Vector3.back);
             FeltBoot(felt, top0 + new Vector3(-.12f, .1f, -.03f), Vector3.right, Vector3.back);
             var axe = new MeshBuilder(1); var axeHead = new MeshBuilder(1);
@@ -419,8 +443,140 @@ namespace Height1079.EditorTools.World
             }
             Part(t, "SpareSkis", spare, Materials.Ski);
 
-            AddBoxCollider(root, new Vector3(0, Hr / 2, 0), new Vector3(W, Hr, L));
+            // walkable pad and the tent shell as colliders: side walls, roof slopes, rear end, doorway jambs; nothing across the doorway
+            AddBoxCollider(root, new Vector3(0, -.4f, .5f), new Vector3(W + 1.6f, .82f, L + 3.2f));
+            float wallH = Hr - Mathf.Sqrt(Sites.Tent.SlopeLength * Sites.Tent.SlopeLength - W * W / 4);
+            float roofAngle = Mathf.Atan2(W / 2, Hr - wallH) * Mathf.Rad2Deg;
+            foreach (int side in new[] { -1, 1 })
+            {
+                Solid(t, "WallCollider", new Vector3(side * (W / 2 + .03f), wallH / 2 + .02f, 0), new Vector3(.06f, wallH, L), Vector3.zero);
+                Solid(t, "RoofCollider", new Vector3(side * (W / 4 + .02f), (wallH + Hr) / 2 + .02f, 0), new Vector3(.05f, Sites.Tent.SlopeLength, L), new Vector3(0, 0, side * roofAngle));
+                Solid(t, "DoorJamb", new Vector3(side * (DoorHalf + (W / 2 - DoorHalf) / 2), wallH / 2 + .02f, L / 2 + .03f), new Vector3(W / 2 - DoorHalf, wallH, .06f), Vector3.zero);
+            }
+            Solid(t, "RearCollider", new Vector3(0, Hr / 2, -L / 2 - .03f), new Vector3(W, Hr, .06f), Vector3.zero);
+            // inside (plus the doorway approach) the hiker has to go on all fours
+            var inside = new GameObject(TentInteriorName); inside.transform.SetParent(t, false);
+            var trig = inside.AddComponent<BoxCollider>(); trig.isTrigger = true;
+            trig.center = new Vector3(0, .7f, .55f); trig.size = new Vector3(W + .3f, 1.4f, L + 1.3f);
             Save(root);
+        }
+
+        public const string TentInteriorName = Height1079.Runtime.HikerController.LowSpaceName;
+
+        /// <summary>Inside the tent, morning of 1 Feb. From the slope-tent inventory: Dyatlov's stove on the ridge rope with its pipe to the rear sleeve,
+        /// 9 quilted blankets (there 2 spread, 7 crumpled), 8 quilted jackets, 8 pairs of ski boots and felt boots near the entrance, stove wood,
+        /// Dyatlov's flashlight, the group diary, a camera. People slept across the tent, heads to the uphill side (-X) — assumed.</summary>
+        static void Camp31Interior(Transform t)
+        {
+            float L = Sites.Tent.Length, W = Sites.Tent.Width, Hr = Sites.Tent.RidgeHeight, y0 = .045f;
+            var root = new GameObject("Interior").transform; root.SetParent(t, false);
+            var rnd = new System.Random(59);
+            float R() => (float)rnd.NextDouble();
+
+            // ridge rope, drying line, stove on wires
+            var rope = new MeshBuilder(1);
+            rope.Tube(0, new Vector3(0, Hr - .035f, -L / 2), new Vector3(0, Hr - .035f, L / 2), .006f, .006f, 4, 1);
+            rope.Tube(0, new Vector3(-.35f, .8f, -L / 2 + .15f), new Vector3(-.35f, .78f, .4f), .004f, .004f, 4, 1);
+            float sz0 = -L / 2 + .42f, sz1 = sz0 + Sites.Camp31.StoveLength, sy = .47f;
+            foreach (float wz in new[] { sz0 + .04f, sz1 - .04f })
+                foreach (int side in new[] { -1, 1 })
+                    rope.Tube(0, new Vector3(side * .1f, sy + Sites.Camp31.StoveHeight, wz), new Vector3(0, Hr - .04f, wz), .0025f, .0025f, 3, 1);
+            Part(root, "Ropes", rope, Materials.Rope);
+
+            var tin = new MeshBuilder(1);
+            tin.Box(0, new Vector3(0, sy + Sites.Camp31.StoveHeight / 2, (sz0 + sz1) / 2), new Vector3(Sites.Camp31.StoveWidth, Sites.Camp31.StoveHeight, Sites.Camp31.StoveLength), Quaternion.identity, 2);
+            tin.Tube(0, new Vector3(0, .7f, sz0 + .02f), new Vector3(0, .7f, -L / 2 + .28f), .05f, .05f, 10, 1);          // pipe to the sleeve
+            tin.Tube(0, new Vector3(0, sy + Sites.Camp31.StoveHeight - .01f, sz0 + .06f), new Vector3(0, .7f, sz0 + .02f), .05f, .05f, 10, 1);
+            tin.Box(0, new Vector3(.06f, sy + .07f, sz1 + .005f), new Vector3(.03f, .02f, .01f), Quaternion.identity, 1); // door latch
+            Part(root, "Stove", tin, Materials.Metal);
+            Solid(root, "StoveCollider", new Vector3(0, sy + Sites.Camp31.StoveHeight / 2, (sz0 + sz1) / 2), new Vector3(Sites.Camp31.StoveWidth, Sites.Camp31.StoveHeight, Sites.Camp31.StoveLength), Vector3.zero);
+            var door = new MeshBuilder(1);
+            door.Quad(0, new Vector3(-.08f, sy + .04f, sz1 + .004f), new Vector3(.08f, sy + .04f, sz1 + .004f), new Vector3(.08f, sy + .15f, sz1 + .004f), new Vector3(-.08f, sy + .15f, sz1 + .004f), Vector2.zero, Vector2.right, Vector2.one, Vector2.up);
+            var glowMat = Materials.Get("StoveDoorGlow", new Color(.25f, .1f, .05f), smoothness: .2f);
+            glowMat.EnableKeyword("_EMISSION"); glowMat.SetColor("_EmissionColor", new Color(1f, .42f, .12f) * 1.6f);
+            glowMat.globalIlluminationFlags = MaterialGlobalIlluminationFlags.None; EditorUtility.SetDirty(glowMat);
+            Part(root, "StoveDoorGlow", door, glowMat);
+            var asbestos = new MeshBuilder(1);
+            asbestos.Tube(0, new Vector3(0, .7f, -L / 2 + .06f), new Vector3(0, .7f, -L / 2 + .01f), .13f, .13f, 12, 1, 0, true);
+            Part(root, "AsbestosRing", asbestos, Materials.Get("Asbestos", new Color(.82f, .8f, .76f), smoothness: .02f));
+
+            // stove wood (the "firewood in the tent") by the rear end
+            var billets = new MeshBuilder(2);
+            for (int k = 0; k < 10; k++)
+            {
+                var a = new Vector3(.45f + (k % 2) * .12f, y0 + .03f + (k / 4) * .05f, -L / 2 + .12f + (k % 5) * .07f);
+                billets.Tube(0, a, a + new Vector3(.3f, 0, .02f), .025f, .024f, 6, 1, 0, true);
+            }
+            Part(root, "StoveWood", billets, Materials.Bark, Materials.Wood);
+
+            // blankets: two spread across the tent, the rest thrown back in heaps
+            var blue = new MeshBuilder(1); var brown = new MeshBuilder(1); var grey = new MeshBuilder(1);
+            var cols = new[] { blue, brown, grey };
+            blue.Box(0, new Vector3(.05f, y0 + .02f, -.55f), new Vector3(W - .15f, .035f, 1.25f), Quaternion.Euler(0, 2, 0), 1);
+            grey.Box(0, new Vector3(0, y0 + .025f, .65f), new Vector3(W - .12f, .035f, 1.2f), Quaternion.Euler(0, -3, 0), 1);
+            for (int k = 0; k < Sites.Camp31.Blankets - 2; k++)
+            {
+                float z = -1.45f + k * .42f;
+                var c = new Vector3(-.1f + (R() - .5f) * .6f, y0, z);
+                Mound(cols[k % 3], 0, c, new Vector3(.45f + R() * .2f, .09f + R() * .05f, .2f), 600 + k);
+                Mound(cols[k % 3], 0, c + new Vector3(.3f, 0, .05f), new Vector3(.3f, .06f, .18f), 610 + k);
+            }
+            Part(root, "BlanketsBlue", blue, Materials.Cloth("blanket_blue", new Color(.2f, .25f, .36f)));
+            Part(root, "BlanketsBrown", brown, Materials.Cloth("blanket_brown", new Color(.38f, .27f, .2f)));
+            Part(root, "BlanketsGrey", grey, Materials.Cloth("blanket_grey", new Color(.42f, .42f, .4f)));
+
+            // quilted jackets rolled as pillows along the uphill wall
+            var vatnik = new MeshBuilder(1);
+            for (int k = 0; k < 8; k++)
+            {
+                var a = new Vector3(-W / 2 + .2f, y0 + .07f, -1.75f + k * .46f);
+                vatnik.Tube(0, a, a + new Vector3(.08f, .01f, .34f), .07f, .065f, 8, 1, 0, true);
+            }
+            Part(root, "QuiltedJackets", vatnik, Materials.Cloth("vatnik", new Color(.16f, .17f, .18f)));
+
+            // footwear inside the doorway: 8 pairs of ski boots, felt boots by the stove
+            var boots = new MeshBuilder(1);
+            for (int k = 0; k < 16; k++)
+            {
+                int side = k < 8 ? -1 : 1, j = k % 8;
+                var c = new Vector3(side * (DoorHalf + .1f + (j % 4) * .1f), y0 + .05f, L / 2 - .2f - (j / 4) * .32f);
+                var q = Quaternion.Euler(0, 90 + (R() - .5f) * 40, (R() < .2f ? 80 : 0));
+                boots.Box(0, c, new Vector3(.1f, .1f, .28f), q, 1);
+                boots.Tube(0, c + q * new Vector3(0, .04f, -.08f), c + q * new Vector3(0, .17f, -.09f), .05f, .05f, 7, 1, 0, true);
+            }
+            Part(root, "SkiBoots", boots, Materials.Cloth("boot_leather", new Color(.23f, .14f, .08f)));
+            var felt = new MeshBuilder(1);
+            for (int k = 0; k < 4; k++)
+                FeltBoot(felt, new Vector3(-.45f + k * .15f, y0 + .45f, -L / 2 + 1.05f), Vector3.down, Vector3.forward);
+            Part(root, "FeltBootsByStove", felt, Materials.Cloth("felt", new Color(.2f, .19f, .18f)));
+
+            // socks and foot cloths on the drying line
+            var wool = new MeshBuilder(1);
+            for (int k = 0; k < 6; k++)
+            {
+                float z = -L / 2 + .45f + k * .38f;
+                wool.Quad(0, new Vector3(-.35f, .8f, z - .06f), new Vector3(-.35f, .8f, z + .06f), new Vector3(-.35f, .56f + R() * .08f, z + .07f), new Vector3(-.35f, .58f, z - .05f), Vector2.zero, Vector2.right, Vector2.one, Vector2.up, true);
+            }
+            Part(root, "DryingSocks", wool, Materials.Cloth("sock", new Color(.62f, .6f, .55f)));
+
+            // small things: Dyatlov's flashlight, the group diary with a pencil, a camera in its case
+            var black = new MeshBuilder(1); var paper = new MeshBuilder(1); var metal = new MeshBuilder(1);
+            metal.Tube(0, new Vector3(.3f, y0 + .06f, .5f), new Vector3(.44f, y0 + .06f, .56f), .02f, .024f, 8, 1, 0, true);
+            paper.Box(0, new Vector3(-.2f, y0 + .05f, .75f), new Vector3(.15f, .015f, .2f), Quaternion.Euler(0, 20, 0), 1);
+            metal.Tube(0, new Vector3(-.12f, y0 + .06f, .7f), new Vector3(-.1f, y0 + .06f, .86f), .004f, .004f, 5, 1);
+            black.Box(0, new Vector3(.55f, y0 + .06f, -.3f), new Vector3(.14f, .08f, .05f), Quaternion.Euler(0, -30, 0), 1);
+            metal.Tube(0, new Vector3(.54f, y0 + .07f, -.27f), new Vector3(.53f, y0 + .07f, -.22f), .02f, .02f, 8, 1, 0, true);
+            Part(root, "CameraCase", black, Materials.Cloth("camera_case", new Color(.08f, .06f, .05f)));
+            Part(root, "Diary", paper, Materials.Cloth("diary", new Color(.3f, .35f, .28f)));
+            Part(root, "MetalBits", metal, Materials.Metal);
+
+            // light: the stove's glow and daylight through the canvas
+            var stoveLight = new GameObject("StoveLight", typeof(Light)).GetComponent<Light>();
+            stoveLight.transform.SetParent(root, false); stoveLight.transform.localPosition = new Vector3(0, sy + .1f, sz1 + .25f);
+            stoveLight.type = LightType.Point; stoveLight.color = new Color(1f, .55f, .25f); stoveLight.range = 3.2f; stoveLight.intensity = 1.4f; stoveLight.shadows = LightShadows.None;
+            var canvasLight = new GameObject("CanvasLight", typeof(Light)).GetComponent<Light>();
+            canvasLight.transform.SetParent(root, false); canvasLight.transform.localPosition = new Vector3(0, .85f, .4f);
+            canvasLight.type = LightType.Point; canvasLight.color = new Color(.95f, .92f, .75f); canvasLight.range = 3.4f; canvasLight.intensity = .7f; canvasLight.shadows = LightShadows.None;
         }
 
         /// <summary>Fire and kitchen: "костёр на брёвнах" — a raft of green logs on the snow (diary 31.01); two buckets on a crossbar over it,

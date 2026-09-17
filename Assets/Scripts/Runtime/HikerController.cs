@@ -11,6 +11,9 @@ namespace Height1079.Runtime
     public sealed class HikerController : NetworkBehaviour
     {
         public const float WalkSpeed = 2.8f, RunSpeed = 5.8f, SlopeLimit = 42f, HardLanding = 7f;
+        /// <summary>Trigger name for spaces that can only be entered on all fours (the 31 Jan tent: ridge 1.05 m).</summary>
+        public const string LowSpaceName = "LowSpace_TentInterior";
+        const float StandHeight = 1.8f, CrawlHeight = .8f, StandEye = 1.72f, CrawlEye = .6f;
 
         public readonly NetworkVariable<FixedString64Bytes> Name = new NetworkVariable<FixedString64Bytes>(default, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Owner);
         public readonly NetworkVariable<byte> Held = new NetworkVariable<byte>(0, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Owner);
@@ -36,6 +39,10 @@ namespace Height1079.Runtime
         public bool FirstPerson => firstPerson;
         public bool Grounded => grounded;
         public float Yaw => yaw;
+        /// <summary>On all fours (inside the tent): lower eye, short capsule, slow.</summary>
+        public bool Crawling { get; private set; }
+        float crouch;
+        static readonly Collider[] probe = new Collider[16];
         public float Speed => body != null ? body.linearVelocity.magnitude : 0f;
 
         public static HikerController For(ulong clientId)
@@ -162,6 +169,7 @@ namespace Height1079.Runtime
         {
             if (!IsOwner) return;
             EnsurePlaced();
+            UpdateLowSpace();
             var session = NightSession.Instance;
             bool finished = session != null && session.MyOutcome != Outcome.None;
             // Ground probe: capsule cast a little below the feet.
@@ -176,7 +184,8 @@ namespace Height1079.Runtime
             float r = locked ? 0f : (Controls.Right ? 1f : 0f) - (Controls.Left ? 1f : 0f);
             Vector3 forward = Quaternion.Euler(0, yaw, 0) * Vector3.forward, right = Quaternion.Euler(0, yaw, 0) * Vector3.right;
             var wish = (forward * f + right * r); if (wish.sqrMagnitude > 1f) wish.Normalize();
-            float speed = Controls.Run ? RunSpeed : WalkSpeed;
+            float speed = Controls.Run && !Crawling ? RunSpeed : WalkSpeed;
+            speed *= Mathf.Lerp(1f, .35f, crouch);
             // Cold slows the legs: clarity/heat below 40 costs up to 35 % of speed.
             if (session != null) speed *= Mathf.Lerp(.65f, 1f, Mathf.Clamp01(session.Heat / 40f));
             // Trail-breaking: virgin powder is slow, a path already trodden by the group is fast.
@@ -210,6 +219,32 @@ namespace Height1079.Runtime
             }
         }
 
+        bool InLowSpace()
+        {
+            int n = Physics.OverlapSphereNonAlloc(transform.position + Vector3.up * .3f, .25f, probe, ~0, QueryTriggerInteraction.Collide);
+            for (int i = 0; i < n; i++) if (probe[i].isTrigger && probe[i].name == LowSpaceName) return true;
+            return false;
+        }
+
+        bool HeadBlocked()
+        {
+            var p = transform.position;
+            int n = Physics.OverlapCapsuleNonAlloc(p + Vector3.up * (CrawlHeight + .05f), p + Vector3.up * (StandHeight - .3f), .26f, probe, ~0, QueryTriggerInteraction.Ignore);
+            for (int i = 0; i < n; i++) if (probe[i].attachedRigidbody != body && !(probe[i] is TerrainCollider)) return true;
+            return false;
+        }
+
+        void UpdateLowSpace()
+        {
+            bool low = InLowSpace() || (Crawling && HeadBlocked());
+            Crawling = low;
+            crouch = Mathf.MoveTowards(crouch, low ? 1f : 0f, Time.fixedDeltaTime * 2.5f);
+            float h = Mathf.Lerp(StandHeight, CrawlHeight, crouch);
+            capsule.height = h; capsule.center = new Vector3(0, h / 2, 0);
+            capsule.radius = Mathf.Lerp(.32f, .28f, crouch);
+            if (head != null) head.localPosition = new Vector3(0, Mathf.Lerp(StandEye, CrawlEye, crouch), 0);
+        }
+
         [Rpc(SendTo.Server)]
         void StumbleRpc(RpcParams rpc = default)
         {
@@ -227,16 +262,16 @@ namespace Height1079.Runtime
             if (visual != null)
             {
                 if (visual.gameObject.activeSelf == firstPerson) visual.gameObject.SetActive(!firstPerson);
-                visual.localRotation = Quaternion.Slerp(visual.localRotation, Quaternion.Euler(Stumbling ? 38f : 0f, 0f, 0f), 1f - Mathf.Exp(-8f * Time.deltaTime));
+                visual.localRotation = Quaternion.Slerp(visual.localRotation, Quaternion.Euler(Mathf.Max(Stumbling ? 38f : 0f, 70f * crouch), 0f, 0f), 1f - Mathf.Exp(-8f * Time.deltaTime));
             }
             if (firstPerson)
             {
                 float shake = NightSession.Instance != null ? (100f - NightSession.Instance.Hands) * .00015f * Mathf.Sin(Time.time * 9f) : 0f;
-                float sunk = trail != null ? trail.Sink : 0f;
+                float sunk = (trail != null ? trail.Sink : 0f) * (1f - crouch); // the tent floor is trampled
                 cam.transform.SetPositionAndRotation(head.position + Vector3.up * (shake - sunk), rot);
                 return;
             }
-            var pivot = transform.position + Vector3.up * 1.35f;
+            var pivot = transform.position + Vector3.up * Mathf.Lerp(1.35f, .55f, crouch);
             var desired = pivot - rot * Vector3.forward * orbit;
             if (Physics.SphereCast(pivot, .25f, (desired - pivot).normalized, out var hit, orbit, ~0, QueryTriggerInteraction.Ignore))
                 desired = pivot + (desired - pivot).normalized * Mathf.Max(1f, hit.distance - .1f);

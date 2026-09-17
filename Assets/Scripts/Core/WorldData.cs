@@ -150,8 +150,20 @@ namespace Height1079.Core
         public static float GroundHeight(HeightField dem, float x, float z)
         {
             float d = CreekDistance(x, z);
-            return dem.Sample(x, z) - 3f * (float)Math.Exp(-d * d / 30f);
+            float h = dem.Sample(x, z) - 3f * (float)Math.Exp(-d * d / 30f);
+            // the 31 Jan tent pad is trampled level (so the tent floor can be walked on): flat inside the ellipse, blended over 60 % more
+            float ex = (x - CampTentPad.x) / PadRadiusX, ez = (z - CampTentPad.z) / PadRadiusZ, e = (float)Math.Sqrt(ex * ex + ez * ez);
+            if (e < 1.6f)
+            {
+                float k = e <= 1f ? 1f : 1f - (e - 1f) / .6f; k = k * k * (3 - 2 * k);
+                h += (PadHeight(dem) - h) * k;
+            }
+            return h;
         }
+
+        /// <summary>Level of the 31 Jan tent pad: the DEM at its centre.</summary>
+        public static float PadHeight(HeightField dem) => dem.Sample(CampTentPad.x, CampTentPad.z);
+        public const float PadRadiusX = 6f, PadRadiusZ = 3.5f;
 
         public static float Distance(float ax, float az, float bx, float bz)
         {
