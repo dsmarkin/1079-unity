@@ -180,17 +180,8 @@ namespace Height1079.Runtime
             return "";
         }
 
-        /// <summary>A tree trunk right in front (a horizontal ray at chest height; the ground is the same collider, but faces up).</summary>
-        public static bool TreeInFront(Vector3 pos, float yaw, out Vector3 point)
-        {
-            point = pos;
-            var dir = Quaternion.Euler(0, yaw, 0) * Vector3.forward;
-            if (!Physics.Raycast(pos + Vector3.up * 1.25f, dir, out var hit, Woodwork.Reach, ~0, QueryTriggerInteraction.Ignore)) return false;
-            if (Mathf.Abs(hit.normal.y) > .6f) return false;           // ground or a snow bank
-            if (hit.collider.attachedRigidbody != null) return false;  // another hiker
-            point = hit.point;
-            return true;
-        }
+        /// <summary>The trunk the hiker is facing (terrain trees, straight out of the data: see <see cref="Forest"/>).</summary>
+        public static bool TreeInFront(Vector3 pos, float yaw, out Vector3 point) => Forest.InFront(pos, yaw, out point, Woodwork.Reach);
 
         /// <summary>What E would do here (the host decides for real; this is for the prompt and the HUD button).</summary>
         public static WorkKind WorkHere(HikerController me)
