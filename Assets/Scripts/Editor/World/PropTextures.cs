@@ -90,8 +90,8 @@ namespace Height1079.EditorTools.World
         {
             float Grain(float u, float v) => T(u, v, 90, seed) * .6f + T(u, v, 45, seed + 1) * .4f;
             float Crease(float u, float v) => Mathf.Pow(1 - Mathf.Abs(T(u, v, 6, seed + 5) * 2 - 1), 12);
-            return Pair(name, (u, v) => Shade(baseColor, .75f + .45f * Fbm(u, v, 5, seed) - .25f * Crease(u, v) + .08f * Grain(u, v)),
-                (u, v) => Grain(u, v) * .5f - Crease(u, v) * .8f, 5f, .32f);
+            return Pair(name, (u, v) => Shade(baseColor, .85f + .25f * Fbm(u, v, 3, seed) - .1f * Crease(u, v) + .05f * Grain(u, v)),
+                (u, v) => Grain(u, v) * .35f - Crease(u, v) * .25f, 1.6f, .42f);
         }
 
         /// <summary>Wadded cotton quilt (одеяло / ватник): stitched channels or diamonds, puffy between the seams, sateen sheen.</summary>

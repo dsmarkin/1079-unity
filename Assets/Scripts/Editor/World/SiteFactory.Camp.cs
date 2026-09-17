@@ -398,42 +398,56 @@ namespace Height1079.EditorTools.World
             Fan(lining, 0, m, bottom, Vector3.up);
         }
 
-        /// <summary>Leather ski boot (size ~42): sole at y = 0, toe to +Z, ankle collar, tongue and laces.</summary>
+        /// <summary>Leather ski boot (size ~42): sole at y = 0, toe to +Z. One closed upper (walls rising to a domed vamp, ankle higher at the heel),
+        /// a dark sole band, the ankle opening with its rolled collar, a tongue and laces.</summary>
         static void SkiBoot(Kit k, Matrix4x4 m, int seed)
         {
             var upper = k.B("BootUpper", LeatherBrown); var sole = k.B("BootSole", LeatherDark);
             var off = new Vector3(seed * .5f, 0, seed);
-            Emit(upper, 0, 20, 20, (u, v) =>
+            const float zc = .01f, lh = .14f, soleT = .016f;
+            Vector3 Plan(float u)
             {
-                float ang = u * Mathf.PI * 2, ez = Mathf.Abs(2 * v - 1);
-                float round = Mathf.Sqrt(Mathf.Max(0, 1 - Mathf.Pow(ez, 5)));
-                float z = Mathf.Lerp(-.135f, .15f, v);
-                float hw = .047f * round * (v > .5f ? 1f + .1f * Mathf.Sin((v - .5f) * Mathf.PI) : .93f);
-                float top = (v < .32f ? .115f : Mathf.Lerp(.115f, .048f, Noise.Smooth(.32f, 1f, v))) * Mathf.Sqrt(round);
-                float sn = Mathf.Sin(ang);
-                float crease = .003f * Noise.Fbm(new Vector3(u * 4, v * 6, 0) + off, 2);
-                float x = hw * SPow(Mathf.Cos(ang), .6f) * (1 + crease * 6);
-                float y = sn >= 0 ? .018f + Mathf.Pow(sn, .8f) * top + crease : .018f + sn * .016f * round;
-                return new Vector3(x, y, z);
-            }, new Options { M = m, ClosedU = true, UvScale = new Vector2(2, 2) });
-            var outline = new Vector2[20];
-            for (int i = 0; i < 20; i++)
-            {
-                float a = i / 20f * Mathf.PI * 2, zz = Mathf.Sin(a);
-                float w = zz > 0 ? Mathf.Lerp(.05f, .056f, zz) : .044f;
-                outline[i] = new Vector2(Mathf.Cos(a) * w, zz > 0 ? zz * .16f : zz * .15f);
+                float a = u * Mathf.PI * 2, z = zc + lh * Mathf.Cos(a);
+                float t = Mathf.InverseLerp(-.13f, .15f, z);
+                float w = Mathf.Lerp(.041f, .053f, Noise.Smooth(0f, .7f, t)) * (t > .85f ? Mathf.Lerp(1f, .8f, (t - .85f) / .15f) : 1f);
+                return new Vector3(w * Mathf.Sin(a) * (Mathf.Sin(a) > 0 ? 1f : .92f), 0, z);
             }
-            Extrude(sole, 0, outline, p => .018f, m * Matrix4x4.TRS(new Vector3(0, .009f, 0), Quaternion.Euler(90, 0, 0), Vector3.one));
-            Sweep(upper, 0, new[] { new Vector3(0, .1f, -.095f), new Vector3(0, .158f, -.1f) }, (t, a) => .036f, 12, 2, new Options { M = m, DoubleSided = true }, false, false,
-                -1, (t, a) => new Vector2(Mathf.Cos(a) * .9f, Mathf.Sin(a) * 1.2f));
-            var inner = new Vector3[12];
-            for (int i = 0; i < 12; i++) { float a = i / 12f * Mathf.PI * 2; inner[i] = new Vector3(Mathf.Cos(a) * .032f, .135f, -.1f + Mathf.Sin(a) * .04f); }
-            Fan(k.B("BootInside", LeatherDark), 0, m, inner, Vector3.up);
-            var lace = k.B("Laces", Materials.Rope);
-            for (int i = 0; i < 4; i++)
+            float Top(float z) => z < -.04f ? .15f : Mathf.Lerp(.15f, .058f, Noise.Smooth(-.04f, .13f, z));
+            Emit(sole, 0, 32, 2, (u, v) => Plan(u) * (1f + .02f * v) + Vector3.up * soleT * v, new Options { M = m, ClosedU = true, UvScale = new Vector2(4, .2f) });
+            var ring = new Vector3[32];
+            for (int i = 0; i < 32; i++) ring[i] = Plan(i / 32f);
+            Fan(sole, 0, m, ring, Vector3.down);
+            Emit(upper, 0, 32, 14, (u, v) =>
             {
-                float z = -.07f + i * .035f, y = .15f - i * .022f;
-                Ribbon(lace, 0, new[] { new Vector3(-.018f, y, z), new Vector3(0, y + .004f, z + .012f), new Vector3(.018f, y - .003f, z + .02f) }, .004f, .002f, Vector3.up, m, 4);
+                var q = Plan(u); float h = Top(q.z);
+                float crease = .0025f * Noise.Fbm(new Vector3(u * 5, v * 3, 0) + off, 2);
+                if (v < .55f)
+                {
+                    float t = v / .55f;
+                    var p = q * (1.02f + .06f * Mathf.Sin(Mathf.PI * t) - .04f * t) + Vector3.up * Mathf.Lerp(soleT, h * .82f, t);
+                    return p + q.normalized * crease;
+                }
+                float s = (v - .55f) / .45f;
+                var inner = new Vector3(0, 0, q.z * .55f - .02f);
+                var pp = Vector3.Lerp(q * .98f, inner, Mathf.Sin(s * Mathf.PI * .5f));
+                return pp + Vector3.up * (h * .82f + (h * .18f + .01f) * Mathf.Sin(s * Mathf.PI * .5f) + crease);
+            }, new Options { M = m, ClosedU = true, UvScale = new Vector2(3, 1.5f) });
+            // ankle opening: dark hole, rolled collar
+            var collar = new Vector3[17];
+            var hole = new Vector3[16];
+            for (int i = 0; i <= 16; i++)
+            {
+                float a = i / 16f * Mathf.PI * 2;
+                var p = new Vector3(Mathf.Cos(a) * .03f, .158f, -.075f + Mathf.Sin(a) * .04f);
+                collar[i] = p; if (i < 16) hole[i] = p + Vector3.up * .002f;
+            }
+            Sweep(upper, 0, collar, (t, a) => .007f, 6, 32, new Options { M = m }, false, false);
+            Fan(k.B("BootInside", LeatherDark), 0, m, hole, Vector3.up);
+            var lace = k.B("Laces", Materials.Rope);
+            for (int i = 0; i < 5; i++)
+            {
+                float z = -.035f + i * .03f, y = Top(z) + .004f;
+                Ribbon(lace, 0, new[] { new Vector3(-.014f, y - .004f, z), new Vector3(0, y + .002f, z + .01f), new Vector3(.014f, y - .004f, z + .018f) }, .004f, .002f, Vector3.up, m, 4);
             }
         }
 

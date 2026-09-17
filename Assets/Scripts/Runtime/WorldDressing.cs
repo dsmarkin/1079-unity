@@ -133,7 +133,7 @@ namespace Height1079.Runtime
             {
                 var anchor = vid == "camp-kitchen" ? campFire : campTent;
                 if (anchor == null) return false;
-                Vector3 local = vid == "camp-gear" ? new Vector3(.9f, .35f, 3.4f) : vid == "camp-inside" ? new Vector3(0, .35f, .4f) : vid == "camp-things" ? new Vector3(.35f, .07f, 1.42f) : new Vector3(0, .5f, .3f);
+                Vector3 local = vid == "camp-gear" ? new Vector3(.9f, .35f, 3.4f) : vid == "camp-inside" ? new Vector3(0, .35f, .4f) : vid == "camp-things" ? new Vector3(.3f, .07f, 1.4f) : new Vector3(0, .5f, .3f);
                 float h = vid == "camp-gear" ? 1.1f : vid == "camp-inside" ? .22f : vid == "camp-things" ? .22f : 1.3f;
                 var c = anchor.TransformPoint(local);
                 var eye = c + new Vector3(Mathf.Cos(a) * r, h, Mathf.Sin(a) * r);

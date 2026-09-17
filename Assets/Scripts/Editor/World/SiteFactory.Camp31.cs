@@ -214,7 +214,7 @@ namespace Height1079.EditorTools.World
             Mitten(k, TRS(new Vector3(-.35f, .74f, .38f), Yaw(95) * Quaternion.Euler(180, 0, 0)), 997);
 
             // small things near the doorway: the camera in its case, the diary with a pencil, Dyatlov's flashlight
-            ZorkiyCamera(k, TRS(new Vector3(.62f, y0 + .004f, 1.42f), Yaw(25)));
+            ZorkiyCamera(k, TRS(new Vector3(.5f, y0 + .004f, 1.36f), Yaw(25)));
             Diary(k, TRS(new Vector3(.02f, y0 + .002f, 1.42f), Yaw(-12)));
             Flashlight(k, TRS(new Vector3(-.56f, y0 + .026f, 1.3f), Quaternion.Euler(0, 70, 0) * Quaternion.Euler(0, 0, -90)));
 
