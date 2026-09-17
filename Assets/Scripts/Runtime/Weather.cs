@@ -32,7 +32,7 @@ namespace Height1079.Runtime
         {
             seed = Random.value * 50f;
             var flakes = Resources.Load<Material>("World/Materials/SnowFx/Snowflakes");
-            var puff = Resources.Load<Material>("World/Materials/SnowFx/SnowPuff");
+            var puff = Resources.Load<Material>("World/Materials/SnowFx/Smoke"); // soft round puff, lit
             driving = Driving(flakes);
             drift = Drift(puff != null ? puff : flakes);
         }
@@ -47,7 +47,7 @@ namespace Height1079.Runtime
             main.loop = true; main.playOnAwake = true; main.duration = 5f;
             main.startLifetime = new ParticleSystem.MinMaxCurve(1.6f, 2.6f);
             main.startSpeed = 0f;
-            main.startSize = new ParticleSystem.MinMaxCurve(.02f, .05f);
+            main.startSize = new ParticleSystem.MinMaxCurve(.012f, .03f);
             main.startColor = new ParticleSystem.MinMaxGradient(new Color(1, 1, 1, .5f), new Color(1, 1, 1, .95f));
             main.maxParticles = 16000;
             main.simulationSpace = ParticleSystemSimulationSpace.World;
@@ -56,6 +56,9 @@ namespace Height1079.Runtime
             var vel = ps.velocityOverLifetime; vel.enabled = true; vel.space = ParticleSystemSimulationSpace.World;
             vel.x = new ParticleSystem.MinMaxCurve(0f, 0f); vel.y = new ParticleSystem.MinMaxCurve(-2f, 1f); vel.z = new ParticleSystem.MinMaxCurve(0f, 0f);
             var noise = ps.noise; noise.enabled = true; noise.strength = 1.6f; noise.frequency = .25f; noise.scrollSpeed = 1.2f; noise.octaveCount = 2; noise.quality = ParticleSystemNoiseQuality.Medium;
+            // the flake texture is a 2×2 atlas: one flake per particle
+            var sheet = ps.textureSheetAnimation; sheet.enabled = true; sheet.numTilesX = 2; sheet.numTilesY = 2;
+            sheet.frameOverTime = new ParticleSystem.MinMaxCurve(0f); sheet.startFrame = new ParticleSystem.MinMaxCurve(0f, .999f);
             var col = ps.colorOverLifetime; col.enabled = true;
             var g = new Gradient();
             g.SetKeys(new[] { new GradientColorKey(Color.white, 0), new GradientColorKey(Color.white, 1) },
@@ -63,7 +66,7 @@ namespace Height1079.Runtime
             col.color = g;
             var r = go.GetComponent<ParticleSystemRenderer>();
             r.renderMode = ParticleSystemRenderMode.Stretch;
-            r.velocityScale = .045f; r.lengthScale = 1.2f;
+            r.velocityScale = .018f; r.lengthScale = 1f;
             r.sharedMaterial = mat;
             r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off; r.receiveShadows = false;
             ps.Play();
@@ -82,7 +85,7 @@ namespace Height1079.Runtime
             main.startSpeed = 0f;
             main.startSize = new ParticleSystem.MinMaxCurve(1.2f, 3.5f);
             main.startRotation = new ParticleSystem.MinMaxCurve(0f, Mathf.PI * 2);
-            main.startColor = new ParticleSystem.MinMaxGradient(new Color(.9f, .93f, 1f, .12f), new Color(.95f, .97f, 1f, .3f));
+            main.startColor = new ParticleSystem.MinMaxGradient(new Color(1.3f, 1.35f, 1.45f, .1f), new Color(1.4f, 1.45f, 1.55f, .22f));
             main.maxParticles = 1500;
             main.simulationSpace = ParticleSystemSimulationSpace.World;
             var em = ps.emission; em.rateOverTime = 0f;
