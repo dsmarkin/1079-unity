@@ -9,8 +9,8 @@ namespace Height1079.Core
 
     public static class Woodwork
     {
-        /// <summary>How far a tree or a branch can be to work on it.</summary>
-        public const float Reach = 2.6f;
+        /// <summary>How far a tree or a branch can be to work on it: an arm and an axe handle, so a little more than a step.</summary>
+        public const float Reach = 3.6f;
         /// <summary>One dry branch gives this many logs.</summary>
         public const byte LogsPerBranch = 3;
         /// <summary>Each log put into the fire buys this much burning time.</summary>

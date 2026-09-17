@@ -42,7 +42,7 @@ namespace Height1079.Runtime
 
         /// <summary>The trunk the hiker is facing: within <paramref name="reach"/> metres of the eye and no more than
         /// <paramref name="halfAngle"/> degrees off the line of sight. Returns the trunk's ground position.</summary>
-        public static bool InFront(Vector3 pos, float yaw, out Vector3 trunk, float reach = 3f, float halfAngle = 40f)
+        public static bool InFront(Vector3 pos, float yaw, out Vector3 trunk, float reach = 3.6f, float halfAngle = 55f)
         {
             trunk = pos;
             if (grid == null) Build();
