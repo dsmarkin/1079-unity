@@ -1,0 +1,8 @@
+# Binary sources are stored as plain git blobs (all < 10 MB; LFS object storage is unreachable from the build sandbox).
+# Generated content lives in Assets/Resources and is not committed.
+*.r16 binary
+*.r8 binary
+*.f32 binary
+*.bin binary
+*.jpg binary
+*.png binary

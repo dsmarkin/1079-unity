@@ -1,78 +1,92 @@
 using System;
 using System.IO;
-using System.IO.Compression;
-using System.Text;
 
 namespace Height1079.Core
 {
-    /// <summary>Decodes the cached Terrarium DEM (public/data/terrain.png) without UnityEngine so it can run on a headless server and in tests.
-    /// Minimal PNG reader: 8-bit RGB/RGBA, non-interlaced. Port of server/terrain.js.</summary>
-    public static class Dem
+    /// <summary>Bare-earth height grid of the playable area (ArcticDEM v4.1 2 m mosaic, see docs/MAP.md).
+    /// World frame: x = east, z = north, y = metres above sea level (EGM96), origin = <see cref="WorldData.OriginLat"/>/<see cref="WorldData.OriginLon"/>.
+    /// Row 0 of the grid is the southern edge, column 0 the western edge; nodes are spaced <see cref="Step"/> metres apart.</summary>
+    public sealed class HeightField
     {
-        public static (int width, int height, int channels, byte[] pixels) DecodePng(byte[] file)
+        public const int Resolution = 2049;
+        public const float Step = 2f;
+        public static readonly float Half = (Resolution - 1) * Step / 2f; // 2048 m
+        public readonly float[] Heights;
+        public readonly float Min, Max;
+
+        public HeightField(float[] heights)
         {
-            if (file.Length < 8 || file[0] != 0x89 || file[1] != (byte)'P' || file[2] != (byte)'N' || file[3] != (byte)'G') throw new InvalidDataException("Not a PNG");
-            int offset = 8, width = 0, height = 0, channels = 0;
-            var idat = new MemoryStream();
-            while (offset + 8 <= file.Length)
-            {
-                int length = ReadInt(file, offset);
-                string type = Encoding.ASCII.GetString(file, offset + 4, 4);
-                int data = offset + 8;
-                if (type == "IHDR")
-                {
-                    width = ReadInt(file, data); height = ReadInt(file, data + 4);
-                    int bitDepth = file[data + 8], color = file[data + 9], interlace = file[data + 12];
-                    channels = color switch { 0 => 1, 2 => 3, 4 => 2, 6 => 4, _ => 0 };
-                    if (bitDepth != 8 || channels == 0 || interlace != 0) throw new InvalidDataException("Unsupported PNG layout");
-                }
-                else if (type == "IDAT") idat.Write(file, data, length);
-                else if (type == "IEND") break;
-                offset += 12 + length;
-            }
-            idat.Position = 2; // skip the zlib header; DeflateStream reads the raw stream
-            var raw = new MemoryStream();
-            using (var inflate = new DeflateStream(idat, CompressionMode.Decompress)) inflate.CopyTo(raw);
-            byte[] r = raw.ToArray();
-            int stride = width * channels;
-            var pixels = new byte[stride * height];
-            for (int y = 0; y < height; y++)
-            {
-                int filter = r[y * (stride + 1)], src = y * (stride + 1) + 1, dst = y * stride;
-                for (int i = 0; i < stride; i++)
-                {
-                    int x = r[src + i];
-                    int a = i >= channels ? pixels[dst + i - channels] : 0;
-                    int b = y > 0 ? pixels[dst - stride + i] : 0;
-                    int c = y > 0 && i >= channels ? pixels[dst - stride + i - channels] : 0;
-                    int v;
-                    switch (filter)
-                    {
-                        case 0: v = x; break;
-                        case 1: v = x + a; break;
-                        case 2: v = x + b; break;
-                        case 3: v = x + ((a + b) >> 1); break;
-                        default:
-                            int p = a + b - c, pa = Math.Abs(p - a), pb = Math.Abs(p - b), pc = Math.Abs(p - c);
-                            v = x + (pa <= pb && pa <= pc ? a : pb <= pc ? b : c); break;
-                    }
-                    pixels[dst + i] = (byte)(v & 255);
-                }
-            }
-            return (width, height, channels, pixels);
+            if (heights.Length != Resolution * Resolution) throw new InvalidDataException($"height grid must be {Resolution}²");
+            Heights = heights;
+            float min = float.MaxValue, max = float.MinValue;
+            foreach (var h in heights) { if (h < min) min = h; if (h > max) max = h; }
+            Min = min; Max = max;
         }
 
-        static int ReadInt(byte[] b, int o) => (b[o] << 24) | (b[o + 1] << 16) | (b[o + 2] << 8) | b[o + 3];
-
-        /// <summary>Terrarium encoding: height = R·256 + G + B/256 − 32768, metres.</summary>
-        public static float[] LoadHeights(byte[] pngFile)
+        /// <summary>Unity RAW 16-bit little-endian, value 0..65535 mapped to [min, max] metres.</summary>
+        public static HeightField FromR16(byte[] raw, float min, float max)
         {
-            var (width, height, channels, pixels) = DecodePng(pngFile);
-            if (width != WorldData.Resolution || height != WorldData.Resolution) throw new InvalidDataException("DEM must be 256×256");
-            var heights = new float[width * height];
-            for (int i = 0; i < heights.Length; i++)
-                heights[i] = pixels[i * channels] * 256f + pixels[i * channels + 1] + pixels[i * channels + 2] / 256f - 32768f;
-            return heights;
+            if (raw == null || raw.Length != Resolution * Resolution * 2) throw new InvalidDataException("height_2049.r16 must hold 2049² uint16 values");
+            var h = new float[Resolution * Resolution];
+            float scale = (max - min) / 65535f;
+            for (int i = 0; i < h.Length; i++) h[i] = min + (raw[2 * i] | raw[2 * i + 1] << 8) * scale;
+            return new HeightField(h);
+        }
+
+        public float At(int col, int row) => Heights[row * Resolution + col];
+
+        /// <summary>Bilinear sample at world x/z; clamped to the grid edge.</summary>
+        public float Sample(float x, float z)
+        {
+            double fx = Math.Max(0, Math.Min(Resolution - 1, (x + Half) / Step));
+            double fz = Math.Max(0, Math.Min(Resolution - 1, (z + Half) / Step));
+            int a = Math.Min(Resolution - 2, (int)fx), b = Math.Min(Resolution - 2, (int)fz);
+            double u = fx - a, v = fz - b;
+            return (float)((At(a, b) * (1 - u) + At(a + 1, b) * u) * (1 - v) + (At(a, b + 1) * (1 - u) + At(a + 1, b + 1) * u) * v);
+        }
+
+        /// <summary>Downhill unit vector (x, z) and slope in degrees from central differences over <paramref name="span"/> metres.</summary>
+        public (float dx, float dz, float slopeDeg) Fall(float x, float z, float span = 6f)
+        {
+            float gx = (Sample(x + span, z) - Sample(x - span, z)) / (2 * span);
+            float gz = (Sample(x, z + span) - Sample(x, z - span)) / (2 * span);
+            float g = (float)Math.Sqrt(gx * gx + gz * gz);
+            if (g < 1e-6f) return (0, 0, 0);
+            return (-gx / g, -gz / g, (float)(Math.Atan(g) * 180 / Math.PI));
+        }
+    }
+
+    /// <summary>Tree instances detected in the Meta/WRI 1 m canopy height model (local maxima ≥ 3 m). Species are assigned by rule (docs/MAP.md).</summary>
+    public enum TreeSpecies : byte { Spruce = 0, Fir = 1, Birch = 2, SiberianPine = 3 }
+
+    public readonly struct TreeRecord
+    {
+        public readonly float X, Z, Height; public readonly TreeSpecies Species;
+        public TreeRecord(float x, float z, float height, TreeSpecies species) { X = x; Z = z; Height = height; Species = species; }
+    }
+
+    public static class Dem
+    {
+        /// <summary>trees.f32: records of 4 little-endian floats (x east, z north, canopy height m, species).</summary>
+        public static TreeRecord[] LoadTrees(byte[] raw)
+        {
+            if (raw == null || raw.Length % 16 != 0) throw new InvalidDataException("trees.f32 must hold 16-byte records");
+            var list = new TreeRecord[raw.Length / 16];
+            for (int i = 0; i < list.Length; i++)
+            {
+                int o = i * 16;
+                list[i] = new TreeRecord(BitConverter.ToSingle(raw, o), BitConverter.ToSingle(raw, o + 4), BitConverter.ToSingle(raw, o + 8), (TreeSpecies)(int)BitConverter.ToSingle(raw, o + 12));
+            }
+            return list;
+        }
+
+        /// <summary>8-bit mask grid (row 0 = south), e.g. rock_1025.r8 or canopy_2049.r8, sampled nearest at world x/z.</summary>
+        public static byte Mask(byte[] grid, int resolution, float x, float z)
+        {
+            float step = 2 * HeightField.Half / (resolution - 1);
+            int c = Math.Max(0, Math.Min(resolution - 1, (int)Math.Round((x + HeightField.Half) / step)));
+            int r = Math.Max(0, Math.Min(resolution - 1, (int)Math.Round((z + HeightField.Half) / step)));
+            return grid[r * resolution + c];
         }
     }
 }

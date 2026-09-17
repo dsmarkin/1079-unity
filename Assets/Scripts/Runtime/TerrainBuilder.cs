@@ -3,47 +3,42 @@ using Height1079.Core;
 
 namespace Height1079.Runtime
 {
-    /// <summary>Builds the 1:1 slope from the cached DEM at runtime. World x/z of Core map straight onto Unity x/z; y is metres above sea level.</summary>
+    /// <summary>Loads the world built by the editor pipeline (Resources/World): the TerrainData asset with layers, trees and rocks,
+    /// and the raw height grid the rules use. World x/z of Core map straight onto Unity x/z (x east, z north); y is metres above sea level.</summary>
     public static class TerrainBuilder
     {
-        public const int Resolution = 257; // Unity heightmaps are 2^n + 1
+        /// <summary>Must match WorldImporter.BaseHeight (editor).</summary>
+        public const float BaseHeight = WorldData.HeightMin - 4f;
 
-        public static float[] LoadDem()
+        public static HeightField LoadDem()
         {
-            var asset = Resources.Load<TextAsset>("terrain");
-            if (asset == null) throw new System.IO.FileNotFoundException("Resources/terrain.bytes (copy of public/data/terrain.png)");
-            return Dem.LoadHeights(asset.bytes);
+            var asset = Resources.Load<TextAsset>("World/height_2049");
+            if (asset == null) throw new System.IO.FileNotFoundException("Resources/World/height_2049.bytes — open the project in the editor once (menu 1079 → Rebuild world)");
+            return HeightField.FromR16(asset.bytes, WorldData.HeightMin, WorldData.HeightMax);
         }
 
-        public static Terrain Build(float[] dem, Material snow)
+        public static Terrain Build()
         {
-            float size = (float)WorldData.Size, half = size / 2f;
-            float min = float.MaxValue, max = float.MinValue;
-            var grid = new float[Resolution, Resolution];
-            for (int r = 0; r < Resolution; r++)
-                for (int c = 0; c < Resolution; c++)
-                {
-                    float x = -half + c / (float)(Resolution - 1) * size, z = -half + r / (float)(Resolution - 1) * size;
-                    float h = WorldData.GroundHeight(dem, x, z);
-                    grid[r, c] = h; if (h < min) min = h; if (h > max) max = h;
-                }
-            float range = Mathf.Max(1f, max - min);
-            for (int r = 0; r < Resolution; r++) for (int c = 0; c < Resolution; c++) grid[r, c] = (grid[r, c] - min) / range;
-
-            var data = new TerrainData { heightmapResolution = Resolution, size = new Vector3(size, range, size) };
-            data.SetHeights(0, 0, grid);
+            var data = Resources.Load<TerrainData>("World/Kholat");
+            if (data == null) { Debug.LogError("Resources/World/Kholat.asset missing — menu 1079 → Rebuild world"); return null; }
             var go = Terrain.CreateTerrainGameObject(data);
-            go.name = "Slope";
-            go.transform.position = new Vector3(-half, min, -half);
+            go.name = "Kholat Syakhl";
+            go.transform.position = new Vector3(-HeightField.Half, BaseHeight, -HeightField.Half);
             var terrain = go.GetComponent<Terrain>();
-            terrain.materialTemplate = snow;
-            // No instancing: the Standard material has no heightmap displacement pass, so instanced patches would draw flat at the base height.
+            var mat = Resources.Load<Material>("World/Materials/Terrain");
+            if (mat != null) terrain.materialTemplate = mat;
             terrain.drawInstanced = false;
-            terrain.heightmapPixelError = 4f;
+            terrain.heightmapPixelError = 3f;
+            terrain.basemapDistance = 350f;
+            terrain.treeDistance = 1400f;
+            terrain.treeMaximumFullLODCount = 400;
+            terrain.treeLODBiasMultiplier = 1f;
+            terrain.drawTreesAndFoliage = true;
+            terrain.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.TwoSided;
             return terrain;
         }
 
         /// <summary>Ground height at world x/z using the same math the server uses, so client and authority agree.</summary>
-        public static float Height(float[] dem, float x, float z) => WorldData.GroundHeight(dem, x, z);
+        public static float Height(HeightField dem, float x, float z) => WorldData.GroundHeight(dem, x, z);
     }
 }

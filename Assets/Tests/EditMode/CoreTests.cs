@@ -8,18 +8,21 @@ namespace Height1079.Tests
 {
     public static class TestData
     {
-        /// <summary>Finds Assets/Data/terrain.png from the Unity project root or from the standalone test runner.</summary>
-        public static byte[] TerrainPng()
+        /// <summary>Finds Assets/Data/World/&lt;name&gt; from the Unity project root or from the standalone test runner.</summary>
+        public static byte[] World(string name)
         {
             string dir = TestContext.CurrentContext.TestDirectory;
             for (int i = 0; i < 8 && dir != null; i++)
             {
-                string candidate = Path.Combine(dir, "Assets", "Data", "terrain.png");
+                string candidate = Path.Combine(dir, "Assets", "Data", "World", name);
                 if (File.Exists(candidate)) return File.ReadAllBytes(candidate);
                 dir = Path.GetDirectoryName(dir);
             }
-            throw new FileNotFoundException("Assets/Data/terrain.png");
+            throw new FileNotFoundException("Assets/Data/World/" + name);
         }
+
+        static HeightField dem;
+        public static HeightField Dem => dem ??= HeightField.FromR16(World("height_2049.r16"), WorldData.HeightMin, WorldData.HeightMax);
     }
 
     public class SurvivalRulesTests
@@ -69,40 +72,97 @@ namespace Height1079.Tests
 
     public class WorldDataTests
     {
+        static float D(string a, string b) { var p = WorldData.Get(a); var q = WorldData.Get(b); return WorldData.Distance(p.X, p.Z, q.X, q.Z); }
+
         [Test]
-        public void HistoricalPointsFitTheTileAndKeepTheirSeparation()
+        public void HistoricalPointsFitTheAreaAndKeepTheirDocumentedDistances()
         {
-            foreach (var p in WorldData.Pois) Assert.IsTrue(Math.Abs(p.X) < WorldData.Size / 2 && Math.Abs(p.Z) < WorldData.Size / 2, p.Id);
-            float d = WorldData.Distance(WorldData.Cedar.X, WorldData.Cedar.Z, WorldData.Tent.X, WorldData.Tent.Z);
-            Assert.IsTrue(d > 1300 && d < 1600, $"cedar–tent {d}");
-            Assert.Less(WorldData.Distance(WorldData.Cedar.X, WorldData.Cedar.Z, WorldData.Ravine.X, WorldData.Ravine.Z), 65f);
+            foreach (var p in WorldData.Pois) { Assert.IsTrue(WorldData.Inside(p.X, p.Z, 50), p.Id); Assert.IsTrue(WorldData.Sources.ContainsKey(p.Source), p.Id); }
+            float tc = D("tent", "cedar");
+            Assert.IsTrue(tc > 1450 && tc < 1580, $"cedar–tent {tc} (protocols: 1.5 km)");
+            Assert.Less(D("cedar", "ravine"), 75f, "den is 50–75 m from the cedar");
+            Assert.AreEqual(300f, D("dyatlov", "cedar"), 30f); Assert.AreEqual(480f, D("slobodin", "cedar"), 30f); Assert.AreEqual(630f, D("kolmogorova", "cedar"), 30f);
+            float lt = D("labaz", "tent");
+            Assert.IsTrue(lt > 1500 && lt < 2100, $"labaz–tent {lt} (diary: ~2 km walked on 1 Feb)");
+            Assert.AreEqual(130f, D("tent", "tent2020"), 15f, "2020 table vs MP 18.10");
+            float den = WorldData.Distance(WorldData.Den.x, WorldData.Den.z, WorldData.P4.X, WorldData.P4.Z);
+            Assert.AreEqual(3f, den, .01f, "floor is 3 m downstream of P4");
         }
 
         [Test]
-        public void SamplingRespectsPixelCentresAndInterpolates()
+        public void FrameIsNotMirroredAndRoundTrips()
         {
-            var a = new float[65536]; for (int i = 0; i < a.Length; i++) a[i] = i % 256;
-            Assert.AreEqual(127.5f, WorldData.Sample(a, 0, 0), 1e-3);
-            Assert.AreEqual(0f, WorldData.Sample(a, (float)(-WorldData.Size / 2), 0), 1e-3);
-            Assert.AreEqual(255f, WorldData.Sample(a, (float)(WorldData.Size / 2), 0), 1e-3);
+            // North is +z, east is +x: the cedar is north-east of the tent, the labaz south of it, the summit west.
+            Assert.Greater(WorldData.Cedar.Z, WorldData.Tent.Z); Assert.Greater(WorldData.Cedar.X, WorldData.Tent.X);
+            Assert.Less(WorldData.Labaz.Z, WorldData.Tent.Z);
+            Assert.Less(WorldData.Get("summit").X, WorldData.Tent.X);
+            var (x, z) = WorldData.Project(61.77, 59.47);
+            var (lat, lon) = WorldData.Unproject(x, z);
+            Assert.AreEqual(61.77, lat, 1e-9); Assert.AreEqual(59.47, lon, 1e-9);
+            // 1 arc-second of latitude ≈ 30.9 m here.
+            Assert.AreEqual(30.9f, WorldData.Project(WorldData.OriginLat + 1 / 3600.0, WorldData.OriginLon).z, .2f);
         }
 
         [Test]
-        public void DemDecodesAndPutsTheCampBelowTheTreeLine()
+        public void HeightFieldSamplesAndClamps()
         {
-            Assert.Throws<InvalidDataException>(() => Dem.DecodePng(new byte[] { 1, 2, 3 }));
-            var dem = Dem.LoadHeights(TestData.TerrainPng());
+            var h = new float[HeightField.Resolution * HeightField.Resolution];
+            for (int r = 0; r < HeightField.Resolution; r++) for (int c = 0; c < HeightField.Resolution; c++) h[r * HeightField.Resolution + c] = c + 1000 * r;
+            var f = new HeightField(h);
+            Assert.AreEqual(1024 + 1024000, f.Sample(0, 0), 1);
+            Assert.AreEqual(1.5f, f.Sample(-HeightField.Half + 3, -HeightField.Half), 1e-3);
+            Assert.AreEqual(0f, f.Sample(-9999, -9999), 1e-3);
+            Assert.Throws<InvalidDataException>(() => HeightField.FromR16(new byte[] { 1, 2, 3 }, 0, 1));
+        }
+
+        [Test]
+        public void DemMatchesKnownElevations()
+        {
+            var dem = TestData.Dem;
+            Assert.AreEqual(WorldData.HeightMin, dem.Min, 3f); Assert.AreEqual(WorldData.HeightMax, dem.Max, 3f);
+            var s = WorldData.Get("summit");
+            Assert.AreEqual(1096.7f, dem.Sample(s.X, s.Z), 4f, "Kholat Syakhl");
+            Assert.AreEqual(792f, dem.Sample(WorldData.Saddle.X, WorldData.Saddle.Z), 3f, "pass saddle");
+            float tent = dem.Sample(WorldData.Tent.X, WorldData.Tent.Z);
+            Assert.IsTrue(tent > 880 && tent < 910, $"tent {tent} (Borzenkov: 903.7 m)");
+            // KAN GPS altitudes read 2–7 m above the DEM; the relative drop along the stream must agree.
+            float p4 = dem.Sample(WorldData.P4.X, WorldData.P4.Z), m2 = dem.Sample(WorldData.Get("mouth2").X, WorldData.Get("mouth2").Z);
+            Assert.AreEqual(641f - 618f, p4 - m2, 6f);
             float camp = WorldData.GroundHeight(dem, WorldData.Camp.x, WorldData.Camp.z);
-            float tent = WorldData.GroundHeight(dem, WorldData.Tent.X, WorldData.Tent.Z);
             Assert.IsTrue(camp > 600 && camp < WorldData.ShelterHeight, $"camp {camp}");
             Assert.Greater(tent, camp);
+        }
+
+        [Test]
+        public void TentFacesThePassAlongTheContour()
+        {
+            var (ex, ez, dx, dz, slope) = Sites.Tent.Orientation(TestData.Dem);
+            Assert.AreEqual(0f, ex * dx + ez * dz, 1e-3f, "ridge along the contour");
+            Assert.Greater(dx, .5f, "the slope falls to the east (north-east slope, protocol)");
+            Assert.IsTrue(slope > 10 && slope < 30, $"slope {slope}");
+            var ascent = WorldData.AscentRoute;
+            Assert.Less(WorldData.Distance(ascent[0].x, ascent[0].z, WorldData.Labaz.X, WorldData.Labaz.Z), 5f);
+            Assert.Less(WorldData.Distance(ascent[ascent.Length - 1].x, ascent[ascent.Length - 1].z, WorldData.Tent.X, WorldData.Tent.Z), 5f);
+        }
+
+        [Test]
+        public void TreesComeFromTheCanopyModel()
+        {
+            var trees = Height1079.Core.Dem.LoadTrees(TestData.World("trees.f32"));
+            Assert.Greater(trees.Length, 20000);
+            int above = 0; foreach (var t in trees) { Assert.IsTrue(WorldData.Inside(t.X, t.Z), "inside"); if (TestData.Dem.Sample(t.X, t.Z) > 825) above++; }
+            Assert.AreEqual(0, above, "no trees above 820 m (canopy-model noise on rocks is dropped)");
+            var c = WorldData.Cedar; int near = 0;
+            foreach (var t in trees) if (WorldData.Distance(t.X, t.Z, c.X, c.Z) < 20) near++;
+            Assert.Greater(near, 0, "the cedar stands in the canopy model");
+            float tentTrees = 0; foreach (var t in trees) if (WorldData.Distance(t.X, t.Z, WorldData.Tent.X, WorldData.Tent.Z) < 300) tentTrees++;
+            Assert.AreEqual(0f, tentTrees, "open slope around the tent");
         }
     }
 
     public class NightRunTests
     {
-        static float[] dem;
-        static float Ground(float x, float z) => WorldData.GroundHeight(dem ??= Dem.LoadHeights(TestData.TerrainPng()), x, z);
+        static float Ground(float x, float z) => WorldData.GroundHeight(TestData.Dem, x, z);
 
         static double Advance(NightRun run, double from, double seconds, double step = .25)
         {

@@ -1,0 +1,75 @@
+{
+ "snow_02": {
+  "name": "Snow 02",
+  "authors": [
+   "Rob Tuytel"
+  ],
+  "url": "https://polyhaven.com/a/snow_02",
+  "license": "CC0"
+ },
+ "snow_03": {
+  "name": "Snow 03",
+  "authors": [
+   "Rob Tuytel"
+  ],
+  "url": "https://polyhaven.com/a/snow_03",
+  "license": "CC0"
+ },
+ "lichen_rock": {
+  "name": "Lichen Rock",
+  "authors": [
+   "Rico Cilliers"
+  ],
+  "url": "https://polyhaven.com/a/lichen_rock",
+  "license": "CC0"
+ },
+ "rock_face_03": {
+  "name": "Rock Face 03",
+  "authors": [
+   "Dario Barresi",
+   "Rico Cilliers"
+  ],
+  "url": "https://polyhaven.com/a/rock_face_03",
+  "license": "CC0"
+ },
+ "pine_bark": {
+  "name": "Pine Bark",
+  "authors": [
+   "Dimitrios Savva"
+  ],
+  "url": "https://polyhaven.com/a/pine_bark",
+  "license": "CC0"
+ },
+ "knotted_pine_bark": {
+  "name": "Knotted Pine Bark",
+  "authors": [
+   "Dimitrios Savva"
+  ],
+  "url": "https://polyhaven.com/a/knotted_pine_bark",
+  "license": "CC0"
+ },
+ "raw_plank_wall": {
+  "name": "Raw Plank Wall",
+  "authors": [
+   "Dimitrios Savva"
+  ],
+  "url": "https://polyhaven.com/a/raw_plank_wall",
+  "license": "CC0"
+ },
+ "winter_leaves": {
+  "name": "Winter Leaves",
+  "authors": [
+   "Dimitrios Savva"
+  ],
+  "url": "https://polyhaven.com/a/winter_leaves",
+  "license": "CC0"
+ },
+ "dry_branches_medium_01": {
+  "name": "Dry Branches Medium 01",
+  "authors": [
+   "Rico Cilliers"
+  ],
+  "url": "https://polyhaven.com/a/dry_branches_medium_01",
+  "license": "CC0"
+ }
+}

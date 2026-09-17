@@ -25,7 +25,7 @@ namespace Height1079.Runtime
         public readonly List<(string name, Outcome outcome, bool online, bool you)> Party = new List<(string, Outcome, bool, bool)>();
 
         NightRun run;
-        float[] dem;
+        HeightField dem;
         double lastTick;
         int sentEvents;
         const double TickSeconds = .25;

@@ -8,7 +8,8 @@ using Height1079.Runtime;
 
 namespace Height1079.EditorTools
 {
-    /// <summary>Keeps the repository text-only: prefabs, the scene and the DEM resource are generated on first open and can be regenerated from the 1079 menu.</summary>
+    /// <summary>Keeps generated content out of git: prefabs, the scene and the whole world (terrain, art library, sites) are generated on first open
+    /// from Assets/Data and Assets/Art, and can be regenerated from the 1079 menu.</summary>
     [InitializeOnLoad]
     public static class ProjectSetup
     {
@@ -25,7 +26,8 @@ namespace Height1079.EditorTools
         public static void EnsureAll(bool force)
         {
             Directory.CreateDirectory(ResourcesDir);
-            EnsureDem(force);
+            EnsureHikerModel(force);
+            World.WorldImporter.Build(force);
             MakeMaterial("Flat", new Color(.886f, .91f, .93f));
             MakeMaterial("Snow", new Color(.96f, .98f, 1f, .75f), "Particles/Standard Unlit");
             EnsureHikerPrefab(force);
@@ -35,13 +37,10 @@ namespace Height1079.EditorTools
             AssetDatabase.Refresh();
         }
 
-        static void EnsureDem(bool force)
+        static void EnsureHikerModel(bool force)
         {
-            string target = Path.Combine(ResourcesDir, "terrain.bytes");
-            if (File.Exists(target) && !force) return;
-            File.Copy("Assets/Data/terrain.png", target, true);
-            AssetDatabase.ImportAsset(target);
             string hiker = Path.Combine(ResourcesDir, "hiker.bytes");
+            if (File.Exists(hiker) && !force) return;
             if (File.Exists("Assets/Data/hiker-v1.glb")) { File.Copy("Assets/Data/hiker-v1.glb", hiker, true); AssetDatabase.ImportAsset(hiker); }
         }
 

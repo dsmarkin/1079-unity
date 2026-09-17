@@ -11,6 +11,6 @@
     <Compile Include="Shim.cs" />
     <Compile Include="../../Assets/Scripts/Core/**/*.cs" />
     <Compile Include="../../Assets/Tests/EditMode/**/*.cs" />
-    <None Include="../../Assets/Data/terrain.png" Link="Assets/Data/terrain.png" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../../Assets/Data/World/*" LinkBase="Assets/Data/World" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>
