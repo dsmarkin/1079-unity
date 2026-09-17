@@ -20,6 +20,8 @@ namespace Height1079.Runtime
         public readonly NetworkVariable<bool> TorchOn = new NetworkVariable<bool>(false, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Owner);
         /// <summary>Which light is in hand: 0 = tube flashlight on two cells, 1 = hand-dynamo "жучок".</summary>
         public readonly NetworkVariable<byte> TorchKind = new NetworkVariable<byte>(0, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Owner);
+        /// <summary>Where the camera looks (yaw, degrees): the server needs it to know whose torch is on the Menk.</summary>
+        public readonly NetworkVariable<short> LookYaw = new NetworkVariable<short>(0, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Owner);
         public readonly NetworkVariable<byte> TorchLevel = new NetworkVariable<byte>(255, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Owner);
         public readonly NetworkVariable<byte> Action = new NetworkVariable<byte>(0, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Owner); // 0 idle, 1 cold, 2 kindle
 
@@ -35,7 +37,7 @@ namespace Height1079.Runtime
         float yaw, pitch = .08f, orbit = 6f;
         bool firstPerson = true, grounded, kindling, paused, placed;
         Vector3 groundNormal = Vector3.up;
-        float lastVerticalSpeed, stumbleUntil;
+        float lastVerticalSpeed, stumbleUntil, impact;
         public bool Stumbling => Time.time < stumbleUntil;
         public bool Paused => paused;
         public bool FirstPerson => firstPerson;
@@ -164,6 +166,9 @@ namespace Height1079.Runtime
                 if (!kindling) Bootstrap.AutoKindle = false;
             }
             Action.Value = (byte)(kindling ? 2 : session != null && session.Heat < 40f ? 1 : 0);
+            short look = (short)Mathf.RoundToInt(Mathf.Repeat(yaw, 360f));
+            if (Mathf.Abs(look - LookYaw.Value) > 1) LookYaw.Value = look;
+            impact = Mathf.MoveTowards(impact, 0f, Time.deltaTime * 1.4f);
             UpdateCamera();
         }
 
@@ -252,6 +257,17 @@ namespace Height1079.Runtime
             if (head != null) head.localPosition = new Vector3(0, Mathf.Lerp(StandEye, CrawlEye, crouch), 0);
         }
 
+        /// <summary>Owner only: a blow throws the hiker, knocks them down for <paramref name="stun"/> seconds and shakes the view.</summary>
+        public void Knock(Vector3 impulse, float stun)
+        {
+            if (!IsOwner || body == null) return;
+            body.AddForce(impulse, ForceMode.VelocityChange);
+            stumbleUntil = Time.time + stun;
+            impact = 1f;
+            pitch = Mathf.Clamp(pitch + Random.Range(-20f, 25f), -65f, 65f);
+            yaw += Random.Range(-35f, 35f);
+        }
+
         [Rpc(SendTo.Server)]
         void StumbleRpc(RpcParams rpc = default)
         {
@@ -275,7 +291,11 @@ namespace Height1079.Runtime
             {
                 float shake = NightSession.Instance != null ? (100f - NightSession.Instance.Hands) * .00015f * Mathf.Sin(Time.time * 9f) : 0f;
                 float sunk = (trail != null ? trail.Sink : 0f) * (1f - crouch); // the tent floor is trampled
-                cam.transform.SetPositionAndRotation(head.position + Vector3.up * (shake - sunk), rot);
+                // a blow or the giant's steps close by shake the view
+                float jolt = impact * impact * 9f + MenkView.Tremor * 1.2f;
+                if (jolt > .01f) rot *= Quaternion.Euler((Mathf.PerlinNoise(Time.time * 23f, 1f) - .5f) * jolt, (Mathf.PerlinNoise(Time.time * 19f, 7f) - .5f) * jolt, (Mathf.PerlinNoise(Time.time * 17f, 3f) - .5f) * jolt * 1.5f);
+                float drop = Stumbling ? .9f * Mathf.Clamp01((stumbleUntil - Time.time) * 1.5f) * impact : 0f;
+                cam.transform.SetPositionAndRotation(head.position + Vector3.up * (shake - sunk - drop), rot);
                 return;
             }
             var pivot = transform.position + Vector3.up * Mathf.Lerp(1.35f, .55f, crouch);

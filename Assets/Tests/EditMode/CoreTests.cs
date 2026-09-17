@@ -205,6 +205,21 @@ namespace Height1079.Tests
         }
 
         [Test]
+        public void TwoBlowsOfTheGiantTakeAPlayer()
+        {
+            var run = new NightRun(1, Ground);
+            run.AddPlayer("a", "А", 1);
+            Assert.IsFalse(run.Strike("a", 55f, "{name}: удар из темноты."));
+            Assert.IsTrue(run.Events.Any(e => e.Text == "А: удар из темноты."));
+            Assert.AreEqual(45f, run.Players["a"].Heat, 1e-3);
+            Assert.IsTrue(run.Strike("a", 55f, "{name}: удар из темноты."));
+            Assert.AreEqual(Outcome.Taken, run.Players["a"].Outcome);
+            Assert.IsFalse(run.Strike("a", 55f, "again"));
+            run.Step(2);
+            Assert.AreEqual(Outcome.Taken, run.Outcome);
+        }
+
+        [Test]
         public void KindlingIsValidatedAndTheFireIsShared()
         {
             var run = new NightRun(0, Ground);

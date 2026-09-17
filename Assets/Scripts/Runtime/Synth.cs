@@ -361,5 +361,89 @@ namespace Height1079.Runtime
             Normalize(d, .9f);
             return Clip("heart", d);
         }
+
+        // ---------------------------------------------------------------- the giant
+
+        /// <summary>A heavy footfall in deep snow: a low body thump with a muffled crunch.</summary>
+        public static AudioClip Thud(int seed)
+        {
+            var rnd = new System.Random(seed);
+            const float len = .7f;
+            int n = (int)(len * Rate);
+            var d = new float[n];
+            var low = Biquad.LowPass(90f, 1.2f); var crunch = Biquad.BandPass(900f, .8f);
+            for (int i = 0; i < n; i++)
+            {
+                float t = (float)i / Rate, w = Rnd(rnd);
+                float body = Mathf.Sin(2f * Mathf.PI * (48f - 20f * t) * t) * Mathf.Exp(-t / .12f);
+                d[i] = body * 1.4f + low.Run(w) * Mathf.Exp(-t / .1f) * 3f + crunch.Run(w) * Mathf.Exp(-t / .07f) * .5f;
+            }
+            Normalize(d, .95f);
+            return Clip("thud", d);
+        }
+
+        /// <summary>Breathing growl of something very large: a low buzzing voice through the resonances of a huge chest and throat.</summary>
+        public static AudioClip Growl(int seed, float len, float pitch, bool roar)
+        {
+            var rnd = new System.Random(seed);
+            int n = (int)(len * Rate);
+            var d = new float[n];
+            var f1 = Biquad.BandPass(260f, 5f); var f2 = Biquad.BandPass(620f, 6f); var f3 = Biquad.BandPass(1500f, 4f);
+            var chest = Biquad.LowPass(180f); var rasp = Biquad.BandPass(2400f, 1.2f);
+            double ph = 0;
+            for (int i = 0; i < n; i++)
+            {
+                float t = (float)i / Rate, u = t / len;
+                float swell = roar ? Mathf.Sin(Mathf.PI * Mathf.Pow(u, .6f)) : .6f + .4f * Mathf.Sin(u * Mathf.PI * 3f);
+                float f0 = pitch * (1f + (roar ? .5f * Mathf.Sin(Mathf.PI * u) : .06f * Mathf.Sin(t * 5f))) * (1f + .03f * Rnd(rnd));
+                ph += f0 / Rate;
+                float frac = (float)(ph - System.Math.Floor(ph));
+                // pulse train with jitter: vocal folds slapping
+                float src = (frac < .12f ? 1f - frac / .12f : 0f) * 2f - .25f + Rnd(rnd) * (roar ? .9f : .5f);
+                if (i % 128 == 0) { f1.SetBandPass(240f + 60f * swell, 5f); f2.SetBandPass(560f + 160f * swell, 6f); }
+                float v = f1.Run(src) * 1.2f + f2.Run(src) * .8f + f3.Run(src) * (roar ? .5f : .15f) + chest.Run(src) * .9f + rasp.Run(Rnd(rnd)) * (roar ? .25f : .06f) * swell;
+                d[i] = v * swell * Env(t, roar ? .15f : .4f, roar ? .8f : .5f, len);
+            }
+            Normalize(d, .95f);
+            return Clip(roar ? "roar" : "growl", d);
+        }
+
+        /// <summary>A fist hitting the tent: a boom of the canvas, poles rattling, cloth flapping.</summary>
+        public static AudioClip CanvasHit(int seed)
+        {
+            var rnd = new System.Random(seed);
+            const float len = 1.4f;
+            int n = (int)(len * Rate);
+            var d = new float[n];
+            var boom = Biquad.LowPass(140f, 2f); var cloth = Biquad.BandPass(700f, .9f); var wood = Biquad.BandPass(1300f, 8f);
+            for (int i = 0; i < n; i++)
+            {
+                float t = (float)i / Rate, w = Rnd(rnd);
+                float b = Mathf.Sin(2f * Mathf.PI * 70f * t) * Mathf.Exp(-t / .09f);
+                float flap = t < .9f && rnd.NextDouble() < 60.0 / Rate ? Rnd(rnd) * 3f : 0f;
+                float knock = (t > .03f && t < .05f) || (t > .16f && t < .175f) ? w * 2f : 0f;
+                d[i] = b * 1.6f + boom.Run(w) * Mathf.Exp(-t / .12f) * 3f + cloth.Run(w * Mathf.Exp(-t / .3f) + flap) * .9f + wood.Run(knock) * 1.2f;
+            }
+            Normalize(d, .95f);
+            return Clip("canvas_hit", d);
+        }
+
+        /// <summary>A huge arm cutting the air.</summary>
+        public static AudioClip Swoosh(int seed)
+        {
+            var rnd = new System.Random(seed);
+            const float len = .6f;
+            int n = (int)(len * Rate);
+            var d = new float[n];
+            var bp = Biquad.BandPass(300f, 2f);
+            for (int i = 0; i < n; i++)
+            {
+                float t = (float)i / Rate, u = t / len;
+                if (i % 64 == 0) bp.SetBandPass(250f + 900f * Mathf.Sin(Mathf.PI * u), 2f);
+                d[i] = bp.Run(Rnd(rnd)) * Mathf.Sin(Mathf.PI * u) * Mathf.Sin(Mathf.PI * u);
+            }
+            Normalize(d, .9f);
+            return Clip("swoosh", d);
+        }
     }
 }

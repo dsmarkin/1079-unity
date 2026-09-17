@@ -16,6 +16,15 @@ namespace Height1079.Runtime
         public readonly NetworkVariable<bool> Storm = new NetworkVariable<bool>();
         public readonly NetworkVariable<float> FireRemaining = new NetworkVariable<float>();
         public readonly NetworkVariable<int> RoomOutcome = new NetworkVariable<int>();
+        // the Menk (server brain, clients draw it)
+        public readonly NetworkVariable<Vector3> MenkPos = new NetworkVariable<Vector3>();
+        public readonly NetworkVariable<float> MenkYaw = new NetworkVariable<float>();
+        public readonly NetworkVariable<byte> MenkState = new NetworkVariable<byte>();
+        public readonly NetworkVariable<byte> MenkBlows = new NetworkVariable<byte>();
+        /// <summary>Local: raised when the Menk hit this client (direction, damage).</summary>
+        public event System.Action<Vector3, float> MenkHitMe;
+        MenkBrain menk;
+        readonly List<MenkBrain.Seen> seen = new List<MenkBrain.Seen>();
 
         // Local mirror for the HUD (filled by RPCs on every client, directly on the host).
         public float Heat = 100, Hands = 100, Clarity = 100, Exposure;
@@ -38,6 +47,15 @@ namespace Height1079.Runtime
             if (!IsServer) return;
             dem = TerrainBuilder.LoadDem();
             run = new NightRun(Time.timeAsDouble, (x, z) => TerrainBuilder.Height(dem, x, z));
+            menk = new MenkBrain((x, z) => TerrainBuilder.Height(dem, x, z));
+            menk.Say = text => run.Record(text);
+            menk.Hit = (token, dir, damage) =>
+            {
+                run.Strike(token, damage, damage > 40f ? "{name}: удар из темноты сбивает с ног." : "{name}: удар сквозь полотнище палатки.");
+                if (token.Length > 1 && ulong.TryParse(token.Substring(1), out var id))
+                    MenkHitRpc(dir, damage, RpcTarget.Single(id, RpcTargetUse.Temp));
+            };
+            MenkPos.Value = menk.Pos; MenkYaw.Value = menk.Yaw;
             NetworkManager.OnClientConnectedCallback += OnClientConnected;
             NetworkManager.OnClientDisconnectCallback += OnClientDisconnected;
             foreach (var id in NetworkManager.ConnectedClientsIds) OnClientConnected(id);
@@ -80,9 +98,39 @@ namespace Height1079.Runtime
             if (start) run.BeginKindling(token, Time.timeAsDouble); else run.StopKindling(token);
         }
 
+        void TickMenk()
+        {
+            seen.Clear();
+            foreach (var kv in NetworkManager.ConnectedClients)
+            {
+                var hiker = kv.Value.PlayerObject != null ? kv.Value.PlayerObject.GetComponent<HikerController>() : null;
+                if (hiker == null || !run.Players.TryGetValue(Token(kv.Key), out var p)) continue;
+                bool light = hiker.TorchOn.Value && hiker.Held.Value == (byte)HeldItem.Flashlight;
+                seen.Add(new MenkBrain.Seen
+                {
+                    Token = p.Token, Client = kv.Key, Pos = hiker.transform.position, Look = hiker.LookYaw.Value,
+                    Torch = light, Dynamo = hiker.TorchKind.Value == 1, Alive = p.Online && p.Outcome == Outcome.None
+                });
+            }
+            if (run.Outcome == Outcome.None) menk.Tick(Time.deltaTime, run.Elapsed, Weather.Storm, seen);
+            MenkPos.Value = menk.Pos;
+            MenkYaw.Value = menk.Yaw;
+            MenkState.Value = (byte)menk.Mode;
+            MenkBlows.Value = menk.TentBlows;
+        }
+
+        [Rpc(SendTo.SpecifiedInParams)]
+        void MenkHitRpc(Vector3 dir, float damage, RpcParams rpc)
+        {
+            var me = Bootstrap.LocalHiker;
+            if (me != null) me.Knock(dir * (damage > 40f ? 7f : 3.5f) + Vector3.up * (damage > 40f ? 3.5f : 1.5f), damage > 40f ? 2.4f : 1.2f);
+            MenkHitMe?.Invoke(dir, damage);
+        }
+
         void Update()
         {
             if (!IsServer || run == null) return;
+            TickMenk();
             double now = Time.timeAsDouble;
             if (now - lastTick < TickSeconds) return;
             lastTick = now;

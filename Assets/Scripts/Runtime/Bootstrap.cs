@@ -51,6 +51,7 @@ namespace Height1079.Runtime
             Ambience.Create();
             SnowFx.Create();
             Weather.Create();
+            MenkView.Create();
             var driver = new GameObject("Atmosphere", typeof(Atmosphere));
             Object.DontDestroyOnLoad(driver);
         }

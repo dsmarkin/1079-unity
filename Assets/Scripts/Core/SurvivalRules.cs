@@ -39,7 +39,9 @@ namespace Height1079.Core
         /// <summary>Seconds of steady kindling needed with the given hand condition.</summary>
         public static float KindleSeconds(float hands) => 3.2f + (100f - hands) * .09f;
 
-        /// <summary>Scheduled storms: the first at 120 s, then alternating 150 s windows.</summary>
+        /// <summary>A player who is out of the night without reaching shelter.</summary>
+        public static bool Fell(Outcome o) => o == Outcome.Cold || o == Outcome.Taken;
+
         /// <summary>Blizzards: the first front at 110 s, then 170 s of пурга and 100 s of lull, again and again.</summary>
         public static bool StormAt(float elapsed) => elapsed > 110f && (elapsed - 110f) % 270f < 170f;
 
@@ -51,11 +53,12 @@ namespace Height1079.Core
             Outcome.Together => new OutcomeText("Вместе до укрытия", "Оба путника дошли до верхнего укрытия. Совместный маршрут завершён."),
             Outcome.Separated => new OutcomeText("Разделённая пара", "Один дошёл до укрытия, другой остался на склоне. Протокол показывает, где решения разошлись."),
             Outcome.Lost => new OutcomeText("Никто не дошёл", "Тепло иссякло у всех участников до выхода к укрытию."),
+            Outcome.Taken => new OutcomeText("Менк", "Лесной великан, притворявшийся сухим деревом, настиг вас в темноте. Это вымысел игры по мотивам мансийских преданий, а не версия гибели реальных людей."),
             _ => new OutcomeText("", "")
         };
     }
 
-    public enum Outcome { None, Cold, Arrival, Dawn, Together, Separated, Lost }
+    public enum Outcome { None, Cold, Arrival, Dawn, Together, Separated, Lost, Taken }
 
     public readonly struct OutcomeText
     {

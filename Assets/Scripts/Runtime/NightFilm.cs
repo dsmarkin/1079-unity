@@ -7,7 +7,10 @@ namespace Height1079.Runtime
     /// (the eye straining in the dark) and a cold blue cast. No post-processing package needed.</summary>
     public sealed class NightFilm : MonoBehaviour
     {
-        RawImage vignette, grain, tint;
+        public static NightFilm Instance { get; private set; }
+
+        RawImage vignette, grain, tint, blow;
+        float flash;
         float strength;
         float storm;
 
@@ -26,6 +29,9 @@ namespace Height1079.Runtime
             tint = Layer("Tint", Texture2D.whiteTexture);
             vignette = Layer("Vignette", Vignette());
             grain = Layer("Grain", Grain());
+            blow = Layer("Blow", Vignette());
+            blow.color = Color.clear;
+            Instance = this;
             Set(0f, 0f);
         }
 
@@ -50,8 +56,17 @@ namespace Height1079.Runtime
             grain.enabled = night > .05f;
         }
 
+        /// <summary>A blow: the edges go dark red and the view nearly blacks out, then clears.</summary>
+        public void Flash(float strength) => flash = Mathf.Max(flash, strength);
+
         void Update()
         {
+            if (blow != null)
+            {
+                flash = Mathf.MoveTowards(flash, 0f, Time.deltaTime * .45f);
+                blow.color = new Color(.25f, 0f, 0f, Mathf.Clamp01(flash * 1.6f));
+                tint.color = new Color(tint.color.r, tint.color.g, tint.color.b, Mathf.Max(tint.color.a, flash * flash * .85f));
+            }
             if (grain == null || !grain.enabled) return;
             // jump the grain every frame so it shimmers rather than sits on the screen
             float aspect = Screen.height > 0 ? (float)Screen.width / Screen.height : 1.7f;

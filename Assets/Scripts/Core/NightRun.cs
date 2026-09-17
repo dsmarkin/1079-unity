@@ -94,8 +94,8 @@ namespace Height1079.Core
         {
             if (players.Count == 1) return players[0].Outcome;
             if (players.All(p => p.Outcome == Outcome.Arrival)) return Outcome.Together;
-            if (players.All(p => p.Outcome == Outcome.Cold)) return Outcome.Lost;
-            if (players.Any(p => p.Outcome == Outcome.Arrival) && players.Any(p => p.Outcome == Outcome.Cold)) return Outcome.Separated;
+            if (players.All(p => SurvivalRules.Fell(p.Outcome))) return Outcome.Lost;
+            if (players.Any(p => p.Outcome == Outcome.Arrival) && players.Any(p => SurvivalRules.Fell(p.Outcome))) return Outcome.Separated;
             return Outcome.Dawn;
         }
 
@@ -154,6 +154,21 @@ namespace Height1079.Core
                 Record($"Итог ночи: {SurvivalRules.Describe(Outcome).Title.ToLowerInvariant()}.");
             }
             return Events.Count != before || Outcome != Outcome.None;
+        }
+
+        /// <summary>A blow from the forest giant: knocks warmth and wits out of the player; a player with nothing left is taken.
+        /// Returns true when the blow decided the player's outcome.</summary>
+        public bool Strike(string token, float damage, string text)
+        {
+            if (Outcome != Outcome.None || !Players.TryGetValue(token, out var p) || p.Outcome != Outcome.None) return false;
+            p.Heat = Math.Max(0f, p.Heat - damage);
+            p.Clarity = Math.Max(0f, p.Clarity - damage * .6f);
+            p.KindlingStarted = null;
+            Record(text.Replace("{name}", p.Name));
+            if (p.Heat > 1f) return false;
+            p.Outcome = Outcome.Taken;
+            Record($"{p.Name}: {SurvivalRules.Describe(p.Outcome).Title.ToLowerInvariant()} ({SurvivalRules.NightTime(Elapsed)}).");
+            return true;
         }
 
         /// <summary>Kindling progress for HUD: (seconds held, seconds needed) or null.</summary>
