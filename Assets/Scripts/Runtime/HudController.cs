@@ -121,7 +121,7 @@ namespace Height1079.Runtime
         /// the location is not negotiated over the network yet (docs/BACKLOG.md).</summary>
         void SetPlace(Place place)
         {
-            World.Current = place;
+            Bootstrap.SetPlace(place);
             bool elbrus = place == Place.Elbrus;
             if (kholatButton != null) kholatButton.GetComponent<Image>().color = elbrus ? PlaceOff : PlaceOn;
             if (elbrusButton != null) elbrusButton.GetComponent<Image>().color = elbrus ? PlaceOn : PlaceOff;

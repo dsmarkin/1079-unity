@@ -1,6 +1,8 @@
+using System.Collections.Generic;
 using Unity.Netcode;
 using Unity.Netcode.Transports.UTP;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 using UnityEngine.EventSystems;
 using Height1079.Core;
 
@@ -45,22 +47,51 @@ namespace Height1079.Runtime
             // the night is lit by a handful of small lights (torches, fire, stove): keep them per-pixel with shadows close by
             QualitySettings.pixelLightCount = Mathf.Max(QualitySettings.pixelLightCount, 6);
             QualitySettings.shadowDistance = Mathf.Max(QualitySettings.shadowDistance, 45f);
-            Dem = TerrainBuilder.LoadDem();
-            BuildWorld();
+            LoadPlace();
             BuildNetwork();
             Hud = HudController.Create();
-            PlaceMenuCamera();
             Ambience.Create();
             Weather.Create();
-            if (!World.IsElbrus)
-            {
-                SnowFx.Create();
-                ForestMist.Create();
-                MenkView.Create();
-            }
             PackView.Create();
             var driver = new GameObject("Atmosphere", typeof(Atmosphere));
             Object.DontDestroyOnLoad(driver);
+        }
+
+        /// <summary>Root objects the world build created, so switching places can take them down again.</summary>
+        static readonly List<GameObject> placeObjects = new List<GameObject>();
+        static readonly List<GameObject> placeExtras = new List<GameObject>();
+
+        /// <summary>Menu: the chosen place. Everything — terrain, height grid, dressing, light, weather helpers — is rebuilt,
+        /// because the two maps have different sizes, frames and rules; without this the hiker spawns outside the terrain.</summary>
+        public static void SetPlace(Place place)
+        {
+            if (place == World.Current && placeObjects.Count > 0) return;
+            if (NetworkManager.Singleton != null && (NetworkManager.Singleton.IsListening || NetworkManager.Singleton.IsConnectedClient)) return;
+            World.Current = place;
+            foreach (var go in placeObjects) if (go != null) Object.Destroy(go);
+            placeObjects.Clear();
+            foreach (var go in placeExtras) if (go != null) Object.Destroy(go);
+            placeExtras.Clear();
+            Forest.Forget();
+            LoadPlace();
+        }
+
+        /// <summary>Loads the height grid of the active place, builds its world and points the menu camera at it.</summary>
+        static void LoadPlace()
+        {
+            Dem = TerrainBuilder.LoadDem();
+            var before = new HashSet<GameObject>(SceneManager.GetActiveScene().GetRootGameObjects());
+            BuildWorld();
+            foreach (var go in SceneManager.GetActiveScene().GetRootGameObjects())
+                if (!before.Contains(go)) placeObjects.Add(go);
+            // the night machinery belongs to Kholat only
+            if (!World.IsElbrus)
+            {
+                placeExtras.Add(SnowFx.Create().gameObject);
+                placeExtras.Add(ForestMist.Create().gameObject);
+                placeExtras.Add(MenkView.Create().gameObject);
+            }
+            PlaceMenuCamera();
         }
 
         /// <summary>The menu looks up the valley from behind the 31 Jan camp toward the slope; the scene camera in Main.unity sits inside the mountain otherwise.</summary>
