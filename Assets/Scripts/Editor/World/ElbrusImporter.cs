@@ -44,6 +44,7 @@ namespace Height1079.EditorTools.World
 
             EditorUtility.DisplayProgressBar("1079 Эльбрус", "Станции, кабины, приюты", .1f);
             ElbrusFactory.Build();
+            ElbrusProps.Build();
 
             EditorUtility.DisplayProgressBar("1079 Эльбрус", "Рельеф", .4f);
             var data = new TerrainData { heightmapResolution = Elbrus.Resolution };
@@ -64,6 +65,9 @@ namespace Height1079.EditorTools.World
             EditorUtility.DisplayProgressBar("1079 Эльбрус", "Сосновый лес Баксана и валуны", .85f);
             Scatter(data, dem, rock);
             Meadow(data, dem);
+
+            EditorUtility.DisplayProgressBar("1079 Эльбрус", "Карта района", .92f);
+            ElbrusMapFactory.Build(dem);
 
             AssetDatabase.DeleteAsset(TerrainAsset);
             AssetDatabase.CreateAsset(data, TerrainAsset);

@@ -44,6 +44,36 @@ namespace Height1079.EditorTools.World
             go.AddComponent<BoxCollider>().size = size;
         }
 
+        /// <summary>A material that glows on its own (a bulb, the open door of a stove). No GI: the emission is only
+        /// what the surface itself shows, which is all a daylight map needs.</summary>
+        static Material Emissive(string name, Color baseColor, Color emission, float smoothness = .3f)
+        {
+            var m = Materials.Get(name, baseColor, smoothness: smoothness);
+            m.EnableKeyword("_EMISSION"); m.SetColor("_EmissionColor", emission);
+            m.globalIlluminationFlags = MaterialGlobalIlluminationFlags.None;
+            EditorUtility.SetDirty(m);
+            return m;
+        }
+
+        /// <summary>Window glass you can see through, unlike the dark mirrored <see cref="Glass"/> of the stations.
+        /// The renderers that use it have their shadows switched off, so the July sun reaches the café tables.</summary>
+        static Material GlassClear
+        {
+            get
+            {
+                var m = Materials.Get("ElbGlassClear", new Color(.78f, .85f, .88f, .22f), smoothness: .95f);
+                m.SetFloat("_Mode", 3);
+                m.SetOverrideTag("RenderType", "Transparent");
+                m.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
+                m.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+                m.SetInt("_ZWrite", 0);
+                m.DisableKeyword("_ALPHATEST_ON"); m.EnableKeyword("_ALPHABLEND_ON"); m.DisableKeyword("_ALPHAPREMULTIPLY_ON");
+                m.renderQueue = 3000;
+                EditorUtility.SetDirty(m);
+                return m;
+            }
+        }
+
         // ── materials ─────────────────────────────────────────────────────────────────────────────────────
         static Material Steel => Materials.Get("ElbSteel", new Color(.46f, .48f, .5f), smoothness: .55f);
         static Material Paint => Materials.Get("ElbPaint", new Color(.82f, .28f, .2f), smoothness: .45f);
@@ -64,6 +94,9 @@ namespace Height1079.EditorTools.World
         static Material Tarp => Materials.Get("ElbCanvas", new Color(.86f, .84f, .78f), smoothness: .08f);
         static Material TarpRed => Materials.Get("ElbCanvasRed", new Color(.72f, .2f, .18f), smoothness: .08f);
         static Material Rebar => Materials.Get("ElbRebar", new Color(.42f, .3f, .22f), smoothness: .3f);
+        static Material Chalkboard => Materials.Get("ElbChalkboard", new Color(.08f, .12f, .1f), smoothness: .06f);
+        static Material LampGlow => Emissive("ElbLampGlow", new Color(.98f, .93f, .82f), new Color(1f, .82f, .55f) * 2.4f, .4f);
+        static Material StoveGlow => Emissive("ElbStoveGlow", new Color(.35f, .16f, .09f), new Color(1f, .38f, .1f) * 1.8f, .15f);
 
         public static void Build()
         {
@@ -88,7 +121,9 @@ namespace Height1079.EditorTools.World
             OldStation();
             Hotel("Elb_Hotel", 18f, 11f, 3, RoofGreen);
             Hotel("Elb_Chalet", 12f, 8f, 2, RoofRust);
-            Cafe();
+            Cafe("Elb_Cafe", 8f, 10f, 3f);             // the shashlyk place of Azau and the café of every station
+            Cafe("Elb_Cafe_Hall", 11f, 12f, 3.2f);     // the bigger hall of Mir, Krugozor and Gara-Bashi
+            CafeFood();
             Kiosk();
             TicketOffice();
             Toilets();
@@ -727,56 +762,332 @@ namespace Height1079.EditorTools.World
             return Save(root);
         }
 
-        /// <summary>A café: a log-and-plank hut with a stove pipe, a terrace in front with two tables under umbrellas.
-        /// The same building serves as a shashlyk place at Azau and as the café at Krugozor, Mir and Gara-Bashi.</summary>
-        static GameObject Cafe()
+        /// <summary>A café you can walk into. Plank walls with a real doorway (1.6 m wide, 2.2 m high, the floor only
+        /// 0.15 m over the ground) and glazed windows that let the July sun in; inside, a counter with a coffee machine
+        /// and a display case, tables with benches, a stove in the corner, shelves of crockery, the chalk board with the
+        /// menu taken straight out of <see cref="Refreshments"/>, a coat rack by the door and lamps under the ceiling.
+        /// The terrace with its parasols stays in front of the door as it always was.
+        /// Pivot = the ground under the middle of the building, +Z = the front with the door and the terrace.
+        /// The empty child <c>Counter</c> marks where the customer stands to order — <c>CafeService</c> finds it by that
+        /// name, so it must not be renamed.</summary>
+        static GameObject Cafe(string name, float W, float L, float H)
         {
-            var root = new GameObject("Elb_Cafe");
+            var root = new GameObject(name);
             var t = root.transform;
-            const float L = 9f, W = 6.5f, H = 3.1f;
+            float hw = W / 2f, hl = L / 2f;
+            const float T = .22f;                       // wall thickness
+            const float F = .15f;                       // floor over the ground: the step into the doorway
+            const float DW = 1.6f, DH = 2.2f;           // doorway
+            const float Terrace = 3f;                   // depth of the deck in front of the door
+            float top = F + H;                          // ceiling
+            float dx = -hw + T + 1f + DW / 2f;          // the door sits toward the left corner
+            float dL = dx - DW / 2f, dR = dx + DW / 2f;
+            float wy0 = F + 1f, wy1 = F + 2.1f;         // band of the side windows
+            float fy0 = F + .95f, fy1 = F + 2.25f;      // the big front window
+            float fx0 = dR + .55f, fx1 = hw - .55f;
+            float wallY = F + H / 2f;                   // centre of a full-height wall
 
+            // ── floor, terrace deck and the ramp up onto it ───────────────────────────────────────────────
+            var floor = new MeshBuilder(1);
+            floor.Box(0, new Vector3(0, F / 2f, 0), new Vector3(W, F, L), Quaternion.identity, .5f);
+            floor.Box(0, new Vector3(0, F / 2f, hl + Terrace / 2f), new Vector3(W + 2f, F, Terrace), Quaternion.identity, .5f);
+            Part(t, "Floor", floor, Plank);
+
+            // Steps down from the terrace: five of 0.15 m, the height a walking capsule takes without noticing. They
+            // reach 0.6 m below the pivot, so the door is still walkable when the slope has put the building up on a
+            // plinth; on flat ground all but the first are buried and never show.
+            var steps = new MeshBuilder(1);
+            for (int k = 0; k < 5; k++)
+            {
+                var block = new Vector3(0, -k * .15f - .7f, hl + Terrace + .2f + k * .4f);
+                var size = new Vector3(W, 1.4f, .4f);
+                steps.Box(0, block, size, Quaternion.identity, .6f);
+                Solid(t, "StepSolid" + k, block, size);
+            }
+            Part(t, "Steps", steps, Stone);
+
+            // ── walls: the front one is built around the door and the window, the sides around their openings ──
             var walls = new MeshBuilder(1);
-            walls.Box(0, new Vector3(0, .18f, 0), new Vector3(W + 3.4f, .36f, L + 3f), Quaternion.identity, .5f);      // deck
-            walls.Box(0, new Vector3(0, .36f + H / 2, -1.2f), new Vector3(W, H, L - 2.4f), Quaternion.identity, .5f);
-            Part(t, "Walls", walls, PlankDark);
+            float zf = hl - T / 2f, zb = -hl + T / 2f;
+            // front: pier beside the door, lintel over it, then sill / header / jambs around the window
+            walls.Box(0, new Vector3((-hw + dL) / 2f, wallY, zf), new Vector3(dL + hw, H, T), Quaternion.identity, .5f);
+            walls.Box(0, new Vector3(dx, F + (DH + H) / 2f, zf), new Vector3(DW, H - DH, T), Quaternion.identity, .5f);
+            walls.Box(0, new Vector3((dR + hw) / 2f, (F + fy0) / 2f, zf), new Vector3(hw - dR, fy0 - F, T), Quaternion.identity, .5f);
+            walls.Box(0, new Vector3((dR + hw) / 2f, (fy1 + top) / 2f, zf), new Vector3(hw - dR, top - fy1, T), Quaternion.identity, .5f);
+            walls.Box(0, new Vector3((dR + fx0) / 2f, (fy0 + fy1) / 2f, zf), new Vector3(fx0 - dR, fy1 - fy0, T), Quaternion.identity, .5f);
+            walls.Box(0, new Vector3((fx1 + hw) / 2f, (fy0 + fy1) / 2f, zf), new Vector3(hw - fx1, fy1 - fy0, T), Quaternion.identity, .5f);
+            // back: solid
+            walls.Box(0, new Vector3(0, wallY, zb), new Vector3(W, H, T), Quaternion.identity, .5f);
+            // sides: a band of windows down both of them
+            int n = Mathf.Max(2, Mathf.RoundToInt(L / 3.4f));
+            float pitch = L / n, ow = pitch * .55f;
+            for (int i = -1; i <= 1; i += 2)
+            {
+                float xs = i * (hw - T / 2f);
+                walls.Box(0, new Vector3(xs, (F + wy0) / 2f, 0), new Vector3(T, wy0 - F, L), Quaternion.identity, .5f);
+                walls.Box(0, new Vector3(xs, (wy1 + top) / 2f, 0), new Vector3(T, top - wy1, L), Quaternion.identity, .5f);
+                for (int k = 0; k <= n; k++)
+                {
+                    float z0 = k == 0 ? -hl : -hl + pitch * (k - .5f) + ow / 2f;
+                    float z1 = k == n ? hl : -hl + pitch * (k + .5f) - ow / 2f;
+                    if (z1 - z0 < .05f) continue;
+                    walls.Box(0, new Vector3(xs, (wy0 + wy1) / 2f, (z0 + z1) / 2f), new Vector3(T, wy1 - wy0, z1 - z0), Quaternion.identity, .5f);
+                }
+            }
+            Part(t, "Walls", walls, Plank);
 
+            // ── glazing: clear panes that do not cast shadows, so the sun reaches the tables ───────────────
             var glass = new MeshBuilder(1);
-            glass.Quad(0, new Vector3(-2.4f, 1.1f, L / 2 - 2.35f), new Vector3(2.4f, 1.1f, L / 2 - 2.35f),
-                new Vector3(2.4f, 2.7f, L / 2 - 2.35f), new Vector3(-2.4f, 2.7f, L / 2 - 2.35f),
+            glass.Quad(0, new Vector3(fx0, fy0, zf), new Vector3(fx1, fy0, zf), new Vector3(fx1, fy1, zf), new Vector3(fx0, fy1, zf),
                 Vector2.zero, Vector2.right, Vector2.one, Vector2.up, true);
-            Windows(glass, 0, W + .06f, L - 4f, 1.2f, 2.6f, 2, 1.2f);
-            Part(t, "Windows", glass, Glass);
+            for (int i = -1; i <= 1; i += 2)
+            {
+                float xs = i * (hw - T / 2f);
+                for (int k = 0; k < n; k++)
+                {
+                    float c = -hl + pitch * (k + .5f);
+                    glass.Quad(0, new Vector3(xs, wy0, c - ow / 2f), new Vector3(xs, wy0, c + ow / 2f),
+                        new Vector3(xs, wy1, c + ow / 2f), new Vector3(xs, wy1, c - ow / 2f),
+                        Vector2.zero, Vector2.right, Vector2.one, Vector2.up, true);
+                }
+            }
+            var pane = Part(t, "Glazing", glass, GlassClear);
+            pane.GetComponent<MeshRenderer>().shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
 
+            // ── frames, mullions, the door lining ─────────────────────────────────────────────────────────
+            var trim = new MeshBuilder(1);
+            for (int k = 1; k * 1.9f < fx1 - fx0; k++)
+                trim.Box(0, new Vector3(fx0 + k * 1.9f, (fy0 + fy1) / 2f, zf), new Vector3(.08f, fy1 - fy0, T + .02f), Quaternion.identity, 1f);
+            for (int i = -1; i <= 1; i += 2)
+                for (int k = 0; k < n; k++)
+                    trim.Box(0, new Vector3(i * (hw - T / 2f), (wy0 + wy1) / 2f, -hl + pitch * (k + .5f)), new Vector3(T + .02f, wy1 - wy0, .08f), Quaternion.identity, 1f);
+            trim.Box(0, new Vector3(dL - .06f, F + DH / 2f, zf), new Vector3(.12f, DH, T + .04f), Quaternion.identity, 1f);   // door jambs
+            trim.Box(0, new Vector3(dR + .06f, F + DH / 2f, zf), new Vector3(.12f, DH, T + .04f), Quaternion.identity, 1f);
+            trim.Box(0, new Vector3(dx, F + DH + .06f, zf), new Vector3(DW + .24f, .12f, T + .04f), Quaternion.identity, 1f); // lintel
+            Part(t, "Trim", trim, PlankDark);
+
+            // ── roof, gable ends and the ceiling seen from inside ─────────────────────────────────────────
             var roof = new MeshBuilder(1);
-            Gable(roof, 0, new Vector3(0, .36f + H, -1.2f), W, L - 2.4f, 1.5f, .8f);
+            Gable(roof, 0, new Vector3(0, top, 0), W, L, 1.5f, .75f);
+            GableEnd(roof, 0, hl, 1f, hw, top, 1.5f);
+            GableEnd(roof, 0, -hl, -1f, hw, top, 1.5f);
             Part(t, "Roof", roof, RoofRust);
 
-            var pipe = new MeshBuilder(1);
-            pipe.Tube(0, new Vector3(1.6f, .36f + H + .6f, -2.6f), new Vector3(1.6f, .36f + H + 2.4f, -2.6f), .11f, .1f, 8, 1f, 0, true);
-            Part(t, "Pipe", pipe, Steel);
+            var ceiling = new MeshBuilder(1);
+            ceiling.Box(0, new Vector3(0, top - .08f, 0), new Vector3(W - 2 * T, .16f, L - 2 * T), Quaternion.identity, .6f);
+            Part(t, "Ceiling", ceiling, PlankDark);
 
-            // terrace: two tables with parasols and a low rail
-            var furn = new MeshBuilder(1);
+            // ── the counter: bar, steel top, display case, coffee machine, shelves of crockery ─────────────
+            float barZ = -hl + T + .5f;
+            float barX0 = -hw + T, barX1 = hw - T - 2f;
+            float barW = barX1 - barX0, barX = (barX0 + barX1) / 2f;
+
+            var bar = new MeshBuilder(1);
+            bar.Box(0, new Vector3(barX, F + .5f, barZ), new Vector3(barW, 1f, .9f), Quaternion.identity, .8f);
+            bar.Box(0, new Vector3(barX, F + 1.04f, barZ), new Vector3(barW + .14f, .08f, 1.02f), Quaternion.identity, .8f);
+            for (int k = 0; k < 3; k++)                                    // shelves on the back wall, clear of the display case
+                bar.Box(0, new Vector3((barX0 + barX) / 2f, F + 1.72f + k * .4f, -hl + T + .16f), new Vector3(barW / 2f, .05f, .3f), Quaternion.identity, .8f);
+            Part(t, "Bar", bar, PlankDark);
+
+            var steel = new MeshBuilder(1);
+            float machineX = barX1 - .75f;
+            steel.Box(0, new Vector3(machineX, F + 1.32f, barZ - .1f), new Vector3(.62f, .48f, .5f), Quaternion.identity, 1f);       // coffee machine
+            steel.Box(0, new Vector3(machineX, F + 1.6f, barZ - .1f), new Vector3(.5f, .08f, .42f), Quaternion.identity, 1f);
+            for (int k = -1; k <= 1; k += 2)
+                steel.Tube(0, new Vector3(machineX + k * .16f, F + 1.12f, barZ + .16f), new Vector3(machineX + k * .16f, F + 1.26f, barZ + .16f), .035f, .045f, 6, 1f, 0, true);
+            steel.Box(0, new Vector3(machineX - .62f, F + 1.2f, barZ - .12f), new Vector3(.3f, .24f, .3f), Quaternion.identity, 1f); // grinder
+            for (int k = 0; k < 8; k++)                                    // cups on the shelves
+            {
+                float cx = barX0 + .35f + k * (barW / 2f - .5f) / 7f;
+                steel.Tube(0, new Vector3(cx, F + 1.75f, -hl + T + .16f), new Vector3(cx, F + 1.84f, -hl + T + .16f), .04f, .042f, 8, 1f, 0, true);
+                steel.Tube(0, new Vector3(cx, F + 2.15f, -hl + T + .16f), new Vector3(cx, F + 2.26f, -hl + T + .16f), .045f, .047f, 8, 1f, 0, true);
+            }
+            Part(t, "Counterware", steel, Alu);
+
+            var showcase = new MeshBuilder(1);                              // the display case with the khychiny
+            float caseX = barX0 + barW * .28f;
+            showcase.Box(0, new Vector3(caseX, F + 1.34f, barZ), new Vector3(barW * .42f, .5f, .78f), Quaternion.identity, 1f);
+            var glassCase = Part(t, "Showcase", showcase, GlassClear);
+            glassCase.GetComponent<MeshRenderer>().shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+
+            var food = new MeshBuilder(1);
+            for (int k = 0; k < 5; k++)
+            {
+                float fx = caseX - barW * .16f + k * barW * .08f;
+                food.Tube(0, new Vector3(fx, F + 1.14f, barZ - .1f), new Vector3(fx, F + 1.18f, barZ - .1f), .12f, .115f, 10, 1f, 0, true);
+                food.Tube(0, new Vector3(fx, F + 1.4f, barZ + .12f), new Vector3(fx, F + 1.44f, barZ + .12f), .1f, .095f, 10, 1f, 0, true);
+            }
+            Part(t, "Pastry", food, Bamboo);
+
+            // ── the chalk board over the counter ──────────────────────────────────────────────────────────
+            var board = new MeshBuilder(1);
+            float boardX = barX + barW * .27f, boardZ = -hl + T + .05f;
+            board.Box(0, new Vector3(boardX, F + 1.98f, boardZ), new Vector3(1.9f, 1.15f, .07f), Quaternion.identity, 1f);
+            Part(t, "Board", board, Chalkboard);
+            var menu = new GameObject("Menu"); menu.transform.SetParent(t, false);
+            menu.transform.localPosition = new Vector3(boardX, F + 1.98f, boardZ + .06f);
+            var menuText = menu.AddComponent<TextMesh>();
+            menuText.text = Refreshments.Board(9);
+            menuText.characterSize = .035f; menuText.fontSize = 60;
+            menuText.anchor = TextAnchor.MiddleCenter; menuText.alignment = TextAlignment.Left;
+            menuText.color = new Color(.93f, .93f, .88f);
+
+            // ── tables, benches, the stove and the coat rack ──────────────────────────────────────────────
+            float tz0 = barZ + 1.9f, tz1 = tz0 + 2.3f, tx = hw - T - 1.15f;
+            var furniture = new MeshBuilder(1);
+            var legs = new MeshBuilder(1);
+            for (int r = 0; r < 2; r++)
+                for (int i = -1; i <= 1; i += 2)
+                {
+                    float cx = i * tx, cz = r == 0 ? tz0 : tz1;
+                    furniture.Box(0, new Vector3(cx, F + .76f, cz), new Vector3(.95f, .07f, .95f), Quaternion.identity, 1f);
+                    legs.Tube(0, new Vector3(cx, F, cz), new Vector3(cx, F + .74f, cz), .045f, .04f, 8, 1f, 0, true);
+                    legs.Tube(0, new Vector3(cx, F + .01f, cz), new Vector3(cx, F + .05f, cz), .28f, .26f, 10, 1f, 0, true);
+                    for (int b = -1; b <= 1; b += 2)                       // a bench on each side
+                    {
+                        furniture.Box(0, new Vector3(cx + b * .78f, F + .44f, cz), new Vector3(.32f, .06f, 1f), Quaternion.identity, 1f);
+                        furniture.Box(0, new Vector3(cx + b * .78f, F + .22f, cz - .38f), new Vector3(.28f, .44f, .07f), Quaternion.identity, 1f);
+                        furniture.Box(0, new Vector3(cx + b * .78f, F + .22f, cz + .38f), new Vector3(.28f, .44f, .07f), Quaternion.identity, 1f);
+                    }
+                }
+            // the coat rack by the door
+            float rackX = dR + .18f, rackZ = hl - T - .35f;
+            legs.Tube(0, new Vector3(rackX, F, rackZ), new Vector3(rackX, F + 1.85f, rackZ), .05f, .04f, 8, 1f, 0, true);
+            legs.Tube(0, new Vector3(rackX - .45f, F + 1.78f, rackZ), new Vector3(rackX + .45f, F + 1.78f, rackZ), .028f, .028f, 6, 1f);
+            for (int k = -2; k <= 2; k++)
+                legs.Tube(0, new Vector3(rackX + k * .22f, F + 1.78f, rackZ), new Vector3(rackX + k * .22f, F + 1.68f, rackZ + .06f), .018f, .016f, 5, 1f, 0, true);
+            Part(t, "Furniture", furniture, Plank);
+
+            // the stove in the corner beside the counter, its pipe out through the roof
+            float sx = hw - T - .85f, sz = -hl + T + .8f;
+            legs.Tube(0, new Vector3(sx, F + .16f, sz), new Vector3(sx, F + .92f, sz), .31f, .3f, 12, 1f, 0, true);
+            legs.Box(0, new Vector3(sx, F + .96f, sz), new Vector3(.74f, .06f, .74f), Quaternion.identity, 1f);
+            for (int k = 0; k < 4; k++)
+                legs.Tube(0, new Vector3(sx + ((k & 1) == 0 ? -.2f : .2f), F, sz + (k < 2 ? -.2f : .2f)),
+                    new Vector3(sx + ((k & 1) == 0 ? -.22f : .22f), F + .17f, sz + (k < 2 ? -.22f : .22f)), .03f, .03f, 5, 1f, 0, true);
+            legs.Tube(0, new Vector3(sx, F + .96f, sz), new Vector3(sx, top + 1.6f, sz), .1f, .09f, 8, 1f, 0, true);
+            Part(t, "Steelwork", legs, Steel);
+
+            var fire = new MeshBuilder(1);                                   // the open firebox door
+            fire.Box(0, new Vector3(sx, F + .5f, sz + .3f), new Vector3(.34f, .3f, .04f), Quaternion.identity, 1f);
+            Part(t, "Firebox", fire, StoveGlow);
+
+            // ── lamps under the ceiling, and the one real light ───────────────────────────────────────────
+            var shades = new MeshBuilder(1);
+            var bulbs = new MeshBuilder(1);
+            for (int k = 0; k < 3; k++)
+            {
+                float lz = -hl + L * (k + 1) / 4f;
+                shades.Tube(0, new Vector3(0, top - .16f, lz), new Vector3(0, top - .44f, lz), .015f, .015f, 5, 1f);
+                shades.Cone(0, new Vector3(0, top - .62f, lz), .21f, .19f, 10, 1f);
+                bulbs.Tube(0, new Vector3(0, top - .66f, lz), new Vector3(0, top - .63f, lz), .15f, .15f, 10, 1f, 0, true);
+            }
+            Part(t, "Shades", shades, Steel);
+            Part(t, "Bulbs", bulbs, LampGlow);
+
+            var lampGo = new GameObject("CafeLight", typeof(Light));
+            lampGo.transform.SetParent(t, false);
+            lampGo.transform.localPosition = new Vector3(0, top - .75f, barZ + L * .3f);
+            var lamp = lampGo.GetComponent<Light>();
+            lamp.type = LightType.Point;
+            lamp.color = new Color(1f, .86f, .64f);
+            lamp.range = Mathf.Max(W, L) * .8f;    // kept short: without shadows a longer range would spill onto the terrace
+            lamp.intensity = 2.4f;                 // the day outside is bright: a dim lamp would not read through the windows
+            lamp.shadows = LightShadows.None;      // eight cafés on the slope, one shadowed point light each would cost too much
+            lamp.renderMode = LightRenderMode.ForcePixel;
+
+            // ── terrace: tables under parasols and the low rail, as before ────────────────────────────────
+            var deck = new MeshBuilder(1);
             for (int k = -1; k <= 1; k += 2)
             {
-                var c = new Vector3(k * 2.2f, .36f, L / 2 - .4f);
-                furn.Tube(0, c, c + new Vector3(0, .74f, 0), .05f, .05f, 6, 1f, 0, true);
-                furn.Box(0, c + new Vector3(0, .76f, 0), new Vector3(1.1f, .07f, 1.1f), Quaternion.identity, 1f);
-                furn.Tube(0, c, c + new Vector3(0, 2.3f, 0), .035f, .03f, 6, 1f);
+                var c = new Vector3(k * (hw * .55f), F, hl + 1.1f);
+                deck.Tube(0, c, c + new Vector3(0, .74f, 0), .05f, .05f, 6, 1f, 0, true);
+                deck.Box(0, c + new Vector3(0, .76f, 0), new Vector3(1.1f, .07f, 1.1f), Quaternion.identity, 1f);
+                deck.Tube(0, c, c + new Vector3(0, 2.3f, 0), .035f, .03f, 6, 1f);
             }
-            for (int k = 0; k < 8; k++)
-                furn.Box(0, new Vector3(-W / 2 - 1.5f + k * (W + 3f) / 7f, .36f + .45f, L / 2 + 1.3f), new Vector3(.07f, .9f, .07f), Quaternion.identity, 1f);
-            furn.Box(0, new Vector3(0, .36f + .92f, L / 2 + 1.3f), new Vector3(W + 3f, .08f, .1f), Quaternion.identity, 1f);
-            Part(t, "Terrace", furn, Plank);
+            for (int k = 0; k < 9; k++)
+                deck.Box(0, new Vector3(-hw - 1f + k * (W + 2f) / 8f, F + .45f, hl + Terrace - .12f), new Vector3(.07f, .9f, .07f), Quaternion.identity, 1f);
+            deck.Box(0, new Vector3(0, F + .92f, hl + Terrace - .12f), new Vector3(W + 2f, .08f, .1f), Quaternion.identity, 1f);
+            Part(t, "Terrace", deck, Plank);
 
-            var shade = new MeshBuilder(1);
+            var shade2 = new MeshBuilder(1);
             for (int k = -1; k <= 1; k += 2)
-                shade.Cone(0, new Vector3(k * 2.2f, .36f + 2.32f, L / 2 - .4f), 1.5f, -.45f, 8, 1f);
-            Part(t, "Parasols", shade, TarpRed);
+                shade2.Cone(0, new Vector3(k * (hw * .55f), F + 2.32f, hl + 1.1f), 1.5f, -.45f, 8, 1f);
+            Part(t, "Parasols", shade2, TarpRed);
 
-            Solid(t, "Body", new Vector3(0, .36f + H / 2, -1.2f), new Vector3(W, H, L - 2.4f));
-            Solid(t, "Deck", new Vector3(0, .18f, 0), new Vector3(W + 3.4f, .36f, L + 3f));
+            // ── where the customer stands to order ────────────────────────────────────────────────────────
+            var counter = new GameObject("Counter");
+            counter.transform.SetParent(t, false);
+            counter.transform.localPosition = new Vector3(barX, F, barZ + 1.05f);
+            counter.transform.localRotation = Quaternion.Euler(0, 180f, 0);   // facing the bar
+
+            // ── colliders: the walls in pieces so the doorway stays open ──────────────────────────────────
+            Solid(t, "FloorSolid", new Vector3(0, F / 2f, 0), new Vector3(W, F, L));
+            Solid(t, "DeckSolid", new Vector3(0, F / 2f, hl + Terrace / 2f), new Vector3(W + 2f, F, Terrace));
+            Solid(t, "WallFrontLeft", new Vector3((-hw + dL) / 2f, top / 2f, zf), new Vector3(dL + hw, top, T));
+            Solid(t, "WallFrontRight", new Vector3((dR + hw) / 2f, top / 2f, zf), new Vector3(hw - dR, top, T));
+            Solid(t, "WallFrontLintel", new Vector3(dx, F + (DH + H) / 2f, zf), new Vector3(DW, H - DH, T));
+            Solid(t, "WallBack", new Vector3(0, top / 2f, zb), new Vector3(W, top, T));
+            Solid(t, "WallWest", new Vector3(-(hw - T / 2f), top / 2f, 0), new Vector3(T, top, L));
+            Solid(t, "WallEast", new Vector3(hw - T / 2f, top / 2f, 0), new Vector3(T, top, L));
+            Solid(t, "CeilingSolid", new Vector3(0, top - .08f, 0), new Vector3(W, .16f, L));
+            Solid(t, "BarSolid", new Vector3(barX, F + .55f, barZ), new Vector3(barW, 1.1f, .95f));
+            Solid(t, "StoveSolid", new Vector3(sx, F + .5f, sz), new Vector3(.7f, 1f, .7f));
+            for (int r = 0; r < 2; r++)
+                for (int i = -1; i <= 1; i += 2)
+                    Solid(t, $"TableSolid{r}{(i < 0 ? "W" : "E")}", new Vector3(i * tx, F + .4f, r == 0 ? tz0 : tz1), new Vector3(1f, .8f, 1f));
             return Save(root);
+        }
+
+        /// <summary>The triangle that closes a gable end. <paramref name="nz"/> is +1 for the wall that faces +Z.</summary>
+        static void GableEnd(MeshBuilder mb, int sub, float z, float nz, float halfWidth, float y0, float rise)
+        {
+            var n = new Vector3(0, 0, nz);
+            int a = mb.Vert(new Vector3(-halfWidth, y0, z), n, Vector2.zero);
+            int b = mb.Vert(new Vector3(halfWidth, y0, z), n, new Vector2(1, 0));
+            int c = mb.Vert(new Vector3(0, y0 + rise, z), n, new Vector2(.5f, 1));
+            if (nz > 0) mb.Tri(sub, a, c, b); else mb.Tri(sub, a, b, c);
+        }
+
+        /// <summary>What the counter hands over the top (Core.ItemId): the foil parcel, the roll in lavash, the pizza box
+        /// and the paper cup. They are rucksack items, so their models go next to the rest of the cargo — built here
+        /// because the café that sells them is built here, and because this runs after CargoFactory.</summary>
+        static void CafeFood()
+        {
+            var foil = Materials.Get("ElbFoil", new Color(.82f, .84f, .86f), smoothness: .68f);
+            var dough = Materials.Get("ElbDough", new Color(.85f, .72f, .48f), smoothness: .12f);
+            var card = Materials.Get("ElbCarton", new Color(.72f, .6f, .43f), smoothness: .05f);
+            var cup = Materials.Get("ElbPaperCup", new Color(.92f, .9f, .86f), smoothness: .1f);
+
+            var a = new MeshBuilder(1);
+            a.Tube(0, Vector3.zero, new Vector3(0, .04f, 0), .115f, .105f, 14, 1f, 0, true);
+            a.Tube(0, new Vector3(0, .04f, 0), new Vector3(.02f, .06f, .01f), .04f, .015f, 6, 1f, 0, true);
+            SaveCargo(ItemId.Khychin.ToString(), a, foil);
+
+            var b = new MeshBuilder(1);
+            b.Tube(0, new Vector3(0, .05f, -.13f), new Vector3(0, .05f, .13f), .05f, .045f, 10, 1f, 0, true);
+            b.Tube(0, new Vector3(0, .05f, -.13f), new Vector3(0, .05f, -.135f), .05f, .05f, 10, 1f, 0, true);
+            SaveCargo(ItemId.Shashlyk.ToString(), b, dough);
+
+            var c = new MeshBuilder(1);
+            c.Box(0, new Vector3(0, .025f, 0), new Vector3(.34f, .05f, .34f), Quaternion.identity, 1f);
+            c.Box(0, new Vector3(0, .055f, 0), new Vector3(.345f, .012f, .345f), Quaternion.identity, 1f);
+            SaveCargo(ItemId.PizzaBox.ToString(), c, card);
+
+            var d = new MeshBuilder(1);
+            d.Tube(0, Vector3.zero, new Vector3(0, .12f, 0), .032f, .042f, 12, 1f, 0, true);
+            d.Tube(0, new Vector3(0, .12f, 0), new Vector3(0, .135f, 0), .044f, .041f, 12, 1f, 0, true);
+            SaveCargo(ItemId.HotCup.ToString(), d, cup);
+        }
+
+        static void SaveCargo(string name, MeshBuilder mb, Material mat)
+        {
+            string dir = WorldPaths.Generated + "/Prefabs/Cargo";
+            Directory.CreateDirectory(dir);
+            var root = new GameObject(name);
+            Part(root.transform, "Body", mb, mat);
+            PrefabUtility.SaveAsPrefabAsset(root, $"{dir}/{name}.prefab");
+            Object.DestroyImmediate(root);
         }
 
         /// <summary>A stall of the souvenir market: a frame, a striped awning, a counter with wool hats, hides and honey.</summary>
@@ -805,7 +1116,8 @@ namespace Height1079.EditorTools.World
                 goods.Box(0, new Vector3(-W / 2 + .3f + k * (W - .6f) / 5f, .95f, -D / 2 + .35f), new Vector3(.3f, .14f, .42f), Quaternion.Euler(0, k * 17f, 0), 1f);
             Part(t, "Goods", goods, Tarp);
 
-            Solid(t, "Counter", new Vector3(0, .5f, -D / 2 + .35f), new Vector3(W, 1f, .7f));
+            // named "Stall", not "Counter": CafeService looks up café counters by that name
+            Solid(t, "Stall", new Vector3(0, .5f, -D / 2 + .35f), new Vector3(W, 1f, .7f));
             return Save(root);
         }
 

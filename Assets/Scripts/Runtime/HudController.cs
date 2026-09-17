@@ -17,7 +17,7 @@ namespace Height1079.Runtime
         Text kicker, lede;
         static readonly Color PlaceOff = new Color(.13f, .22f, .27f), PlaceOn = new Color(.28f, .45f, .5f);
         InputField nameField, addressField;
-        Text status, clock, direction, party, hint, outcomeTitle, outcomeNote, summary, pairOutcome, events, prompt;
+        Text status, clock, direction, party, hint, outcomeTitle, outcomeNote, summary, pairOutcome, events, prompt, keys;
         Slider heat, hands, clarity;
         Button fireButton, workButton;
         float workStarted, workNeeded;
@@ -25,8 +25,8 @@ namespace Height1079.Runtime
         Text debug;
         // navigation
         RectTransform miniRoot, miniMap, miniArrow, bigRoot, bigMark;
-        RawImage miniImage;
-        Text bigNote, heldLabel;
+        RawImage miniImage, bigImage;
+        Text bigNote, heldLabel, miniScale;
         // rucksack window
         RectTransform packPanel, packRows;
         Text packTitle, packLoad, packHandLine;
@@ -35,7 +35,11 @@ namespace Height1079.Runtime
         string packShown = "";
         Texture2D mapTex;
         bool miniOn = true;
-        const float MiniMetres = 700f;
+        /// <summary>Diameter of the mini-map window in metres. The Elbrus frame is three times the Kholat one, so the
+        /// window opens up with it: on the southern slope you want the next station in the circle, not the next boulder.</summary>
+        static float MiniMetres => World.IsElbrus ? 1400f : 700f;
+        /// <summary>Side of the unfolded map sheet, in reference pixels of the canvas (1600 × 900).</summary>
+        const float BigSheet = 820f;
         bool protocolShown;
         int shownEvents;
 
@@ -131,6 +135,22 @@ namespace Height1079.Runtime
                 : "Одна ночь. Холод. Дорога наверх.\nДоберитесь от леса до укрытия прежде, чем рассветёт.";
             var label = hostButton != null ? hostButton.GetComponentInChildren<Text>() : null;
             if (label != null) label.text = elbrus ? "НАЧАТЬ ПОДЪЁМ" : "СОЗДАТЬ НОЧЬ";
+            ApplyPlace();
+        }
+
+        /// <summary>Everything the HUD draws differently in the two places. The HUD is built once and lives through
+        /// every menu round, so the place is applied here as well as at build time — otherwise a player who picks
+        /// Elbrus in the menu would climb it with the Kholat tracing paper in his hands.</summary>
+        void ApplyPlace()
+        {
+            mapTex = Resources.Load<Texture2D>(World.IsElbrus ? "World/Textures/elbrus_map" : "World/Textures/kalka_1959");
+            var tint = mapTex != null ? Color.white : new Color(.8f, .82f, .8f);
+            if (miniImage != null) { miniImage.texture = mapTex; miniImage.color = tint; }
+            if (bigImage != null) { bigImage.texture = mapTex; bigImage.color = tint; }
+            if (miniScale != null) miniScale.text = MiniMetres >= 1000f ? $"{MiniMetres / 1000f:0.#} км по диаметру" : $"{MiniMetres:0} м по диаметру";
+            if (keys != null) keys.text = World.IsElbrus
+                ? "WASD · Shift бег · V вид · Esc пауза\nE — сесть в кабину, кресло или ратрак и выйти · F8 быстрее\n1 компас · 3/M карта · N мини-карта · Tab рюкзак"
+                : "WASD · Shift бег · V вид · E костёр · Esc пауза\n1 компас · 2 фонарик (F — свет) · 3/M карта · Q убрать · N мини-карта\nTab рюкзак · G снять/надеть · R взять/убрать · X бросить";
         }
 
         // ---- screens ---------------------------------------------------------
@@ -177,9 +197,7 @@ namespace Height1079.Runtime
             heat = Meter("ТЕПЛО", box, new Vector2(22, -178));
             hands = Meter("РУКИ", box, new Vector2(132, -178));
             clarity = Meter("ЯСНОСТЬ", box, new Vector2(242, -178));
-            Label("Keys", box, new Vector2(22, -214), new Vector2(330, 46), 11, new Color(.69f, .76f, .8f)).text = World.IsElbrus
-                ? "WASD · Shift бег · V вид · Esc пауза\nE — сесть в кабину, кресло или ратрак и выйти · F8 быстрее\n1 компас · 3/M карта · N мини-карта · Tab рюкзак"
-                : "WASD · Shift бег · V вид · E костёр · Esc пауза\n1 компас · 2 фонарик (F — свет) · 3/M карта · Q убрать · N мини-карта\nTab рюкзак · G снять/надеть · R взять/убрать · X бросить";
+            keys = Label("Keys", box, new Vector2(22, -214), new Vector2(330, 46), 11, new Color(.69f, .76f, .8f));
             var promptBox = Rect("PromptBox", hud.transform, new Vector2(.5f, 0), new Vector2(.5f, 0), new Vector2(-300, 34), new Vector2(600, 34));
             promptBox.pivot = new Vector2(0, 0); PanelImage(promptBox, new Color(0, 0, 0, .45f));
             prompt = Label("Prompt", promptBox, Vector2.zero, new Vector2(600, 34), 16, new Color(1f, .93f, .78f), TextAnchor.MiddleCenter);
@@ -239,8 +257,9 @@ namespace Height1079.Runtime
 
         void BuildNavigation()
         {
-            mapTex = Resources.Load<Texture2D>("World/Textures/kalka_1959");
-            // Mini-map: a round window onto the kalka, north up, top-right.
+            // Kholat: the tracing paper the group copied their route onto. Elbrus: the printed tourist sheet of the
+            // southern slope (ElbrusMapFactory). Both cover their whole frame, so world position maps to uv linearly.
+            // Mini-map: a round window onto the sheet, north up, top-right.
             miniRoot = Rect("MiniMap", hud.transform, new Vector2(1, 1), new Vector2(1, 1), new Vector2(-24, -44), new Vector2(230, 230));
             miniRoot.pivot = new Vector2(1, 1);
             var rim = PanelImage(miniRoot, new Color(.05f, .1f, .14f, .9f)); rim.sprite = Circle();
@@ -250,22 +269,22 @@ namespace Height1079.Runtime
             maskRt.gameObject.AddComponent<Mask>().showMaskGraphic = false;
             miniMap = Rect("Map", maskRt, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
             miniImage = miniMap.gameObject.AddComponent<RawImage>();
-            miniImage.texture = mapTex; miniImage.color = mapTex != null ? Color.white : new Color(.8f, .82f, .8f);
+            // texture and scale come from ApplyPlace at the end of the method
             miniArrow = Rect("You", miniRoot, new Vector2(.5f, .5f), new Vector2(.5f, .5f), Vector2.zero, new Vector2(30, 30));
             miniArrow.pivot = new Vector2(.5f, .5f);
             var arrow = miniArrow.gameObject.AddComponent<Image>();
             arrow.sprite = Triangle(); arrow.color = new Color(.65f, .1f, .08f); arrow.raycastTarget = false;
             var n = Label("N", miniRoot, new Vector2(0, -2), new Vector2(40, 30), 24, new Color(.93f, .9f, .82f), TextAnchor.MiddleCenter, FontStyle.Bold, new Vector2(.5f, 1f));
             n.rectTransform.pivot = new Vector2(.5f, 1f); n.font = Hand; n.text = "С";
-            var scale = Label("Scale", miniRoot, new Vector2(0, -8), new Vector2(200, 20), 12, new Color(.75f, .8f, .82f), TextAnchor.UpperCenter, FontStyle.Normal, new Vector2(.5f, 0f));
-            scale.rectTransform.pivot = new Vector2(.5f, 1f); scale.text = $"{MiniMetres:0} м по диаметру";
+            miniScale = Label("Scale", miniRoot, new Vector2(0, -8), new Vector2(200, 20), 12, new Color(.75f, .8f, .82f), TextAnchor.UpperCenter, FontStyle.Normal, new Vector2(.5f, 0f));
+            miniScale.rectTransform.pivot = new Vector2(.5f, 1f);
 
-            // Full map: the kalka unfolded in the hands.
+            // Full map: the sheet unfolded in the hands, never quite straight.
             bigRoot = Rect("BigMap", hud.transform, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
             PanelImage(bigRoot, new Color(.02f, .05f, .07f, .72f)).raycastTarget = false;
-            var sheet = Rect("Sheet", bigRoot, new Vector2(.5f, .5f), new Vector2(.5f, .5f), Vector2.zero, new Vector2(820, 820));
+            var sheet = Rect("Sheet", bigRoot, new Vector2(.5f, .5f), new Vector2(.5f, .5f), Vector2.zero, new Vector2(BigSheet, BigSheet));
             sheet.pivot = new Vector2(.5f, .5f); sheet.localRotation = Quaternion.Euler(0, 0, -1.2f);
-            var img = sheet.gameObject.AddComponent<RawImage>(); img.texture = mapTex; img.raycastTarget = false;
+            bigImage = sheet.gameObject.AddComponent<RawImage>(); bigImage.raycastTarget = false;
             bigMark = Rect("Mark", sheet, Vector2.zero, Vector2.zero, Vector2.zero, new Vector2(44, 44));
             bigMark.pivot = new Vector2(.5f, .5f);
             var mark = Label("X", bigMark, Vector2.zero, new Vector2(44, 44), 40, new Color(.12f, .15f, .35f), TextAnchor.MiddleCenter, FontStyle.Normal, new Vector2(.5f, .5f));
@@ -276,6 +295,8 @@ namespace Height1079.Runtime
 
             heldLabel = Label("Held", hud.transform, new Vector2(0, 28), new Vector2(600, 24), 16, new Color(.9f, .88f, .8f), TextAnchor.MiddleCenter, FontStyle.Normal, new Vector2(.5f, 0f));
             heldLabel.rectTransform.pivot = new Vector2(.5f, 0f);
+
+            ApplyPlace();
         }
 
         void UpdateNavigation(HikerController me, float x, float z)
@@ -294,9 +315,13 @@ namespace Height1079.Runtime
             bigRoot.gameObject.SetActive(big);
             if (big)
             {
-                bigMark.anchoredPosition = new Vector2((x + W / 2) / W * 820f, (z + W / 2) / W * 820f);
+                bigMark.anchoredPosition = new Vector2((x + W / 2) / W * BigSheet, (z + W / 2) / W * BigSheet);
                 float heading = (me.Yaw % 360f + 360f) % 360f;
-                bigNote.text = $"× — где вы, по памяти и ориентирам · курс {heading:0}° · 3/M — сложить карту";
+                // On Elbrus the sheet is printed and folded, with a grid and a height on it, so the × is simply where
+                // you are; on Kholat it is a tracing paper with no grid, and the cross is a guess from memory.
+                bigNote.text = World.IsElbrus
+                    ? $"× — вы здесь · курс {heading:0}° · высота {me.transform.position.y:0} м · 3/M — сложить карту"
+                    : $"× — где вы, по памяти и ориентирам · курс {heading:0}° · 3/M — сложить карту";
             }
             var gear = me.Gear;
             heldLabel.text = held == HeldItem.Compass ? "Компас: стрелка на магнитный север, склонение +19° (к востоку)"

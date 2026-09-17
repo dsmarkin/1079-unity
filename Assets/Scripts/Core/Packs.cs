@@ -10,6 +10,8 @@ namespace Height1079.Core
         Rusks, Lard, Stew, CondensedMilk, Sugar, Oatmeal, Chocolate,
         Matches, Candles, Batteries, Hatchet, Flask, Pot, Mittens, Socks, Firewood,
         Axe, Saw, Branch,
+        // taken away from a café of Prielbrusye (see Refreshments); the night on Kholat never hands these out
+        Khychin, Shashlyk, PizzaBox, HotCup,
     }
 
     public enum ItemKind : byte { Food, Gear, Clothes, Fuel }
@@ -103,6 +105,10 @@ namespace Height1079.Core
             new ItemSpec(ItemId.Axe, "Топор", 2.2f, 4f, ItemKind.Gear, ToolKind.Axe),
             new ItemSpec(ItemId.Saw, "Двуручная пила", 2.6f, 7f, ItemKind.Gear, ToolKind.Saw),
             new ItemSpec(ItemId.Branch, "Сухая ветка", 5f, 16f, ItemKind.Fuel),
+            new ItemSpec(ItemId.Khychin, "Хычин в фольге", .25f, .5f, ItemKind.Food),
+            new ItemSpec(ItemId.Shashlyk, "Шашлык в лаваше", .4f, .9f, ItemKind.Food),
+            new ItemSpec(ItemId.PizzaBox, "Пицца в коробке", .45f, 3f, ItemKind.Food),
+            new ItemSpec(ItemId.HotCup, "Стакан горячего", .35f, .5f, ItemKind.Food),
         };
 
         public static ItemSpec Spec(ItemId id) => (int)id < specs.Length ? specs[(int)id] : specs[0];
@@ -369,6 +375,16 @@ namespace Height1079.Core
             Loose.Remove(looseId);
             SetHand(token, l.Stack);
             return PackResult.Ok;
+        }
+
+        /// <summary>Something handed over a counter: it goes straight into the worn rucksack, and into the hands when the
+        /// rucksack is full or is not being worn.</summary>
+        public PackResult Receive(string token, ItemStack stack)
+        {
+            if (stack.IsEmpty) return PackResult.NoItem;
+            var pack = Worn(token);
+            if (pack != null && pack.Put(stack)) { Changed(); return PackResult.Ok; }
+            return GiveHand(token, stack);
         }
 
         /// <summary>Force something into the hands (the result of work: a branch just cut off, logs just split).</summary>
