@@ -197,7 +197,7 @@ namespace Height1079.Runtime
                 night = Mathf.Clamp01(night + .08f * SkyDome.CloudCover * night);
                 if (s == null) night = 0f;
                 // site views are for looking at things: keep them readable
-                if (WorldDressing.ViewIndex >= 0) night = Mathf.Min(night, .35f);
+                if (WorldDressing.ViewIndex >= 0 && !WorldDressing.ViewKeepsDark) night = Mathf.Min(night, .35f);
                 Darkness = Mathf.MoveTowards(Darkness, night, Time.deltaTime * .5f);
                 float d = Darkness;
 

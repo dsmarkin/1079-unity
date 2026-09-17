@@ -112,8 +112,8 @@ namespace Height1079.Runtime
         public static int ViewIndex { get; private set; } = -1;
         static Transform campTent, campFire, tracks;
         static Vector3? trackSpot;
-        static readonly string[] ViewIds = { "tent", "cedar", "p4", "labaz", "camp-gear", "camp-inside", "camp-things", "camp-kitchen", "dyatlov", "forest-taiga", "forest-edge", "forest-tracks" };
-        static readonly float[] ViewRadius = { 9f, 14f, 8f, 13f, 2.4f, .7f, .42f, 2.6f, 10f, 22f, 22f, 4f };
+        static readonly string[] ViewIds = { "tent", "cedar", "p4", "labaz", "camp-gear", "camp-inside", "camp-things", "camp-kitchen", "dyatlov", "forest-taiga", "forest-edge", "forest-tracks", "sky" };
+        static readonly float[] ViewRadius = { 9f, 14f, 8f, 13f, 2.4f, .7f, .42f, 2.6f, 10f, 22f, 22f, 4f, 0f };
         public static string ViewName => ViewIndex < 0 ? "" : ViewIds[ViewIndex] switch
         {
             "labaz" => "Стоянка 31 января и лабаз",
@@ -124,8 +124,12 @@ namespace Height1079.Runtime
             "forest-taiga" => "Лес · темнохвойная тайга в долине Ауспии",
             "forest-edge" => "Лес · граница леса на подъёме (~720 м)",
             "forest-tracks" => "Лес · следы зверей у стоянки",
+            "sky" => "Небо над стоянкой",
             _ => WorldData.Get(ViewIds[ViewIndex]).Label,
         };
+
+        /// <summary>The sky view shows the night as it is (no brightening).</summary>
+        public static bool ViewKeepsDark => ViewIndex >= 0 && ViewIds[ViewIndex] == "sky";
 
         public static void NextView() { ViewIndex = ViewIndex + 1 >= ViewIds.Length ? -1 : ViewIndex + 1; }
 
@@ -147,6 +151,15 @@ namespace Height1079.Runtime
                 if (vid == "camp-inside") eye = anchor.TransformPoint(local + new Vector3(Mathf.Cos(a * 1.5f) * .55f, h, Mathf.Sin(a * 1.5f) * 1.2f));
                 cam.transform.position = eye;
                 cam.transform.LookAt(c);
+                return true;
+            }
+            if (vid == "sky")
+            {
+                // stand at the camp and pan slowly around the horizon, looking 28° up
+                var (cx, cz) = WorldData.Camp;
+                var eyeS = new Vector3(cx, TerrainBuilder.Height(dem, cx, cz) + 1.7f, cz);
+                float yaw = Time.unscaledTime * 4f;
+                cam.transform.SetPositionAndRotation(eyeS, Quaternion.Euler(-28f, yaw, 0));
                 return true;
             }
             if (vid == "forest-tracks")
