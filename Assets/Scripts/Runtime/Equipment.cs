@@ -15,7 +15,7 @@ namespace Height1079.Runtime
         public const float BatterySeconds = 12f * 60f;
 
         HikerController hiker;
-        Transform compass, needle;
+        Transform compass, needle, course;
         readonly Transform[] torches = new Transform[2];
         readonly Transform[] beamOrigins = new Transform[2];
         readonly Material[] lensMats = new Material[2];
@@ -35,7 +35,8 @@ namespace Height1079.Runtime
             compass = Spawn("Compass");
             torches[0] = Spawn("Flashlight");
             torches[1] = Spawn("FlashlightZhuchok");
-            if (compass != null) needle = compass.Find("Needle");
+            if (compass != null) { needle = compass.Find("Needle"); course = compass.Find("Course"); }
+            if (course != null) course.gameObject.SetActive(false);
             for (int i = 0; i < 2; i++)
             {
                 if (torches[i] == null) continue;
@@ -127,6 +128,7 @@ namespace Height1079.Runtime
                     if (firstPerson) Place(compass, cam.transform, new Vector3(-.03f, -.105f + bob, .26f), Quaternion.Euler(-62f, 0, 0));
                     else Place(compass, transform, new Vector3(.12f, 1.12f, .32f), Quaternion.Euler(-35f, 0, 0));
                     UpdateNeedle();
+                    UpdateCourse();
                 }
             }
             int kind = hiker.TorchKind.Value == 1 ? 1 : 0;
@@ -185,6 +187,32 @@ namespace Height1079.Runtime
             needleVel += (err * 38f - needleVel * 5.5f) * Time.deltaTime;
             needleAngle += needleVel * Time.deltaTime;
             needle.localRotation = Quaternion.Euler(0, needleAngle, 0);
+        }
+
+        /// <summary>The brass index of the ring, set to the azimuth of the line the guide's programme is on right now
+        /// (<see cref="Programmes.Aim"/>). It is the other half of what a compass is for: the needle finds north, the
+        /// index holds the bearing that was taken off the map, and the walking is done by keeping the two in the
+        /// relation the map gave them. It moves with the goal and not with the player, so a step whose place is behind
+        /// you sends it behind you.
+        ///
+        /// Projected onto the face of the case exactly the way <see cref="UpdateNeedle"/> is, because in the hand the
+        /// compass is tilted up to be read and its up axis is not the world's.
+        ///
+        /// No programme, no index: off the southern slope, and on a step that is about the rucksack and not about a
+        /// place, the arrow is simply not there.</summary>
+        void UpdateCourse()
+        {
+            if (course == null || compass == null) return;
+            var aim = Programmes.Aim(hiker);
+            if (course.gameObject.activeSelf != aim.Has) course.gameObject.SetActive(aim.Has);
+            if (!aim.Has) return;
+            var up = compass.up;
+            float rad = aim.HeadingDeg * Mathf.Deg2Rad;
+            var toGoal = new Vector3(Mathf.Sin(rad), 0f, Mathf.Cos(rad));
+            var onFace = Vector3.ProjectOnPlane(toGoal, up);
+            if (onFace.sqrMagnitude < 1e-4f) return;
+            float turn = Vector3.SignedAngle(Vector3.ProjectOnPlane(compass.forward, up), onFace, up);
+            course.localRotation = Quaternion.Euler(0, turn, 0);
         }
 
         void UpdateBeam(bool on, float level, int kind)

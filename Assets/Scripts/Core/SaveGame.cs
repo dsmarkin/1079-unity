@@ -35,6 +35,12 @@ namespace Height1079.Core
         /// that walked past the counter is still nobody's problem.</summary>
         public Registration Reg = Rescue.NotFiled;
 
+        /// <summary>How far along the guide's programme this one is (<see cref="Programme"/>). Per climber and not
+        /// per save, for the same reason acclimatisation is: the steps are about his rucksack, his slip at the ЭВПСО
+        /// counter and the nights he slept, and two people who walked up together will tick the same lines anyway.
+        /// A file written before there was a programme simply has none, and reads as «ещё не начата».</summary>
+        public Progress Programme = Progress.None;
+
         /// <summary>The rucksack, in order. Hired gear is nothing but objects in here, so "what was taken at the hire
         /// counter" needs no field of its own (<see cref="Rental.GearOf"/>).</summary>
         public readonly List<ItemStack> Pack = new List<ItemStack>();
@@ -55,8 +61,11 @@ namespace Height1079.Core
     /// compatibility promise, and it is enough to keep an old save from taking the game down with it.</summary>
     public sealed class SaveGame
     {
-        /// <summary>1 — the first format: place, clock, weather, one camp, one entry per player.</summary>
-        public const int Schema = 1;
+        /// <summary>1 — the first format: place, clock, weather, one camp, one entry per player.
+        /// 2 — adds <c>climbers[].programme</c>, how far along the guide's programme each climber is
+        /// (<see cref="Height1079.Core.Programme"/>). A schema-1 file has no such block and reads as a programme
+        /// nobody has started, which is exactly what it is; nothing else moved, so no other field needs a default.</summary>
+        public const int Schema = 2;
 
         public int SchemaVersion = Schema;
         public Place Place = Place.Elbrus;
@@ -160,6 +169,7 @@ namespace Height1079.Core
                 .Set("heat", Round(c.Heat, 2)).Set("handsBar", Round(c.HandsBar, 2)).Set("clarity", Round(c.Clarity, 2))
                 .Set("strength", Round(c.Strength, 4))
                 .Set("roubles", c.Roubles);
+            if (!c.Programme.IsEmpty) o.Set("programme", c.Programme.ToJson());
             if (c.Reg.Filed)
                 o.Set("rescue", JsonValue.Object()
                     .Set("party", c.Reg.Party)
@@ -255,6 +265,7 @@ namespace Height1079.Core
                     Strength = Ascent.Clamp01(v.Float("strength", 1f)),
                     Roubles = Math.Max(0, v.Int("roubles", Wallet.StartRoubles)),
                 };
+                c.Programme = Progress.FromJson(v["programme"]);
                 var slip = v["rescue"];
                 if (slip.Kind == JsonKind.Object && slip.Str("party").Length > 0)
                     c.Reg = Rescue.File(slip.Str("party"), slip.Int("people", 1),

@@ -124,6 +124,9 @@ namespace Height1079.Runtime
         void Open()
         {
             open = true;
+            // one step of day seven of the guide's programme asks for exactly this: that the board has been read
+            // (Programme «Прогноз»). The host keeps the flag, because the host ticks the steps.
+            NightSession.Instance?.ReportForecastRead();
             Build();
             Refresh();
             if (panel != null) panel.gameObject.SetActive(true);

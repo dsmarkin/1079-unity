@@ -147,6 +147,20 @@ namespace Height1079.EditorTools.World
             pin.Tube(0, new Vector3(0, -.001f, 0), new Vector3(0, .0012f, 0), .0014f, .0012f, 10, 1f, 0, true);
             Part(needle, "Pivot", pin, steel);
 
+            // The course arrow of the rotating ring: a brass index that is set to an azimuth taken off the map and
+            // then held there while the needle is brought under it. It sits on the card, outside the needle, and the
+            // runtime turns it (Equipment.UpdateCourse) — on Kholat Syakhl it is simply switched off, because there
+            // is no programme there to take a bearing to.
+            var course = new GameObject("Course").transform;
+            course.SetParent(t, false); course.localPosition = new Vector3(0, H / 2 - .0022f, 0);
+            var mark = new MeshBuilder(1);
+            float cr = R * .86f, cw = .0016f;
+            mark.Quad(0, new Vector3(-cw, 0, R * .62f), new Vector3(0, 0, cr), new Vector3(cw, 0, R * .62f), new Vector3(0, 0, R * .6f),
+                Vector2.zero, Vector2.up, Vector2.one, Vector2.right, true, Vector3.up);
+            mark.Quad(0, new Vector3(-cw * .45f, 0, 0), new Vector3(-cw * .45f, 0, R * .62f), new Vector3(cw * .45f, 0, R * .62f), new Vector3(cw * .45f, 0, 0),
+                Vector2.zero, Vector2.up, Vector2.one, Vector2.right, true, Vector3.up);
+            Part(course, "Index", mark, Materials.Get("CompassCourse", new Color(.72f, .52f, .18f), smoothness: .7f));
+
             var glass = new MeshBuilder(1);
             glass.Tube(0, new Vector3(0, H / 2 + .0004f, 0), new Vector3(0, H / 2 + .0006f, 0), R * .96f, R * .96f, 32, 1f, 0, true);
             var glassMat = Materials.Get("CompassGlass", new Color(.85f, .9f, .95f, .12f), smoothness: .95f);

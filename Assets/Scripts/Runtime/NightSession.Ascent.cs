@@ -190,6 +190,10 @@ namespace Height1079.Runtime
                 // want of visibility and it should say so, not «темно»
                 var watch = RescueTick(id, token, p, c, point, air, hour, light);
 
+                // the guide's programme: pure, idempotent and cheap, so it is asked on the same tick as everything
+                // else the mountain does to a body (NightSession.Plan)
+                TickPlan(id, p, hiker, c, point, hour);
+
                 bool canRead = !report.RouteLost;
                 Publish(hiker, c, point, air, report, onRope, canRead, eyesOpen, job, way, wander, watch);
             }
@@ -603,6 +607,7 @@ namespace Height1079.Runtime
                 wasRiding.Remove(id); strength.Remove(id);
                 wereEle.Remove(id); going.Remove(id); carriedTo.Remove(id);
                 wanderSide.Remove(id); wanderUntil.Remove(id);
+                PlanClientLeft(id);
                 CampsClientLeft(id);
             }
         }

@@ -7,7 +7,7 @@ using Height1079.Core;
 namespace Height1079.Runtime
 {
     /// <summary>All UI is built from code so the project stays text-only: menu, night HUD and the field protocol.</summary>
-    public sealed class HudController : MonoBehaviour
+    public sealed partial class HudController : MonoBehaviour
     {
         float fps = 60f;
         static Font font;
@@ -70,6 +70,7 @@ namespace Height1079.Runtime
             BuildHud();
             BuildNavigation();
             BuildPack();
+            BuildPlan();
             BuildProtocol();
             ShowMenu(true);
         }
@@ -170,10 +171,11 @@ namespace Height1079.Runtime
             if (bigImage != null) { bigImage.texture = mapTex; bigImage.color = tint; }
             if (miniScale != null) miniScale.text = MiniMetres >= 1000f ? $"{MiniMetres / 1000f:0.#} км по диаметру" : $"{MiniMetres:0} м по диаметру";
             if (keys != null) keys.text = World.IsElbrus
-                ? "WASD · Shift бег (до 4600 м) · V вид · Esc пауза\nE — кабина, ратрак, кафе, прокат, спасатели, доска, нары\nC/F1 кошки · T/F2 термос · B/7 лагерь · P/8 ночёвка · 9 SOS\n1 компас · 3/M карта · N мини-карта · Tab рюкзак"
+                ? "WASD · Shift бег (до 4600 м) · V вид · Esc пауза\nE — кабина, ратрак, кафе, прокат, спасатели, доска, нары\nC/F1 кошки · T/F2 термос · B/7 лагерь · P/8 ночёвка · 9 SOS\n1 компас · 3/M карта · N мини-карта · U/F3 программа · Tab рюкзак"
                 : "WASD · Shift бег · V вид · E костёр · Esc пауза\n1 компас · 2 фонарик (F — свет) · 3/M карта · Q убрать · N мини-карта\nTab рюкзак · G снять/надеть · R взять/убрать · X бросить\nK/4 лыжи · L/5 палки · H/6 волокуша · F1 — следующий способ";
             if (travel != null) travel.gameObject.SetActive(!World.IsElbrus);
             if (climbLine != null) climbLine.gameObject.SetActive(World.IsElbrus);
+            ApplyPlacePlan();
             // the ascent block is four lines where the snow line was one, so the panel grows with it
             if (hudBox != null) hudBox.sizeDelta = new Vector2(360, World.IsElbrus ? 392f : 316f);
             if (keys != null) keys.rectTransform.anchoredPosition = new Vector2(22, World.IsElbrus ? -322f : -248f);
@@ -335,6 +337,7 @@ namespace Height1079.Runtime
             PanelImage(bigRoot, new Color(.02f, .05f, .07f, .72f)).raycastTarget = false;
             var sheet = Rect("Sheet", bigRoot, new Vector2(.5f, .5f), new Vector2(.5f, .5f), Vector2.zero, new Vector2(BigSheet, BigSheet));
             sheet.pivot = new Vector2(.5f, .5f); sheet.localRotation = Quaternion.Euler(0, 0, -1.2f);
+            bigSheet = sheet;
             bigImage = sheet.gameObject.AddComponent<RawImage>(); bigImage.raycastTarget = false;
             bigMark = Rect("Mark", sheet, Vector2.zero, Vector2.zero, Vector2.zero, new Vector2(44, 44));
             bigMark.pivot = new Vector2(.5f, .5f);
@@ -371,14 +374,24 @@ namespace Height1079.Runtime
                 // On Elbrus the sheet is printed and folded, with a grid and a height on it, so the × is simply where
                 // you are; on Kholat it is a tracing paper with no grid, and the cross is a guess from memory.
                 bigNote.text = World.IsElbrus
-                    ? $"× — вы здесь · курс {heading:0}° · высота {me.transform.position.y:0} м · 3/M — сложить карту"
+                    ? $"× — вы здесь · курс {heading:0}° · высота {me.transform.position.y:0} м · кружки — программа, красный — сейчас · 3/M — сложить карту"
                     : $"× — где вы, по памяти и ориентирам · курс {heading:0}° · 3/M — сложить карту";
             }
             var gear = me.Gear;
-            heldLabel.text = held == HeldItem.Compass ? "Компас: стрелка на магнитный север, склонение +19° (к востоку)"
+            heldLabel.text = held == HeldItem.Compass ? CompassLine(me)
                 : held == HeldItem.Flashlight && gear != null && gear.IsZhuchok ? (me.TorchOn.Value ? "«Жучок» · жмите F, пока нужен свет · 2 — другой фонарь" : "«Жучок» (динамо) · держите F, чтобы светить · 2 — трубчатый фонарик")
                 : held == HeldItem.Flashlight ? (me.TorchOn.Value ? (gear != null && gear.Battery <= 0f ? "Фонарик включён, батарея села" : $"Фонарик · батарея {Mathf.CeilToInt((gear != null ? gear.Battery : 1f) * 100f)}% · F — выключить") : "Фонарик · F — включить · 2 — «жучок»")
                 : UnderCrosshair(me);
+        }
+
+        /// <summary>The compass in the hand. It always says what a compass says — where the needle points and how far
+        /// that is from true north — and, on the southern slope, the azimuth the programme's current line was taken
+        /// on, which is the other half of a bearing: the needle finds north, the reading finds the goal.</summary>
+        string CompassLine(HikerController me)
+        {
+            const string card = "Компас · склонение +19° к востоку";
+            var aim = Programmes.Aim(me);
+            return aim.Has ? card + " · " + Programmes.AimLine(aim) : card + " · стрелка на магнитный север";
         }
 
         /// <summary>The line under the crosshair. The mountain takes it whenever it has something urgent to say —
@@ -596,7 +609,7 @@ namespace Height1079.Runtime
         /// (the same things the Tab/G/R/X keys do, so the window is enough on its own).</summary>
         void BuildPack()
         {
-            packPanel = Rect("Pack", hud.transform, new Vector2(1, .5f), new Vector2(1, .5f), new Vector2(-24, 0), new Vector2(340, 692));
+            packPanel = Rect("Pack", hud.transform, new Vector2(1, .5f), new Vector2(1, .5f), new Vector2(-24, 0), new Vector2(340, 724));
             packPanel.pivot = new Vector2(1, .5f);
             PanelImage(packPanel, Panel);
             packTitle = Label("Title", packPanel, new Vector2(20, -16), new Vector2(300, 26), 20, Ink);
@@ -643,6 +656,10 @@ namespace Height1079.Runtime
                 () => NightSession.Instance?.SendSos());
             packLeaveButton = ButtonUi("Leave", packPanel, new Vector2(20, -638), new Vector2(304, 28), "Выйти в меню", new Color(.28f, .22f, .22f), Ink,
                 Bootstrap.Leave);
+            // the folded sheet of the guide's programme: an ordinary item in this very rucksack, so the button only
+            // does what clicking its row would do — take it out and unfold it (Programmes.Toggle)
+            packSheetButton = ButtonUi("Sheet", packPanel, new Vector2(20, -670), new Vector2(304, 28), "Программа восхождения (U/F3)", new Color(.34f, .3f, .22f), Ink,
+                () => Programmes.Toggle(Bootstrap.LocalHiker));
             packPanel.gameObject.SetActive(false);
         }
 
@@ -686,6 +703,10 @@ namespace Height1079.Runtime
             if (camping) packCampButton.GetComponentInChildren<Text>().text = Camps.ToggleLabel(me);
             if (packLeaveButton.gameObject.activeSelf != camping) packLeaveButton.gameObject.SetActive(camping);
             if (packSosButton.gameObject.activeSelf != camping) packSosButton.gameObject.SetActive(camping);
+            bool sheet = Programmes.On;
+            if (packSheetButton.gameObject.activeSelf != sheet) packSheetButton.gameObject.SetActive(sheet);
+            if (sheet) packSheetButton.GetComponentInChildren<Text>().text = Programmes.Unfolded(me)
+                ? "Сложить программу (U/F3)" : "Программа восхождения (U/F3)";
             if (camping)
                 packSosButton.GetComponentInChildren<Text>().text = RescueDesk.Known && RescueDesk.Mine.Mission.Coming
                     ? "Помощь вызвана (9 — повторить)"
@@ -740,6 +761,7 @@ namespace Height1079.Runtime
         public void ShowMenu(bool on)
         {
             menu.SetActive(on); hud.SetActive(!on); protocol.SetActive(false); protocolShown = false; shownEvents = 0; events.text = "";
+            ResetPlan();
             // coming back from a run there may be a save that was not there when the menu was last up
             if (on) RefreshContinue();
         }
@@ -795,6 +817,7 @@ namespace Height1079.Runtime
             heat.value = s.Heat; hands.value = s.Hands; clarity.value = s.Clarity;
             UpdateNavigation(me, x, z);
             UpdatePack(me);
+            UpdatePlan(me, x, z);
 
             if (s.MyOutcome != Outcome.None && !protocolShown)
             {

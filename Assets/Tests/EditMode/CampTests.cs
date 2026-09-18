@@ -267,7 +267,7 @@ namespace Height1079.Tests
         {
             var save = Sample();
             string text = save.Text;
-            StringAssert.Contains("\"schema\": 1", text);
+            StringAssert.Contains("\"schema\": " + SaveGame.Schema, text);
             StringAssert.Contains("косая полка", text);
             StringAssert.Contains("{\"id\": \"Crampons\"}", text);
             StringAssert.Contains("2026-09-18T05:40:12Z", text);
@@ -500,6 +500,9 @@ namespace Height1079.Tests
             Assert.IsTrue(pack.IndexOf(ItemId.Tent) >= 0, "двойка лежит в рюкзаке с самого низа");
             Assert.IsTrue(pack.IndexOf(ItemId.Burner) >= 0);
             Assert.AreEqual(-1, pack.IndexOf(ItemId.Axe), "топор — это 1959 год, а не Азау");
+            // the programme is handed out with the rucksack, the way a real one is handed out at the first briefing
+            Assert.IsTrue(pack.IndexOf(ItemId.ProgrammeSheet) >= 0, "лист программы выдают вместе с рюкзаком");
+            Assert.AreEqual(Gear.None, Rental.PieceOf(ItemId.ProgrammeSheet), "бумажка — не снаряжение для гейта");
 
             foreach (var h in Rental.Board()) Assert.IsTrue(pack.Put(new ItemStack(h.Item)), h.Line + " — не влезло");
             Assert.LessOrEqual(pack.Litres, Backpack.CapacityLitres, "палатка, горелка и прокат должны уместиться в 50 л");
@@ -511,6 +514,8 @@ namespace Height1079.Tests
             // the Kholat kit is untouched by all this
             Assert.IsTrue(Items.StarterFor(0, Place.Kholat).Exists(s => s.Id == ItemId.Axe));
             Assert.IsFalse(Items.StarterFor(0, Place.Kholat).Exists(s => s.Id == ItemId.Tent));
+            Assert.IsFalse(Items.StarterFor(0, Place.Kholat).Exists(s => s.Id == ItemId.ProgrammeSheet),
+                "на Холатчахле программы восхождения нет");
         }
     }
 }

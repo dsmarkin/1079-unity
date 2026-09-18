@@ -178,6 +178,16 @@ namespace Height1079.EditorTools.World
                     }
                     ma = Materials.Get("CargoGas", new Color(.72f, .2f, .16f), smoothness: .55f); mb = steel;
                     break;
+                case ItemId.ProgrammeSheet:
+                    // one A4 sheet folded in four and carried in a pocket: the folds keep it from lying flat, and the
+                    // darker strip is the printed heading (see Programme)
+                    a.Box(0, new Vector3(0, .002f, 0), new Vector3(.105f, .0016f, .148f), Quaternion.Euler(0, 0, 1.5f));
+                    a.Box(0, new Vector3(.002f, .0045f, -.004f), new Vector3(.101f, .0012f, .142f), Quaternion.Euler(1.2f, 4f, -1f));
+                    b.Box(0, new Vector3(0, .0055f, .052f), new Vector3(.082f, .0006f, .012f), Quaternion.Euler(1.2f, 4f, -1f));
+                    b.Box(0, new Vector3(-.03f, .0055f, .004f), new Vector3(.006f, .0006f, .09f), Quaternion.Euler(1.2f, 4f, -1f));
+                    ma = paper;
+                    mb = Materials.Get("CargoSheetInk", new Color(.22f, .25f, .3f), smoothness: .05f);
+                    break;
             }
             if (a.VertexCount > 0) Part(root.transform, "A", a, ma);
             if (b.VertexCount > 0) Part(root.transform, "B", b, mb);

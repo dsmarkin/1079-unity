@@ -325,7 +325,11 @@ namespace Height1079.Runtime
                 if (firstNight)
                 {
                     slept = true;
+                    // the high point of the day that is ending, read BEFORE the night resets the sortie: it is the
+                    // half of «climb high, sleep low» the programme cannot see afterwards (Programme.Slept)
+                    float dayHigh = c.HighestEle;
                     if (night != null) night(id, c); else Camp.Sleep(c, ele, burner);
+                    PlanSlept(id, ele, dayHigh);
                     // a body that was carried to 5 100 by a snow-cat yesterday is not carried there today
                     carriedTo.Remove(id);
                 }
@@ -343,6 +347,7 @@ namespace Height1079.Runtime
                 entry.Strength = strength.TryGetValue(id, out var left) ? left : 1f;
                 entry.Roubles = profile.Roubles;
                 entry.Reg = RescueOf(id);
+                entry.Programme = PlanOf(id);
                 entry.Pack.Clear();
                 var pack = packs.Worn(token);
                 if (pack != null) foreach (var s in pack.Contents) entry.Pack.Add(s);
@@ -421,6 +426,8 @@ namespace Height1079.Runtime
             c.ThermosSips = saved.Sips;
             // the slip left at the ЭВПСО counter is a piece of paper: it outlives the run that filed it
             RescueRestore(id, saved.Reg);
+            // and so does the programme: the ticks and the night it remembers come back with the body
+            PlanRestore(id, saved.Programme);
             // the kit itself is counted off the rucksack on the next tick (Rental.Carried), and the crampons come off
             // the boots there too if the rucksack turns out not to have any
             c.CramponsOn = saved.Crampons;
@@ -429,6 +436,11 @@ namespace Height1079.Runtime
             {
                 packs.Refill(token, saved.Pack);
                 if (!saved.Hand.IsEmpty) packs.GiveHand(token, saved.Hand);
+                // a file written before the programme was a piece of paper must not leave its owner without one: it
+                // weighs twenty grams, it is issued with the rucksack, and without it he cannot read the programme he
+                // is already halfway through (Programmes)
+                if (Climb.On && !packs.Has(token, ItemId.ProgrammeSheet))
+                    packs.Receive(token, new ItemStack(ItemId.ProgrammeSheet));
                 SyncPacks();
             }
             if (run.Players.TryGetValue(token, out var p))

@@ -50,6 +50,10 @@ namespace Height1079.Runtime
 
         /// <summary>What the hiker carries in the hands out of a rucksack (Core.ItemId); written by the host's PackWorld.</summary>
         public readonly NetworkVariable<StackNet> Carried = new NetworkVariable<StackNet>();
+        /// <summary>How far along the guide's programme this one is (<see cref="Programme"/>). The host ticks the
+        /// steps — it is the only side that can see every condition — and publishes the answer here for the card, the
+        /// compass and the two maps (<see cref="Programmes"/>). Empty on Kholat Syakhl, where there is no programme.</summary>
+        public readonly NetworkVariable<PlanNet> Plan = new NetworkVariable<PlanNet>();
         public static readonly System.Collections.Generic.List<HikerController> All = new System.Collections.Generic.List<HikerController>();
 
         public static HikerController ByClient(ulong clientId)
@@ -201,7 +205,7 @@ namespace Height1079.Runtime
             if (!paused && !finished && !Backpacks.UiOpen && Input.GetMouseButtonDown(0) && Cursor.lockState != CursorLockMode.Locked) SetCursor(true);
             if (paused && Input.GetMouseButtonDown(0) && !Bootstrap.PointerOverUi()) { paused = false; SetCursor(true); }
             if (Controls.ToggleView) firstPerson = !firstPerson;
-            if (!paused && !finished) { equipment.HandleInput(); Backpacks.HandleInput(this); skis.HandleInput(); climb.HandleInput(); Camps.HandleInput(this); }
+            if (!paused && !finished) { equipment.HandleInput(); Backpacks.HandleInput(this); skis.HandleInput(); climb.HandleInput(); Camps.HandleInput(this); Programmes.HandleInput(this); }
             if (Backpacks.UiOpen != packUi)
             {
                 packUi = Backpacks.UiOpen;

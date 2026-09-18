@@ -19,6 +19,9 @@ namespace Height1079.Core
         // the bivouac: what turns a halt into a camp you can come back to (see Camp). Carried, pitched and struck,
         // never checked by Ascent.Required — the gate at Pastukhov rocks is about surviving the day, not the night.
         Tent, Burner,
+        // the folded sheet a guide hands out on the first evening (see Programme). It weighs nothing, it does nothing
+        // and it is the whole tutorial of the game: nine days, twenty-two lines and the reason for every one of them.
+        ProgrammeSheet,
     }
 
     public enum ItemKind : byte { Food, Gear, Clothes, Fuel }
@@ -135,6 +138,8 @@ namespace Height1079.Core
             // whole of the water supply up here, because there is nothing to drink on this mountain that is not snow
             new ItemSpec(ItemId.Tent, "Палатка-двойка", 2.9f, 9f, ItemKind.Gear),
             new ItemSpec(ItemId.Burner, "Горелка с газом", .6f, 1.5f, ItemKind.Gear),
+            // one sheet of paper folded in four: the programme of the ascent, handed out with the rucksack
+            new ItemSpec(ItemId.ProgrammeSheet, "Программа восхождения (лист)", .02f, .05f, ItemKind.Gear),
         };
 
         public static ItemSpec Spec(ItemId id) => (int)id < specs.Length ? specs[(int)id] : specs[0];
@@ -169,6 +174,8 @@ namespace Height1079.Core
         {
             ItemId.Rusks, ItemId.Chocolate, ItemId.CondensedMilk, ItemId.Flask, ItemId.Socks,
             ItemId.Tent, ItemId.Burner,
+            // and the sheet: it is issued with the rucksack the way a real programme is issued at the first briefing
+            ItemId.ProgrammeSheet,
         };
 
         /// <summary>The starting kit for a place: the night on Kholat Syakhl is carried up the Auspiya,

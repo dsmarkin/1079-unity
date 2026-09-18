@@ -253,6 +253,19 @@ namespace Height1079.Runtime
 #endif
             );
 
+        /// <summary>U — take the folded programme sheet out of the rucksack and unfold it, or fold it back.
+        /// Spare: F3, the last function key the southern slope leaves free (F1…F3 belong to the Kholat night, and
+        /// every digit is already taken), plus a button in the rucksack window.</summary>
+        public static bool Sheet => Pressed(KeyCode.U
+#if ENABLE_INPUT_SYSTEM
+            , Key.U
+#endif
+            ) || Pressed(KeyCode.F3
+#if ENABLE_INPUT_SYSTEM
+            , Key.F3
+#endif
+            );
+
         /// <summary>T — a sip of hot out of the thermos. Spare: F2.</summary>
         public static bool Thermos => Pressed(KeyCode.T
 #if ENABLE_INPUT_SYSTEM
