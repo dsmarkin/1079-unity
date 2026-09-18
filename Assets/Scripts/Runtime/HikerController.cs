@@ -302,6 +302,12 @@ namespace Height1079.Runtime
             else if (grounded && slope <= SlopeLimit)
             {
                 bool pushing = wish.sqrMagnitude >= .01f;
+                // Boots hold on a slope a man can walk. The capsule is frictionless on purpose — with friction it catches on
+                // walls, doorways and the lip of every step — so nothing in the physics opposes the pull down the fall line:
+                // gravity put a little downhill speed into the body between fixed steps, the damping below took only part of
+                // it back, and the hiker crept downhill for ever however still the player stood. Cancel that pull here; the
+                // skis, further down, put back the part of it that gets through an edge.
+                body.AddForce(-Vector3.ProjectOnPlane(Physics.gravity, groundNormal), ForceMode.Acceleration);
                 if (gliding && !pushing)
                 {
                     // stop pushing and the boards run on: metres of it on a crust or in a made лыжня, one stride in powder
@@ -316,7 +322,14 @@ namespace Height1079.Runtime
                     // before it is finished, so a man wading has little to push against either
                     float grab = gliding ? 3.2f : Mathf.Lerp(12f, 6.5f, Mathf.Clamp01(sunk / .45f));
                     body.linearVelocity = Vector3.Lerp(v, target, 1f - Mathf.Exp(-grab * Time.fixedDeltaTime));
-                    if (!pushing) body.linearVelocity = new Vector3(v.x * .6f, v.y, v.z * .6f);
+                    if (!pushing)
+                    {
+                        // let go of the keys and the legs stop: a hand's width of run-out, then stand still. Without the
+                        // floor the last centimetres per second never die and the view drifts while the player is reading.
+                        float x = v.x * .6f, z = v.z * .6f;
+                        if (x * x + z * z < .04f) { x = 0f; z = 0f; }
+                        body.linearVelocity = new Vector3(x, v.y, z);
+                    }
                 }
                 if (gliding)
                 {
@@ -324,7 +337,9 @@ namespace Height1079.Runtime
                     // why a steep blown-clear slope is walked and not skied
                     var downhill = Vector3.ProjectOnPlane(Vector3.down, groundNormal);   // its length is sin(slope)
                     float hold = Mathf.Lerp(.22f, .85f, skis.Crust) * (1f - .7f * Mathf.Clamp01(sunk / .25f)) * (1f - .35f * skis.Packed);
-                    body.AddForce(downhill * (9.81f * hold), ForceMode.Acceleration);
+                    // standing, a skier sets his edges across the fall line and holds: only a slope worth the name takes him
+                    float edge = pushing ? 1f : Mathf.InverseLerp(9f, 20f, slope);
+                    body.AddForce(downhill * (9.81f * hold * edge), ForceMode.Acceleration);
                     var run = body.linearVelocity;
                     var flat = new Vector2(run.x, run.z);
                     if (flat.magnitude > TopGlide) { flat = flat.normalized * TopGlide; body.linearVelocity = new Vector3(flat.x, run.y, flat.y); }
