@@ -40,7 +40,10 @@ namespace Height1079.EditorTools.World
         // corners kept clear of place labels: the printed furniture of the sheet
         static readonly Rect TitleBox = new Rect(58, Res - 58 - 104, 636, 104);
         static readonly Rect ScaleBox = new Rect(58, 58, 430, 112);
-        static readonly Rect LegendBox = new Rect(Res - 58 - 486, 58, 486, 274);
+        // The legend used to sit in the bottom-right corner, and that corner is the Baksan gorge: the village of
+        // Terskol prints at 87 % across and 11 % up, straight under it, so the mark for the very first step of the
+        // programme landed on the key and could not be read. Moved up under the rose, where the sheet is empty ice.
+        static readonly Rect LegendBox = new Rect(Res - 58 - 486, Res - 58 - 138 - 16 - 274, 486, 274);
         static readonly Rect RoseBox = new Rect(Res - 58 - 116, Res - 58 - 138, 116, 138);
 
         /// <summary>Builds the sheet and writes it to Resources/World/Textures/elbrus_map.png.</summary>

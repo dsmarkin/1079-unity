@@ -79,6 +79,7 @@ namespace Height1079.Runtime
         Transform head;
         float yaw, pitch = .08f, orbit = 6f;
         bool firstPerson = true, grounded, kindling, paused, placed, packUi;
+        float stuckFor; Vector3 stuckAt;
         Vector3 groundNormal = Vector3.up;
         float lastVerticalSpeed, stumbleUntil, impact;
         /// <summary>A catch of the toe in the crust or a tip crossed: not a fall, half a second of nothing under you.</summary>
@@ -241,6 +242,38 @@ namespace Height1079.Runtime
             short look = (short)Mathf.RoundToInt(Mathf.Repeat(yaw, 360f));
             if (Mathf.Abs(look - LookYaw.Value) > 1) LookYaw.Value = look;
             impact = Mathf.MoveTowards(impact, 0f, Time.deltaTime * 1.4f);
+            if (Controls.JumpRoute) JumpAlongRoute();
+        }
+
+        /// <summary>The nine stages of the summit route, for jumping between them with F4 on Elbrus. The climb takes
+        /// eight hours of play from the bottom, so testing what the saddle looks like by walking to it is not testing.
+        /// Off the mountain the key does nothing.</summary>
+        static readonly (string Name, float S)[] RouteStops =
+        {
+            ("Гара-Баши, 3847", 0f), ("Приют 11, 4050", 1096f), ("Скалы Пастухова, 4650", 3035f),
+            ("Выход на 5100", 4031f), ("Косая полка, 5290", 4511f), ("Седловина, 5382", 5451f),
+            ("Вершинный взлёт, 5450", 5806f),
+            // eighty metres short of the top: standing on the summit itself ends the run the moment you land, and the
+            // point of the key is to look around up there, not to win
+            ("Вершинное плато, 5630", 6600f), ("Поляна Азау, 2350", -1f),
+        };
+        int routeStop = -1;
+
+        /// <summary>Owner only: step to the next stage of the route and stand there.</summary>
+        void JumpAlongRoute()
+        {
+            if (!IsOwner || !Height1079.Core.World.IsElbrus || Bootstrap.Dem == null) return;
+            routeStop = (routeStop + 1) % RouteStops.Length;
+            var stop = RouteStops[routeStop];
+            float x, z;
+            if (stop.S < 0f) { x = Elbrus.Start.x; z = Elbrus.Start.z; }
+            else { var p = Elbrus.PointAt(Elbrus.SummitRoute, stop.S); x = p.x; z = p.z; }
+            if (Ride != null) LeaveRide(new Vector3(x, Bootstrap.Dem.Sample(x, z) + .1f, z));
+            else Place(new Vector3(x, Bootstrap.Dem.Sample(x, z) + .6f, z));
+            stumbleUntil = 0f; tripUntil = 0f; impact = 0f; stuckFor = 0f; stuckAt = transform.position;
+            // and arrive able to walk: kitted out, crampons on, acclimatised (NightSession.DebugOutfit)
+            NightSession.Instance?.DebugOutfit();
+            Bootstrap.Hud?.SetStatus($"F4: {stop.Name} · снаряжение выдано");
         }
 
         /// <summary>A cabin moves its own transform in <c>Update</c>, and the passenger used to be snapped to the seat in
@@ -362,12 +395,17 @@ namespace Height1079.Runtime
             else if (grounded && slope <= SlopeLimit)
             {
                 bool pushing = wish.sqrMagnitude >= .01f;
+                bool wedged = Wedged(pushing);
+                if (pushing && !wedged) StepOver(wish);
                 // Boots hold on a slope a man can walk. The capsule is frictionless on purpose — with friction it catches on
                 // walls, doorways and the lip of every step — so nothing in the physics opposes the pull down the fall line:
                 // gravity put a little downhill speed into the body between fixed steps, the damping below took only part of
                 // it back, and the hiker crept downhill for ever however still the player stood. Cancel that pull here; the
                 // skis, further down, put back the part of it that gets through an edge.
-                body.AddForce(-Vector3.ProjectOnPlane(Physics.gravity, groundNormal), ForceMode.Acceleration);
+                // While wedged the hold is let go and the velocity below is left alone, so depenetration and gravity can
+                // work the body out of the seam instead of being overwritten fifty times a second.
+                if (!wedged) body.AddForce(-Vector3.ProjectOnPlane(Physics.gravity, groundNormal), ForceMode.Acceleration);
+                else { body.AddForce(Vector3.up * 5.5f - wish * 2.5f, ForceMode.Acceleration); return; }
                 if (gliding && !pushing)
                 {
                     // stop pushing and the boards run on: metres of it on a crust or in a made лыжня, one stride in powder
@@ -431,6 +469,41 @@ namespace Height1079.Runtime
                 var face = Quaternion.LookRotation(new Vector3(wish.x, 0, wish.z));
                 body.MoveRotation(Quaternion.Slerp(body.rotation, face, 1f - Mathf.Exp(-14f * Time.fixedDeltaTime)));
             }
+        }
+
+        /// <summary>Nothing in the physics lifts a capsule over a kerb: a doorstep, the lip of a porch, a rail or a pipe
+        /// stops the hiker dead, and with the boots holding him on the slope he cannot even slither off it. Probe at ankle
+        /// height along the way he is pushing; if something is there, the same line a step higher is clear and the top of
+        /// it is walkable, set him on it. This is what the buildings at Azau and the huts above are made of.</summary>
+        const float StepUp = .45f;
+
+        void StepOver(Vector3 wish)
+        {
+            var dir = new Vector3(wish.x, 0f, wish.z);
+            if (dir.sqrMagnitude < 1e-4f) return;
+            dir.Normalize();
+            var foot = transform.position + Vector3.up * .12f;
+            float reach = capsule.radius + .3f;
+            if (!Physics.Raycast(foot, dir, reach, ~0, QueryTriggerInteraction.Ignore)) return;
+            if (Physics.Raycast(transform.position + Vector3.up * (StepUp + .15f), dir, reach + .05f, ~0, QueryTriggerInteraction.Ignore)) return;
+            var above = transform.position + dir * reach + Vector3.up * (StepUp + .35f);
+            if (!Physics.Raycast(above, Vector3.down, out var top, StepUp + .5f, ~0, QueryTriggerInteraction.Ignore)) return;
+            float rise = top.point.y - transform.position.y;
+            if (rise < .04f || rise > StepUp) return;
+            if (Vector3.Angle(top.normal, Vector3.up) > SlopeLimit) return;
+            var lifted = transform.position + Vector3.up * (rise + .06f);
+            body.position = lifted; transform.position = lifted;
+            lastVerticalSpeed = 0f;
+        }
+
+        /// <summary>True when the player is asking to move and the body has not gone anywhere for a while — jammed in a
+        /// seam between two props, or in a corner the capsule cannot leave on its own.</summary>
+        bool Wedged(bool pushing)
+        {
+            if (!pushing) { stuckFor = 0f; stuckAt = transform.position; return false; }
+            if ((transform.position - stuckAt).sqrMagnitude > .09f) { stuckFor = 0f; stuckAt = transform.position; return false; }
+            stuckFor += Time.fixedDeltaTime;
+            return stuckFor > .45f;
         }
 
         bool InLowSpace()

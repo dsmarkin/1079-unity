@@ -116,10 +116,10 @@ namespace Height1079.Runtime
             planNoteBox.gameObject.SetActive(false);
 
             // the first half-minute
-            planIntro = Rect("PlanIntro", hud.transform, new Vector2(.5f, 1), new Vector2(.5f, 1), new Vector2(0, -90), new Vector2(820, 176));
+            planIntro = Rect("PlanIntro", hud.transform, new Vector2(.5f, 1), new Vector2(.5f, 1), new Vector2(0, -90), new Vector2(820, 132));
             planIntro.pivot = new Vector2(.5f, 1);
             PanelImage(planIntro, new Color(.04f, .11f, .16f, .9f));
-            planIntroText = Label("Text", planIntro, new Vector2(24, -16), new Vector2(772, 144), 14, Ink);
+            planIntroText = Label("Text", planIntro, new Vector2(24, -14), new Vector2(772, 104), 14, Ink);
             planIntro.gameObject.SetActive(false);
 
             BuildPlanSheet();
@@ -261,13 +261,15 @@ namespace Height1079.Runtime
             }
             if (!planIntro.gameObject.activeSelf) planIntro.gameObject.SetActive(true);
             var sb = new System.Text.StringBuilder();
+            // Two lines, not a lecture: where you stand and how long the thing takes. The why of every step is on the
+            // sheet in the rucksack, and that is where a man reads it — not off a card he is waiting to get rid of.
             sb.Append("Поляна Азау, ").Append(Mathf.RoundToInt(Elbrus.Azau.Ele))
-              .Append(" м. Отсюда на Западную вершину, ").Append(Mathf.RoundToInt(Elbrus.WestSummit.Ele))
-              .Append(" м, идут девять дней: сначала вверх и обратно вниз за акклиматизацией, потом четыре ночи в приютах, потом штурм затемно. Программа этих девяти дней лежит у вас в рюкзаке.\n\n");
+              .Append(" м. До вершины ").Append(Mathf.RoundToInt(Elbrus.WestSummit.Ele))
+              .Append(" м — девять дней: акклиматизация, четыре ночи в приютах, штурм затемно.\nПрограмма лежит в рюкзаке.\n\n");
             sb.Append(Programmes.Head(p));
             if (!step.IsEmpty) sb.Append(" · ").Append(step.Line);
             if (aim.Has) sb.Append("\n").Append(Programmes.AimLine(aim));
-            sb.Append("\n\nКарточка внизу слева · U/F3 — лист программы · 1 — компас с пеленгом · 3/M — карта");
+            sb.Append("\n\nU/F3 — программа · 1 — компас · 3/M — карта");
             planIntroText.text = sb.ToString();
         }
 

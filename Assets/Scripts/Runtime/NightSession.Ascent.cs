@@ -23,6 +23,10 @@ namespace Height1079.Runtime
         /// itself after noon (<see cref="AscentRoute.WeatherRiskPerHour"/>) and then it stays broken. The clients
         /// read it for the driving snow and for how far anyone can see.</summary>
         public readonly NetworkVariable<bool> MountainStorm = new NetworkVariable<bool>();
+        /// <summary>The most ground a tick can honestly cover on foot, metres. Beyond it the step is a teleport of one
+        /// kind or another and is not charged to the legs.</summary>
+        const float Walkable = 4f;
+
         /// <summary>Centimetres of new snow since the wands were last readable, ×4.</summary>
         public readonly NetworkVariable<byte> FreshSnow = new NetworkVariable<byte>();
 
@@ -116,6 +120,11 @@ namespace Height1079.Runtime
                 var pos = hiker.transform.position;
                 var at = new Vector2(pos.x, pos.z);
                 float moved = climbWere.TryGetValue(id, out var was) ? Vector2.Distance(at, was) : 0f;
+                // A tick is a quarter of a second, so a man on foot covers two metres at the very most. Anything longer
+                // is not walking — a lift, a network correction, a slide already under way, the debug jump along the
+                // route — and must not be charged as metres walked: the slip and crevasse dice are rolled per metre, and
+                // three hundred of them at once is a certain fall, which is exactly what a jump to the summit produced.
+                if (moved > Walkable) moved = 0f;
                 var dir = moved > .02f ? new Vector3(at.x - was.x, 0f, at.y - was.y) : hiker.transform.forward;
                 climbWere[id] = at;
 
@@ -450,6 +459,43 @@ namespace Height1079.Runtime
                 Needed = Ascent.CramponSeconds,
                 From = hiker.transform.position,
             };
+        }
+
+        /// <summary>Debug only, and only from the route jump on F4: hand this climber the whole hire board, put the
+        /// crampons on his boots and give him the lungs of somebody who walked up. Landing at 5 600 m off a teleport
+        /// with a tourist's acclimatisation and an empty rucksack is a man who cannot move: the gate takes the uphill
+        /// away (<see cref="ClimbGear.Allow"/>), the hypoxia takes the pace
+        /// (<see cref="Ascent.SpeedFactor"/>) and a forced stop takes what is left. The jump exists to look at the
+        /// mountain from up there, so it puts the climber in the state he would have been in had he walked.</summary>
+        public void DebugOutfit() => OutfitRpc();
+
+        [Rpc(SendTo.Server)]
+        void OutfitRpc(RpcParams rpc = default)
+        {
+            ulong id = rpc.Receive.SenderClientId;
+            if (!Climb.On || run == null || packs == null) return;
+            string token = Token(id);
+            if (!run.Players.TryGetValue(token, out var p) || p.Outcome != Outcome.None) return;
+            var served = Gear.None;
+            foreach (var h in Rental.Board())
+            {
+                if ((Rental.Carried(packs, token) & h.Piece) != 0) continue;
+                if (packs.Receive(token, new ItemStack(h.Item)) != PackResult.Ok) continue;
+                served |= h.Piece;
+            }
+            if (served != Gear.None) SyncPacks();
+            var c = ClimberOf(id);
+            c.Gear = Rental.Carried(packs, token);
+            c.CramponsOn = c.Has(Gear.Crampons);
+            c.Acclimatisation = 1f;
+            c.SicknessLoad = 0f;
+            c.Pulse = 0f;
+            c.StopSeconds = 0f;
+            c.Drowsiness = 0f;
+            c.Dehydration = 0f;
+            c.ThermosSips = AscentRoute.ThermosSips;
+            climbJobs.Remove(id);
+            gateSafe.Remove(id);
         }
 
         /// <summary>Owner asks for a sip of hot. A one-litre thermos opened at −25 °C is five sips and no more.</summary>

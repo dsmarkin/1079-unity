@@ -64,6 +64,15 @@ namespace Height1079.Runtime
             || Down(Key.F2)
 #endif
             ;
+        /// <summary>F4 on Elbrus: step to the next point of the summit route, kitted out and acclimatised. Testing the top of a nine-hour climb by
+        /// walking to it is not testing, and the letter keys do not reach the game under automation, so this sits on an
+        /// F-key. It does nothing on the pass.</summary>
+        public static bool JumpRoute => Pressed(KeyCode.F4
+#if ENABLE_INPUT_SYSTEM
+            , Key.F4
+#endif
+            );
+
         /// <summary>F4: watch the Menk (camera beside it). F5 (host): wake it now.</summary>
         public static bool MenkWatch => LegacyDown(KeyCode.F4)
 #if ENABLE_INPUT_SYSTEM
