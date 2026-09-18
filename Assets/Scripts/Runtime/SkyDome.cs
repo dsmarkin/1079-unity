@@ -104,6 +104,7 @@ namespace Height1079.Runtime
             if (DemoReel.NightSeconds >= 0f) { elapsed = DemoReel.NightSeconds; running = true; }
             // the menu shows the valley at 16:40, the sun on the ridge
             Minutes = running ? Sky.ClockMinutes(elapsed) : 16 * 60 + 40;
+            if (DemoReel.ClockMinutes >= 0f) Minutes = DemoReel.ClockMinutes;
             double jd = Sky.JulianDay(Minutes);
             var (sa, sz) = Sky.Sun(jd);
             var (ma, mz, lit) = Sky.Moon(jd);
@@ -119,7 +120,12 @@ namespace Height1079.Runtime
             z += new Color(.0f, .02f, .01f) * Aurora;
             h += new Color(.0f, .03f, .015f) * Aurora;
             float light = Mathf.Max(h.grayscale, .03f);
-            var stormCol = new Color(.075f, .085f, .1f) * Mathf.Clamp(light * 3f, .25f, 3f);
+            // a blizzard at two in the morning is a black wall and at one in the afternoon a white one: the same driving
+            // snow, lit or not. Scaling one dark colour by the horizon never gets to the white-out, so the colour itself
+            // walks from night grey to daylight white with the sun.
+            var stormCol = Color.Lerp(new Color(.075f, .085f, .1f), new Color(.8f, .82f, .85f),
+                               Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(-6f, 5f, SunAlt)))
+                         * Mathf.Clamp(light * 3f, .25f, 1.15f);
             Zenith = Color.Lerp(z, stormCol, storm); Horizon = Color.Lerp(h, stormCol, storm); Glow = g * (1f - storm * .85f);
 
             Shader.SetGlobalVector(ZenithId, (Vector4)Zenith);

@@ -20,10 +20,19 @@ namespace Height1079.Runtime
     /// move the night clock (<see cref="SkyDome"/>) and the weather (<see cref="Weather"/>) itself.</summary>
     public sealed class DemoReel : MonoBehaviour
     {
-        public const int Width = 1280, Height = 720, Fps = 30;
+        /// <summary>The film is rendered large and with full multisampling, then shrunk to this before it is written:
+        /// a Retina screen supersamples the game for free, and a bare 720p grab next to it looks like a different game —
+        /// every rope, branch and grass blade crawls. Rendering 2560×1440 with 8× MSAA and resolving down to 1080p gives
+        /// a cleaner frame than the screen itself.</summary>
+        public const int Width = 1920, Height = 1080, Fps = 30;
+        public const int RenderWidth = 2560, RenderHeight = 1440, Samples = 8;
 
         /// <summary>Seconds into the night the reel wants the sky to show, or −1 to leave the sky alone.</summary>
         public static float NightSeconds = -1f;
+        /// <summary>The hour the reel wants on the sky clock, in minutes from midnight, or −1 to take the hour from
+        /// <see cref="NightSeconds"/>. The night of 1 February is the game; a blizzard filmed in it is a black rectangle,
+        /// and the same front at one in the afternoon is the white wall it actually is.</summary>
+        public static float ClockMinutes = -1f;
         /// <summary>The blizzard the reel wants, 0…1, or −1 to leave the weather alone.</summary>
         public static float StormWanted = -1f;
         public static bool Running { get; private set; }
@@ -33,6 +42,11 @@ namespace Height1079.Runtime
         {
             public string Caption = "";
             public float Seconds = 3.5f;
+            /// <summary>Field of view for the shot; 60° is what the hiker sees.</summary>
+            public float Fov = 60f;
+            /// <summary>Seconds the world runs unfilmed after <see cref="Prepare"/>: the weather of the shot before has to
+            /// clear, the snow has to fall out of the air and the sky has to move to the hour the shot wants.</summary>
+            public float Settle = 1.9f;
             public Place Place;
             /// <summary>Called once the place is standing, before the first frame.</summary>
             public Action Prepare;
@@ -42,8 +56,10 @@ namespace Height1079.Runtime
             public Action<float> Each;
         }
 
-        RenderTexture rt;
+        RenderTexture rt, shrunk;
+        Light lamp;
         Texture2D frame;
+        int wasAa, wasCascades; float wasShadow, wasLod; AnisotropicFiltering wasAniso;
         FileStream file;
         StreamWriter sheet;
         int written;
@@ -70,12 +86,17 @@ namespace Height1079.Runtime
         void Start()
         {
             Running = true;
-            rt = new RenderTexture(Width, Height, 24, RenderTextureFormat.ARGB32) { name = "DemoReel" };
+            rt = new RenderTexture(RenderWidth, RenderHeight, 24, RenderTextureFormat.ARGB32)
+            {
+                name = "DemoReel", antiAliasing = Samples, filterMode = FilterMode.Bilinear,
+            };
+            shrunk = new RenderTexture(Width, Height, 0, RenderTextureFormat.ARGB32) { name = "DemoReelOut", filterMode = FilterMode.Bilinear };
             frame = new Texture2D(Width, Height, TextureFormat.RGB24, false);
+            Lavish();
             string folder = Folder();
             file = new FileStream(Path.Combine(folder, "demo.mjpeg"), FileMode.Create, FileAccess.Write);
             sheet = new StreamWriter(Path.Combine(folder, "demo.txt"), false);
-            Debug.Log($"1079 демо: пишу {Path.Combine(folder, "demo.mjpeg")}, {Width}×{Height} @ {Fps}");
+            Debug.Log($"1079 демо: пишу {Path.Combine(folder, "demo.mjpeg")}, {RenderWidth}×{RenderHeight} → {Width}×{Height} @ {Fps}, MSAA {Samples}");
             Build();
             StartCoroutine(Film());
         }
@@ -94,27 +115,34 @@ namespace Height1079.Runtime
         void Build()
         {
             var azau = Elbrus.Azau; var mir = Elbrus.Mir; var top = Elbrus.WestSummit;
-            var gara = Elbrus.Garabashi; var barrels = Elbrus.Barrels;
+            var barrels = Elbrus.Barrels;
+            var summit = new Vector3(top.X, 0f, top.Z);
 
-            // 1 — the meadow at Azau: down onto the village, then up to the summit
+            // 1 — Azau, 2 350 m: standing in the July meadow where the game drops the visitor, walking towards the station
+            var spawn = Elbrus.Start;
             shots.Add(new Shot
             {
                 Caption = "Поляна Азау, 2350 м · июльский день",
                 Place = Place.Elbrus, Seconds = 3.6f,
                 Fly = t =>
                 {
-                    var eye = Lerp(Over(azau.X + 150f, azau.Z - 172f, 12f), Over(azau.X + 52f, azau.Z - 66f, 4.5f), t);
-                    var look = Lerp(Over(azau.X + 4f, azau.Z - 6f, 6f), new Vector3(top.X, Ground(top.X, top.Z) + 60f, top.Z), Ease(t) * .8f);
+                    var walk = new Vector3(azau.X - spawn.x, 0f, azau.Z - spawn.z).normalized;
+                    var from = new Vector3(spawn.x, 0f, spawn.z) - walk * 4f;
+                    var on = from + walk * (8f * Ease(t));
+                    var eye = Over(on.x, on.z, Eye);
+                    // ahead along the path, lifting towards the summit as the station opens up
+                    var ahead = on + walk * 30f;
+                    var look = Vector3.Lerp(Over(ahead.x, ahead.z, 3f), summit + Vector3.up * (Ground(top.X, top.Z) + 30f), Ease(t) * .45f);
                     return (eye, look);
                 },
             });
 
-            // 2 — a gondola cabin on the move, filmed from alongside: the rope, the towers, the valley under it
+            // 2 — a gondola cabin passing close by: the glazing, the grips, the rope and the valley falling away under it
             RopewayRig gondola = null; int car = -1;
             shots.Add(new Shot
             {
                 Caption = "Канатная дорога работает · шесть очередей",
-                Place = Place.Elbrus, Seconds = 3.6f,
+                Place = Place.Elbrus, Seconds = 3.6f, Fov = 50f,
                 Prepare = () =>
                 {
                     gondola = null; car = -1;
@@ -127,69 +155,70 @@ namespace Height1079.Runtime
                     {
                         var c = gondola.Line.CarAt(i, RopewayRig.Clock);
                         if (!c.Up) continue;
-                        float d = Mathf.Abs(c.S / gondola.Line.Length - .42f);
+                        float d = Mathf.Abs(c.S / gondola.Line.Length - .72f);
                         if (d < best) { best = d; car = i; }
                     }
                 },
-                Each = _ => RopewayRig.Clock += Time.deltaTime * 5.0,      // on top of the line's own pace
+                Each = _ => RopewayRig.Clock += Time.deltaTime * 2.2,     // on top of the line's own pace
                 Fly = t =>
                 {
                     var cabin = gondola != null && car >= 0 ? gondola.Car(car) : null;
                     if (cabin == null) return (Over(azau.X, azau.Z - 60f, 30f), Over(azau.X, azau.Z, 4f));
                     var p = cabin.position;
-                    // alongside and a little behind, swinging in towards the cabin as it climbs
+                    // close alongside, drifting in and dropping to the cabin's own level as it climbs
                     var side = Vector3.Cross(Vector3.up, cabin.forward).normalized;
-                    var eye = p + side * Mathf.Lerp(16f, 9f, Ease(t)) - cabin.forward * Mathf.Lerp(14f, 4f, Ease(t)) + Vector3.up * Mathf.Lerp(7f, 2.5f, Ease(t));
-                    return (eye, p);
+                    // the transform sits at the grip; the cabin hangs a good four metres under it, so the shot has to be
+                    // aimed at the body and flown at the body's own height — above the canopy, clear of the branches
+                    var body = p - Vector3.up * (Ropeway.Drop(gondola.Spec.Kind) - Ropeway.Hang(gondola.Spec.Kind)) * .6f;
+                    var eye = body + side * Mathf.Lerp(7.5f, 5f, Ease(t))
+                                   - cabin.forward * Mathf.Lerp(3.4f, .6f, Ease(t))
+                                   + Vector3.up * Mathf.Lerp(1.6f, .2f, Ease(t));
+                    return (eye, body);
                 },
             });
 
-            // 3 — over the Mir station: the hall, the cafes, the stalls, the monument
+            // 3 — Mir, 3 500 m: on the platform in front of the hall, the cafes and the stalls sliding past
+            Transform mirHall = null;
             shots.Add(new Shot
             {
                 Caption = "Станция «Мир», 3500 м · кафе, музей, ратраки",
-                Place = Place.Elbrus, Seconds = 3.2f,
+                Place = Place.Elbrus, Seconds = 3.4f,
+                Prepare = () => mirHall = Nearest("Elb_Terminal_Mir", new Vector3(mir.X, 0f, mir.Z), 260f),
                 Fly = t =>
                 {
-                    var eye = Lerp(Over(mir.X + 150f, mir.Z - 170f, 52f), Over(mir.X + 28f, mir.Z - 34f, 16f), t);
-                    return (eye, Over(mir.X, mir.Z + 6f, 6f));
+                    var c = mirHall != null ? mirHall.position : Over(mir.X, mir.Z, 0f);
+                    var down = Downhill(c, summit);
+                    var side = Vector3.Cross(Vector3.up, down).normalized;
+                    var on = c + down * Mathf.Lerp(34f, 27f, Ease(t)) + side * Mathf.Lerp(26f, -16f, Ease(t));
+                    // the station stands on a pad: an eye on the snow below its edge sees only the plinth
+                    float y = Mathf.Max(Ground(on.x, on.z) + Eye, c.y + 1.5f);
+                    return (new Vector3(on.x, y, on.z), c + Vector3.up * 6f);
                 },
             });
 
-            // 4 — Gara-Bashi, 3847: the barrels, the huts and the snow-cats under the summit
+            // 4 — Gara-Bashi, 3 847 m: between the barrels, the summit opening up over the roof of one
+            Transform barrel = null;
             shots.Add(new Shot
             {
                 Caption = "Гара-Баши, 3847 м · бочки, приюты, ратраки",
                 Place = Place.Elbrus, Seconds = 3.4f,
+                Prepare = () => barrel = Nearest("Elb_Barrel", new Vector3(barrels.X, 0f, barrels.Z), 300f),
                 Fly = t =>
                 {
-                    float a = Mathf.Lerp(150f, 196f, Ease(t)) * Mathf.Deg2Rad;
-                    float r = Mathf.Lerp(150f, 105f, Ease(t));
-                    var eye = Over(barrels.X + Mathf.Sin(a) * r, barrels.Z + Mathf.Cos(a) * r, Mathf.Lerp(46f, 24f, Ease(t)));
-                    var look = Vector3.Lerp(Over(barrels.X, barrels.Z, 3f), new Vector3(top.X, Ground(top.X, top.Z) + 20f, top.Z), Ease(t) * .45f);
-                    return (eye, look);
+                    var c = barrel != null ? barrel.position : Over(barrels.X, barrels.Z, 0f);
+                    var down = Downhill(c, summit);
+                    var side = Vector3.Cross(Vector3.up, down).normalized;
+                    var on = c + down * Mathf.Lerp(23f, 17f, Ease(t)) + side * Mathf.Lerp(-15f, 7f, Ease(t));
+                    var look = Vector3.Lerp(c + Vector3.up * 1.6f,
+                        new Vector3(top.X, Ground(top.X, top.Z) + 30f, top.Z), Ease(t) * .5f);
+                    return (Over(on.x, on.z, Eye), look);
                 },
             });
 
-            // ── the pass, the evening and the night ───────────────────────────────────────────────────────
-            var camp = WorldData.Camp; var tent = WorldData.Tent; var cedar = WorldData.Cedar;
+            // ── the pass: the same day, then the evening and the night ────────────────────────────────────
+            var camp = WorldData.Camp; var tent = WorldData.Tent;
 
-            // 5 — the camp of 31 January: the fire on its log raft, the skis in the snow, the tent behind
-            shots.Add(new Shot
-            {
-                Caption = "Холатчахль, 1 февраля 1959 · ночёвка в лесу",
-                Place = Place.Kholat, Seconds = 3.6f,
-                Prepare = () => { NightSeconds = 0f; StormWanted = 0f; },
-                Fly = t =>
-                {
-                    float a = Mathf.Lerp(28f, 74f, Ease(t)) * Mathf.Deg2Rad;
-                    float r = Mathf.Lerp(13f, 8f, Ease(t));
-                    var eye = Over(camp.x + Mathf.Sin(a) * r, camp.z - Mathf.Cos(a) * r, Mathf.Lerp(3.4f, 2f, Ease(t)));
-                    return (eye, Over(camp.x, camp.z, 1.1f));
-                },
-            });
-
-            // 6 — a ski track laid through the forest, camera low along it
+            // 5 — a ski track through the forest, camera down on it at a skier's pace
             Vector3 from = Vector3.zero, to = Vector3.zero;
             shots.Add(new Shot
             {
@@ -197,7 +226,7 @@ namespace Height1079.Runtime
                 Place = Place.Kholat, Seconds = 3.6f,
                 Prepare = () =>
                 {
-                    NightSeconds = 90f; StormWanted = 0f;
+                    NightSeconds = -1f; StormWanted = 0f;      // late afternoon, before the night starts counting
                     // lay the track by hand: nobody is on skis in the world behind the menu
                     from = new Vector3(camp.x + 34f, 0f, camp.z - 46f);
                     to = new Vector3(camp.x - 18f, 0f, camp.z + 30f);
@@ -214,39 +243,101 @@ namespace Height1079.Runtime
                 Fly = t =>
                 {
                     var dir = (to - from); dir.y = 0f; dir.Normalize();
-                    var on = Vector3.Lerp(from, to, .12f + .5f * Ease(t));
-                    var eye = Over(on.x, on.z, 1.55f);
-                    var ahead = on + dir * 16f;
-                    return (eye, Over(ahead.x, ahead.z, .4f));
+                    var side = Vector3.Cross(Vector3.up, dir).normalized;
+                    // just off the track and low, the way you see it under your own skis
+                    var on = Vector3.Lerp(from, to, .14f + .13f * Ease(t)) + side * .9f;
+                    var eye = Over(on.x, on.z, 1.45f);
+                    var ahead = on + dir * 14f - side * 1.2f;
+                    return (eye, Over(ahead.x, ahead.z, .3f));
                 },
             });
 
-            // 7 — the tent on the open slope and the front that comes in over it
+            // 6 — the front comes over the pass in daylight: driving snow, the trees going out one by one
             shots.Add(new Shot
             {
                 Caption = "Пурга приходит · видимость падает до метров",
                 Place = Place.Kholat, Seconds = 3.8f,
-                Prepare = () => { NightSeconds = 120f; StormWanted = 1f; },
+                Prepare = () => { NightSeconds = -1f; ClockMinutes = 13 * 60 + 10; StormWanted = 0f; },
+                Each = t => { ClockMinutes = 13 * 60 + 10; StormWanted = t < .12f ? 0f : 1f; },
                 Fly = t =>
                 {
-                    var eye = Lerp(Over(tent.X + 30f, tent.Z - 34f, 3.2f), Over(tent.X + 11f, tent.Z - 13f, 2.1f), t);
-                    return (eye, Over(tent.X, tent.Z, 1.3f));
+                    var eye = Lerp(Over(tent.X + 16f, tent.Z - 18f, 1.7f), Over(tent.X + 7f, tent.Z - 8f, 1.55f), t);
+                    return (eye, Over(tent.X, tent.Z, 1.2f));
                 },
             });
 
-            // 8 — deep night over the pass: the tent, the stars, the moon and the aurora above it
+            // 7 — the camp of 31 January at dusk: the tent, the fire, the skis standing in the snow
+            shots.Add(new Shot
+            {
+                Caption = "Холатчахль, 1 февраля 1959 · ночёвка в лесу",
+                Place = Place.Kholat, Seconds = 3.6f,
+                Prepare = () => { NightSeconds = 0f; StormWanted = 0f; Lamp(new Vector3(camp.x, Ground(camp.x, camp.z) + 1.1f, camp.z), 2.4f, 16f); },
+                Fly = t =>
+                {
+                    float a = Mathf.Lerp(34f, 76f, Ease(t)) * Mathf.Deg2Rad;
+                    float r = Mathf.Lerp(8.5f, 6f, Ease(t));
+                    var eye = Over(camp.x + Mathf.Sin(a) * r, camp.z - Mathf.Cos(a) * r, 1.6f);
+                    return (eye, Over(camp.x, camp.z, 1.1f));
+                },
+            });
+
+            // 8 — deep night: the lit tent close by, the stars and the aurora coming up over it
             shots.Add(new Shot
             {
                 Caption = "Ночь считает хост: холод, руки, ясность, исходы",
                 Place = Place.Kholat, Seconds = 3.6f,
-                Prepare = () => { NightSeconds = 700f; StormWanted = 0f; },
+                Prepare = () => { NightSeconds = 605f; StormWanted = 0f; Lamp(new Vector3(tent.X, Ground(tent.X, tent.Z) + .9f, tent.Z), 4.2f, 15f); },
                 Fly = t =>
                 {
-                    var eye = Lerp(Over(tent.X + 13f, tent.Z - 15f, 2.4f), Over(tent.X + 34f, tent.Z - 40f, 15f), t);
-                    var look = Lerp(Over(tent.X, tent.Z, 2f), Over(tent.X, tent.Z, 34f), Ease(t) * .8f);
+                    var eye = Lerp(Over(tent.X + 6.5f, tent.Z - 7.5f, 1.5f), Over(tent.X + 8.5f, tent.Z - 10f, 1.9f), t);
+                    var look = Lerp(Over(tent.X, tent.Z, 1.2f), Over(tent.X, tent.Z, 15f), Ease(t) * .8f);
                     return (eye, look);
                 },
             });
+        }
+
+        /// <summary>Eye height of the hiker, so a shot stands where the player stands rather than hovering over the map.</summary>
+        const float Eye = 1.72f;
+
+        /// <summary>Horizontal unit vector pointing away from the summit: the side of a building a visitor arrives on, and
+        /// the side that has the mountain behind it.</summary>
+        static Vector3 Downhill(Vector3 at, Vector3 summit)
+        {
+            var d = new Vector3(at.x - summit.x, 0f, at.z - summit.z);
+            return d.sqrMagnitude < 1e-3f ? Vector3.forward : d.normalized;
+        }
+
+        /// <summary>The nearest thing actually standing in the world whose name starts with <paramref name="prefix"/>, so a
+        /// shot is framed on what got built rather than on a guess at where it went.</summary>
+        static Transform Nearest(string prefix, Vector3 near, float within)
+        {
+            Transform best = null; float bd = within * within;
+            foreach (var t in FindObjectsByType<Transform>(FindObjectsSortMode.None))
+            {
+                if (!t.name.StartsWith(prefix, StringComparison.Ordinal)) continue;
+                var p = t.position; p.y = 0f;
+                float d = (p - new Vector3(near.x, 0f, near.z)).sqrMagnitude;
+                if (d < bd) { bd = d; best = t; }
+            }
+            return best;
+        }
+
+        /// <summary>A warm light for the night shots — a stove inside the tent, a fire on its raft. Without one the pass at
+        /// two in the morning films as a black rectangle, which is true and shows nothing.</summary>
+        void Lamp(Vector3 at, float power, float range)
+        {
+            if (lamp == null)
+            {
+                var go = new GameObject("DemoLamp");
+                go.transform.SetParent(transform, false);
+                lamp = go.AddComponent<Light>();
+                lamp.type = LightType.Point;
+                lamp.color = new Color(1f, .78f, .5f);
+                lamp.shadows = LightShadows.None;
+            }
+            lamp.transform.position = at;
+            lamp.intensity = power; lamp.range = range;
+            lamp.enabled = true;
         }
 
         // ── filming ───────────────────────────────────────────────────────────────────────────────────────
@@ -265,8 +356,10 @@ namespace Height1079.Runtime
                     Bootstrap.SetPlace(shot.Place);
                     for (int i = 0; i < 3; i++) yield return null;   // let the world stand up before filming it
                 }
+                if (lamp != null) lamp.enabled = false;
+                ClockMinutes = -1f;
                 shot.Prepare?.Invoke();
-                yield return null;
+                for (int i = Mathf.RoundToInt(shot.Settle * Fps); i > 0; i--) yield return null;
 
                 int frames = Mathf.Max(2, Mathf.RoundToInt(shot.Seconds * Fps));
                 sheet.WriteLine(string.Format(CultureInfo.InvariantCulture, "{0:0.00}|{1:0.00}|{2}", at, shot.Seconds, shot.Caption));
@@ -295,8 +388,42 @@ namespace Height1079.Runtime
             var dir = look - eye;
             if (dir.sqrMagnitude < 1e-4f) dir = cam.transform.forward;
             cam.transform.SetPositionAndRotation(eye, Quaternion.LookRotation(dir.normalized, Vector3.up));
-            cam.fieldOfView = 62f;
+            cam.fieldOfView = shot.Fov;
             if (cam.farClipPlane < 20000f) cam.farClipPlane = 20000f;
+        }
+
+        /// <summary>Everything turned up for the half minute the film takes: multisampling, anisotropy, shadows to the
+        /// horizon, full LODs, trees and grass drawn far out. None of it has to run at sixty frames a second here — the
+        /// clock is pinned to the frame, not to the wall.</summary>
+        void Lavish()
+        {
+            wasAa = QualitySettings.antiAliasing; wasAniso = QualitySettings.anisotropicFiltering;
+            wasShadow = QualitySettings.shadowDistance; wasCascades = QualitySettings.shadowCascades; wasLod = QualitySettings.lodBias;
+            QualitySettings.antiAliasing = Samples;
+            QualitySettings.anisotropicFiltering = AnisotropicFiltering.ForceEnable;
+            QualitySettings.shadowDistance = Mathf.Max(wasShadow, 420f);
+            QualitySettings.shadowCascades = 4;
+            QualitySettings.lodBias = Mathf.Max(wasLod, 3.5f);
+            QualitySettings.maximumLODLevel = 0;
+            QualitySettings.softParticles = true;
+            foreach (var t in FindObjectsByType<Terrain>(FindObjectsSortMode.None))
+            {
+                t.heightmapPixelError = 1.5f;
+                t.basemapDistance = Mathf.Max(t.basemapDistance, 4000f);
+                t.detailObjectDistance = 250f;
+                t.detailObjectDensity = 1f;
+                t.treeDistance = Mathf.Max(t.treeDistance, 4000f);
+                t.treeBillboardDistance = 400f;
+                t.treeMaximumFullLODCount = 1000;
+                t.treeCrossFadeLength = 25f;
+            }
+        }
+
+        void Plain()
+        {
+            QualitySettings.antiAliasing = wasAa; QualitySettings.anisotropicFiltering = wasAniso;
+            QualitySettings.shadowDistance = wasShadow; QualitySettings.shadowCascades = wasCascades;
+            QualitySettings.lodBias = wasLod;
         }
 
         void Capture(float fade)
@@ -304,12 +431,17 @@ namespace Height1079.Runtime
             var cam = Camera.main;
             if (cam == null) return;
             var was = cam.targetTexture;
+            bool wasMsaa = cam.allowMSAA;
+            cam.allowMSAA = true;
             cam.targetTexture = rt;
             cam.Render();
             cam.targetTexture = was;
+            cam.allowMSAA = wasMsaa;
 
+            // resolve the multisampled frame down to the film size: this is the supersampling that makes it clean
+            Graphics.Blit(rt, shrunk);
             var prev = RenderTexture.active;
-            RenderTexture.active = rt;
+            RenderTexture.active = shrunk;
             frame.ReadPixels(new Rect(0, 0, Width, Height), 0, 0, false);
             RenderTexture.active = prev;
 
@@ -327,7 +459,7 @@ namespace Height1079.Runtime
             }
             frame.Apply(false);
 
-            var jpg = frame.EncodeToJPG(88);
+            var jpg = frame.EncodeToJPG(93);
             file.Write(jpg, 0, jpg.Length);
             written++;
         }
@@ -335,7 +467,8 @@ namespace Height1079.Runtime
         void Finish()
         {
             Time.captureFramerate = 0;
-            NightSeconds = -1f; StormWanted = -1f;
+            NightSeconds = -1f; StormWanted = -1f; ClockMinutes = -1f;
+            Plain();
             file.Flush(); file.Dispose(); file = null;
             sheet.Flush(); sheet.Dispose(); sheet = null;
             Running = false;
@@ -348,11 +481,12 @@ namespace Height1079.Runtime
         void OnDestroy()
         {
             Time.captureFramerate = 0;
-            NightSeconds = -1f; StormWanted = -1f;
+            NightSeconds = -1f; StormWanted = -1f; ClockMinutes = -1f;
             Running = false;
             if (file != null) { file.Flush(); file.Dispose(); file = null; }
             if (sheet != null) { sheet.Flush(); sheet.Dispose(); sheet = null; }
             if (rt != null) { rt.Release(); Destroy(rt); }
+            if (shrunk != null) { shrunk.Release(); Destroy(shrunk); }
             if (frame != null) Destroy(frame);
         }
     }

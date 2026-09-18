@@ -226,17 +226,22 @@ namespace Height1079.EditorTools.World
         /// <summary>A tuft of alpine grass on transparent background: the detail card the Elbrus meadows are drawn with.
         /// A dozen blades bending out of one point, a few of them dry and yellow, as they stand around Azau in July.</summary>
         public static Texture2D GrassTuft(string name, int seed, Color dark, Color light, Color dry)
+            => GrassTuft(name, seed, dark, light, dry, default, 0f, 16, 1f);
+
+        /// <summary>A tuft of alpine grass. <paramref name="flowerChance"/> 0..1 of the blades end in a small pale head
+        /// (bellflower, edelweiss, a dry umbel) painted in <paramref name="flower"/>; <paramref name="reach"/> scales how
+        /// far up the card the blades go, so a low sedge and a tall bunch can share one generator.</summary>
+        public static Texture2D GrassTuft(string name, int seed, Color dark, Color light, Color dry, Color flower, float flowerChance, int blades, float reach)
         {
             const int W = 256, H = 256;
             var rnd = new System.Random(seed);
             float R() => (float)rnd.NextDouble();
             var t = New(W, H, new Color(dark.r, dark.g, dark.b, 0));
-            int blades = 16;
             for (int b = 0; b < blades; b++)
             {
                 float x0 = W * .5f + (R() - .5f) * W * .35f;
                 float lean = (R() - .5f) * W * .55f;
-                float h = H * (.45f + .5f * R());
+                float h = H * reach * (.45f + .5f * R());
                 var c = R() < .22f ? dry : Color.Lerp(dark, light, R());
                 c.a = 1;
                 // a blade is a chain of short strokes that thins and bends towards the tip
@@ -249,9 +254,47 @@ namespace Height1079.EditorTools.World
                     Stroke(t, prev, next, Mathf.Lerp(3.2f, .7f, f), Color.Lerp(c * .75f, c, f));
                     prev = next;
                 }
+                if (flowerChance > 0f && R() < flowerChance)
+                {
+                    var head = flower; head.a = 1;
+                    Stroke(t, prev, prev + new Vector2((R() - .5f) * 2f, 2.2f), 2.4f + R() * 1.2f, head);
+                }
             }
             t.Apply();
             return Save(name, t, true, TextureWrapMode.Clamp);
+        }
+
+        /// <summary>A tinted copy of a scanned albedo, baked into the generated library as its own PNG.
+        /// This exists because the built-in terrain shader (Nature/Terrain/Standard) never reads
+        /// <c>TerrainLayer.diffuseRemapMin/Max</c> — that pair is only honoured by the HDRP terrain shader, which is why a
+        /// tint set on a layer looks plausible in the inspector and then does exactly nothing in a player build. The tint
+        /// has to live in the pixels. <paramref name="desaturate"/> 0..1 first pulls the scan towards its own luminance,
+        /// which is what takes the ochre out of a sandstone scan before it is darkened down to andesite.
+        /// The JPG is decoded straight from the file, so the imported texture does not need Read/Write enabled.</summary>
+        public static Texture2D Tinted(string name, string sourcePath, Color tint, float desaturate = 0f)
+        {
+            if (!File.Exists(sourcePath)) { Debug.LogWarning("1079 world: missing source texture " + sourcePath); return null; }
+            var src = new Texture2D(2, 2, TextureFormat.RGBA32, false);
+            if (!src.LoadImage(File.ReadAllBytes(sourcePath)))
+            {
+                UnityEngine.Object.DestroyImmediate(src);
+                Debug.LogWarning("1079 world: could not decode " + sourcePath);
+                return null;
+            }
+            var px = src.GetPixels();
+            int w = src.width, h = src.height;
+            UnityEngine.Object.DestroyImmediate(src);
+            for (int i = 0; i < px.Length; i++)
+            {
+                var c = px[i];
+                float l = c.r * .299f + c.g * .587f + c.b * .114f;
+                px[i] = new Color(Mathf.Lerp(c.r, l, desaturate) * tint.r,
+                                  Mathf.Lerp(c.g, l, desaturate) * tint.g,
+                                  Mathf.Lerp(c.b, l, desaturate) * tint.b, 1f);
+            }
+            var t = new Texture2D(w, h, TextureFormat.RGBA32, false);
+            t.SetPixels(px); t.Apply();
+            return Save(name, t, false, TextureWrapMode.Repeat);
         }
 
         /// <summary>Ground of the lower southern slope in late summer: alpine turf on the meadows and grey lava scree on the

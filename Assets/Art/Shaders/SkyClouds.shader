@@ -36,7 +36,9 @@ Shader "Height1079/SkyClouds"
                 float2 sd = normalize(_SunDirW.xz + 1e-5), vd = normalize(dir.xz + 1e-5);
                 float toward = saturate(dot(sd, vd) * .5 + .5);
                 float3 col = sky * lerp(.75, 1.05, 1 - dens) + _SkyGlow * pow(toward, 3) * .35 * (1 - dens * .5);
-                col = lerp(col, float3(.07, .08, .095) * (1 + length(_SkyGlow)), _SkyStorm);
+                // in a blizzard the deck is the sky: the same driving grey, a touch darker. A fixed dark colour here made
+                // every storm a night storm — a white-out at noon came out black, however high the sun stood.
+                col = lerp(col, sky * float3(.9, .91, .93), _SkyStorm);
                 float alpha = saturate(dens * 1.05);
                 return fixed4(col, alpha);
             }
