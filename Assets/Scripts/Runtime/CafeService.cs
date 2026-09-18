@@ -27,6 +27,11 @@ namespace Height1079.Runtime
 
         public static CafeService Instance { get; private set; }
 
+        /// <summary>The order window is up. Its digits belong to it and not to the mountain: the rucksack's own hold
+        /// on <see cref="Backpacks.OpenPack"/> is cleared and put back every frame, so it cannot be asked
+        /// (see <see cref="Camps.HandleInput"/>).</summary>
+        public static bool Ordering => Instance != null && Instance.open;
+
         /// <summary>What the local hiker has left to spend. One purse per client: nobody else's money is at stake.</summary>
         public static Wallet Purse = Wallet.Start();
 

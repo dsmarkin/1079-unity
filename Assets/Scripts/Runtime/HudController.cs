@@ -13,7 +13,7 @@ namespace Height1079.Runtime
         static Font font;
         Canvas canvas;
         GameObject menu, hud, protocol;
-        Button kholatButton, elbrusButton, hostButton;
+        Button kholatButton, elbrusButton, hostButton, continueButton;
         Text kicker, lede;
         static readonly Color PlaceOff = new Color(.13f, .22f, .27f), PlaceOn = new Color(.28f, .45f, .5f);
         InputField nameField, addressField;
@@ -35,7 +35,7 @@ namespace Height1079.Runtime
         // rucksack window
         RectTransform packPanel, packRows;
         Text packTitle, packLoad, packHandLine;
-        Button packWearButton, packStowButton, packDropButton, packPickButton;
+        Button packWearButton, packStowButton, packDropButton, packPickButton, packCampButton, packSleepButton, packLeaveButton;
         readonly System.Collections.Generic.List<Button> packRowPool = new System.Collections.Generic.List<Button>();
         string packShown = "";
         Texture2D mapTex;
@@ -140,7 +140,23 @@ namespace Height1079.Runtime
                 : "Одна ночь. Холод. Дорога наверх.\nДоберитесь от леса до укрытия прежде, чем рассветёт.";
             var label = hostButton != null ? hostButton.GetComponentInChildren<Text>() : null;
             if (label != null) label.text = elbrus ? "НАЧАТЬ ПОДЪЁМ" : "СОЗДАТЬ НОЧЬ";
+            RefreshContinue();
             ApplyPlace();
+        }
+
+        /// <summary>«Продолжить» appears only when this place has a save, and says which one:
+        /// «ПРОДОЛЖИТЬ · косая полка, 5290 м · 08:40 · вчера». The night on Kholat Syakhl is one night and never has
+        /// one (<see cref="Camp.AllowedIn"/>), so the button simply is not there.</summary>
+        void RefreshContinue()
+        {
+            if (continueButton == null) return;
+            var slot = Saves.Newest(World.Current);
+            bool show = !slot.IsEmpty;
+            if (continueButton.gameObject.activeSelf != show) continueButton.gameObject.SetActive(show);
+            if (!show) return;
+            string where = string.IsNullOrEmpty(slot.Where) ? "склон" : slot.Where;
+            continueButton.GetComponentInChildren<Text>().text =
+                $"ПРОДОЛЖИТЬ · {where} · {AscentRoute.Clock(slot.Hour)} · {SaveStore.When(slot.SavedUtc.ToLocalTime(), System.DateTime.Now)}";
         }
 
         /// <summary>Everything the HUD draws differently in the two places. The HUD is built once and lives through
@@ -154,7 +170,7 @@ namespace Height1079.Runtime
             if (bigImage != null) { bigImage.texture = mapTex; bigImage.color = tint; }
             if (miniScale != null) miniScale.text = MiniMetres >= 1000f ? $"{MiniMetres / 1000f:0.#} км по диаметру" : $"{MiniMetres:0} м по диаметру";
             if (keys != null) keys.text = World.IsElbrus
-                ? "WASD · Shift бег (до 4600 м) · V вид · Esc пауза\nE — кабина, ратрак, кафе, прокат · C/F1 кошки · T/F2 термос\n1 компас · 3/M карта · N мини-карта · Tab рюкзак"
+                ? "WASD · Shift бег (до 4600 м) · V вид · Esc пауза\nE — кабина, ратрак, кафе, прокат · C/F1 кошки · T/F2 термос\nB/7 лагерь · P/8 ночёвка и сохранение\n1 компас · 3/M карта · N мини-карта · Tab рюкзак"
                 : "WASD · Shift бег · V вид · E костёр · Esc пауза\n1 компас · 2 фонарик (F — свет) · 3/M карта · Q убрать · N мини-карта\nTab рюкзак · G снять/надеть · R взять/убрать · X бросить\nK/4 лыжи · L/5 палки · H/6 волокуша · F1 — следующий способ";
             if (travel != null) travel.gameObject.SetActive(!World.IsElbrus);
             if (climbLine != null) climbLine.gameObject.SetActive(World.IsElbrus);
@@ -168,7 +184,7 @@ namespace Height1079.Runtime
         {
             menu = Rect("Menu", canvas.transform, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero).gameObject;
             PanelImage(menu.GetComponent<RectTransform>(), new Color(.07f, .14f, .18f, .92f));
-            var card = Centered("Card", menu.transform, new Vector2(440, 648));
+            var card = Centered("Card", menu.transform, new Vector2(440, 700));
             PanelImage(card, new Color(.05f, .1f, .14f, .85f));
             kicker = Label("Kicker", card, new Vector2(32, -30), new Vector2(380, 20), 12, new Color(.71f, .79f, .81f));
             Label("Title", card, new Vector2(32, -60), new Vector2(380, 90), 84, Ink, TextAnchor.UpperLeft, FontStyle.Bold).text = "1079";
@@ -183,19 +199,25 @@ namespace Height1079.Runtime
             addressField = Field("Address", card, new Vector2(32, -428), new Vector2(376, 40), "127.0.0.1");
             hostButton = ButtonUi("Host", card, new Vector2(32, -486), new Vector2(180, 44), "СОЗДАТЬ НОЧЬ", new Color(.86f, .9f, .91f), new Color(.09f, .16f, .19f), () => Bootstrap.Host(nameField.text));
             ButtonUi("Join", card, new Vector2(228, -486), new Vector2(180, 44), "ПРИСОЕДИНИТЬСЯ", new Color(.2f, .29f, .34f), Ink, () => Bootstrap.Join(nameField.text, addressField.text));
+            // «Продолжить» stands beside «Создать ночь» and says where and when the ascent was left, because that is
+            // the only thing worth knowing before pressing it. No save for this place: no button (RefreshContinue).
+            continueButton = ButtonUi("Continue", card, new Vector2(32, -538), new Vector2(376, 40), "ПРОДОЛЖИТЬ",
+                new Color(.26f, .4f, .34f), Ink, () => Bootstrap.Continue(nameField.text));
+            continueButton.GetComponentInChildren<Text>().fontSize = 14;
+            continueButton.gameObject.SetActive(false);
             if (Bootstrap.Lobby != null)
             {
-                ButtonUi("SteamHost", card, new Vector2(32, -540), new Vector2(180, 40), "НОЧЬ ЧЕРЕЗ STEAM", new Color(.11f, .2f, .29f), Ink, () => Bootstrap.Lobby.Host(nameField.text, SetStatus));
-                ButtonUi("SteamInvite", card, new Vector2(228, -540), new Vector2(180, 40), "ПРИГЛАСИТЬ ДРУЗЕЙ", new Color(.11f, .2f, .29f), Ink, () => Bootstrap.Lobby.Invite());
+                ButtonUi("SteamHost", card, new Vector2(32, -586), new Vector2(180, 40), "НОЧЬ ЧЕРЕЗ STEAM", new Color(.11f, .2f, .29f), Ink, () => Bootstrap.Lobby.Host(nameField.text, SetStatus));
+                ButtonUi("SteamInvite", card, new Vector2(228, -586), new Vector2(180, 40), "ПРИГЛАСИТЬ ДРУЗЕЙ", new Color(.11f, .2f, .29f), Ink, () => Bootstrap.Lobby.Invite());
             }
             else
             {
                 // films the demo reel: eight shots over both places, straight out of the running world
-                ButtonUi("Demo", card, new Vector2(32, -540), new Vector2(376, 36), "СНЯТЬ ДЕМО-РОЛИК", new Color(.13f, .23f, .27f), Ink,
+                ButtonUi("Demo", card, new Vector2(32, -586), new Vector2(376, 36), "СНЯТЬ ДЕМО-РОЛИК", new Color(.13f, .23f, .27f), Ink,
                     () => { if (!DemoReel.Running) DemoReel.Shoot(); });
             }
             SetPlace(World.Current);
-            status = Label("Status", card, new Vector2(32, -594), new Vector2(380, 40), 12, new Color(.69f, .76f, .78f));
+            status = Label("Status", card, new Vector2(32, -640), new Vector2(380, 40), 12, new Color(.69f, .76f, .78f));
             status.text = Bootstrap.Lobby != null && Bootstrap.Lobby.Available ? "Steam подключён. Друзья заходят через приглашение или список друзей." : "Хост открывает порт 7777. Steam-лобби включается сборкой со Steam (см. README).";
         }
 
@@ -364,7 +386,10 @@ namespace Height1079.Runtime
         string UnderCrosshair(HikerController me)
         {
             string climb = me.Climbing != null ? me.Climbing.Prompt() : "";
-            return climb.Length > 0 ? climb : Backpacks.Prompt(me);
+            if (climb.Length > 0) return climb;
+            string pack = Backpacks.Prompt(me);
+            if (pack.Length > 0) return pack;
+            return Camps.Prompt(me);
         }
 
         /// <summary>The line about the snow: how you are getting through it, how deep you are in it, whether somebody has
@@ -547,7 +572,7 @@ namespace Height1079.Runtime
         /// (the same things the Tab/G/R/X keys do, so the window is enough on its own).</summary>
         void BuildPack()
         {
-            packPanel = Rect("Pack", hud.transform, new Vector2(1, .5f), new Vector2(1, .5f), new Vector2(-24, 0), new Vector2(340, 580));
+            packPanel = Rect("Pack", hud.transform, new Vector2(1, .5f), new Vector2(1, .5f), new Vector2(-24, 0), new Vector2(340, 652));
             packPanel.pivot = new Vector2(1, .5f);
             PanelImage(packPanel, Panel);
             packTitle = Label("Title", packPanel, new Vector2(20, -16), new Vector2(300, 26), 20, Ink);
@@ -580,6 +605,16 @@ namespace Height1079.Runtime
                 int l = Backpacks.NearbyLooseId(me, out _);
                 if (l != 0) s.RequestPack(PackAction.PickUp, l);
             });
+            // the camp lives here as well as on B/7 and P/8: letter keys never reach the game under UI automation,
+            // and the rucksack window is where the tent is anyway
+            packCampButton = ButtonUi("Camp", packPanel, new Vector2(20, -574), new Vector2(148, 28), "Поставить лагерь", new Color(.26f, .4f, .34f), Ink,
+                () => NightSession.Instance?.RequestCamp());
+            packSleepButton = ButtonUi("Sleep", packPanel, new Vector2(176, -574), new Vector2(148, 28), "Ночёвка", new Color(.3f, .34f, .45f), Ink,
+                () => NightSession.Instance?.RequestSleep());
+            // and the other half of playing in pieces: a way out that is not killing the process. The save is already
+            // on disk by then, and «Продолжить» will be waiting in the menu
+            packLeaveButton = ButtonUi("Leave", packPanel, new Vector2(20, -606), new Vector2(304, 28), "Выйти в меню", new Color(.28f, .22f, .22f), Ink,
+                Bootstrap.Leave);
             packPanel.gameObject.SetActive(false);
         }
 
@@ -612,6 +647,16 @@ namespace Height1079.Runtime
             bool canWear = Backpacks.MyPackId(me) == Backpacks.OpenPack || ground;
             packWearButton.gameObject.SetActive(canWear);
             packWearButton.GetComponentInChildren<Text>().text = mine ? "Снять рюкзак" : "Надеть";
+
+            // the camp: put one up where the mountain allows it, take down the one you are standing at, spend the
+            // night in it. Elbrus only — on Kholat Syakhl there is one night and it is not saved
+            int atCamp = Camps.Here(me);
+            bool camping = Camps.On;
+            if (packCampButton.gameObject.activeSelf != camping) packCampButton.gameObject.SetActive(camping);
+            bool canSleep = camping && atCamp != 0;
+            if (packSleepButton.gameObject.activeSelf != canSleep) packSleepButton.gameObject.SetActive(canSleep);
+            if (camping) packCampButton.GetComponentInChildren<Text>().text = Camps.ToggleLabel(me);
+            if (packLeaveButton.gameObject.activeSelf != camping) packLeaveButton.gameObject.SetActive(camping);
 
             // rows are rebuilt only when the contents change
             var key = new StringBuilder().Append(Backpacks.OpenPack).Append(':');
@@ -662,6 +707,8 @@ namespace Height1079.Runtime
         public void ShowMenu(bool on)
         {
             menu.SetActive(on); hud.SetActive(!on); protocol.SetActive(false); protocolShown = false; shownEvents = 0; events.text = "";
+            // coming back from a run there may be a save that was not there when the menu was last up
+            if (on) RefreshContinue();
         }
 
         public void SetStatus(string text) { if (status != null) status.text = text; }

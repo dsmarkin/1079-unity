@@ -61,6 +61,9 @@ namespace Height1079.Runtime
                 MenkPos.Value = menk.Pos; MenkYaw.Value = menk.Yaw;
             }
             InitPacks();
+            // a save the menu picked with «Продолжить»: the clock, the weather and the tent go back before the first
+            // player is placed, because CampSpawn puts everybody beside that tent
+            InitCamps();
             NetworkManager.OnClientConnectedCallback += OnClientConnected;
             NetworkManager.OnClientDisconnectCallback += OnClientDisconnected;
             foreach (var id in NetworkManager.ConnectedClientsIds) OnClientConnected(id);
@@ -83,6 +86,8 @@ namespace Height1079.Runtime
             var hiker = HikerController.For(clientId);
             string name = hiker != null ? hiker.DisplayName : "Путник";
             var p = run.AddPlayer(Token(clientId), name, Time.timeAsDouble);
+            // a continued run starts at the tent, not at the bottom of the ropeway
+            CampSpawn(p);
             if (hiker != null) hiker.TeleportServer(p.X, p.Z);
             // Late joiners get the protocol so far.
             PacksClientJoined(clientId);

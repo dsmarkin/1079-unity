@@ -98,6 +98,11 @@ namespace Height1079.Runtime
         CramponsOff = 2,
         /// <summary>A sip of hot out of the thermos: it is the only thing that clears the drowsiness of the shelf.</summary>
         Sip = 3,
+        /// <summary>Putting the двойка up (<see cref="Camp.SecondsToPitch"/>). Above Pastukhov rocks the platform has
+        /// to be cut first, and the job is four minutes longer for it.</summary>
+        Pitch = 4,
+        /// <summary>And taking it down again, back into the rucksack.</summary>
+        Strike = 5,
     }
 
     /// <summary>What the two sides of the wire both work out for themselves about the mountain: where a point of the

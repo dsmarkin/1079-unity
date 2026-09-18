@@ -106,7 +106,9 @@ namespace Height1079.Runtime
 
         void Awake() { hiker = GetComponent<HikerController>(); }
 
-        /// <summary>Owner: tell the host what the body already knows, once the session is up.</summary>
+        /// <summary>Owner: tell the host who this is and what the body already knows, once the session is up. The key
+        /// is what a save is filed under (<see cref="Saves.MyKey"/>) — if the host has a save with that key, the
+        /// answer comes straight back and overrides all of this.</summary>
         bool told;
 
         void Update()
@@ -115,7 +117,7 @@ namespace Height1079.Runtime
             var s = NightSession.Instance;
             if (s == null) return;
             told = true;
-            s.ReportAcclimatisation(Acclimatisation);
+            s.ReportProfile(Saves.MyKey, Acclimatisation, CafeService.Purse.Roubles);
         }
 
         /// <summary>Owner, every physics step: read the ground, then work out the pace from it. The same three lines
@@ -207,6 +209,8 @@ namespace Height1079.Runtime
                 case ClimbJob.CramponsOn: return $"Надеваете кошки… стойте · {Mathf.RoundToInt(net.Progress / 255f * 100f)}%";
                 case ClimbJob.CramponsOff: return $"Снимаете кошки… · {Mathf.RoundToInt(net.Progress / 255f * 100f)}%";
                 case ClimbJob.Sip: return $"Глоток из термоса… · {Mathf.RoundToInt(net.Progress / 255f * 100f)}%";
+                case ClimbJob.Pitch: return $"Ставите палатку… стойте · {Mathf.RoundToInt(net.Progress / 255f * 100f)}%";
+                case ClimbJob.Strike: return $"Сворачиваете лагерь… · {Mathf.RoundToInt(net.Progress / 255f * 100f)}%";
             }
             if (Sliding) return "Срыв! Вас несёт вниз";
             if (barred) return "Выше скал Пастухова не пускают · " + Climb.GateLine(net.Gear);

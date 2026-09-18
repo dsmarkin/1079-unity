@@ -120,8 +120,9 @@ namespace Height1079.Runtime
             if (!equipped.Add(token)) return;
             var p = run.Players.TryGetValue(token, out var pl) ? pl : null;
             float x = p?.X ?? 0, z = p?.Z ?? 0;
-            // the first gets the axe, the second the saw, everyone a box of matches
-            packs.AddPack(token, x, Ground(x, z), z, Items.StarterFor(equipped.Count - 1));
+            // Kholat: the first gets the axe, the second the saw, everyone a box of matches. Elbrus: no 1959 tools at
+            // all, and the двойка and the burner that turn a halt into a camp (Items.ElbrusStarter)
+            packs.AddPack(token, x, Ground(x, z), z, Items.StarterFor(equipped.Count - 1, Height1079.Core.World.Current));
         }
 
         void PacksClientLeft(ulong clientId)

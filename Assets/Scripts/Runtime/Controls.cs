@@ -207,6 +207,39 @@ namespace Height1079.Runtime
 #endif
             );
 
+        /// <summary>B — pitch the tent here, or strike the one standing in front of you. Spares: 7, Numpad7, and the
+        /// two buttons in the rucksack window. Every function key is already taken by the night and the ropeways, so
+        /// the camp takes the free digits instead — digits reach the game under UI automation exactly as F-keys do.</summary>
+        public static bool CampToggle => Pressed(KeyCode.B
+#if ENABLE_INPUT_SYSTEM
+            , Key.B
+#endif
+            ) || Pressed(KeyCode.Alpha7
+#if ENABLE_INPUT_SYSTEM
+            , Key.Digit7
+#endif
+            ) || Pressed(KeyCode.Keypad7
+#if ENABLE_INPUT_SYSTEM
+            , Key.Numpad7
+#endif
+            );
+
+        /// <summary>P — spend the night in the camp: the sortie is closed, the body digests the height and the run is
+        /// written to disk. Spares: 8, Numpad8, and a button in the rucksack window.</summary>
+        public static bool CampSleep => Pressed(KeyCode.P
+#if ENABLE_INPUT_SYSTEM
+            , Key.P
+#endif
+            ) || Pressed(KeyCode.Alpha8
+#if ENABLE_INPUT_SYSTEM
+            , Key.Digit8
+#endif
+            ) || Pressed(KeyCode.Keypad8
+#if ENABLE_INPUT_SYSTEM
+            , Key.Numpad8
+#endif
+            );
+
         /// <summary>T — a sip of hot out of the thermos. Spare: F2.</summary>
         public static bool Thermos => Pressed(KeyCode.T
 #if ENABLE_INPUT_SYSTEM

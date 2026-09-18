@@ -155,6 +155,29 @@ namespace Height1079.EditorTools.World
                     }
                     ma = Materials.Bark; mb = wood;
                     break;
+                case ItemId.Tent:
+                    // a двойка in its stuff sack: a nylon roll with the poles strapped along it
+                    a.Tube(0, new Vector3(0, .09f, -.22f), new Vector3(0, .09f, .22f), .085f, .085f, 14, 1f, 0, true);
+                    b.Tube(0, new Vector3(-.02f, .175f, -.24f), new Vector3(-.02f, .175f, .24f), .012f, .012f, 8, 1f, 0, true);
+                    b.Tube(0, new Vector3(.02f, .175f, -.24f), new Vector3(.02f, .175f, .24f), .012f, .012f, 8, 1f, 0, true);
+                    b.Box(0, new Vector3(0, .09f, -.1f), new Vector3(.18f, .18f, .02f), Quaternion.identity);
+                    b.Box(0, new Vector3(0, .09f, .1f), new Vector3(.18f, .18f, .02f), Quaternion.identity);
+                    ma = Materials.Get("CargoTentFly", new Color(.82f, .34f, .12f), smoothness: .2f);
+                    mb = Materials.Get("CargoTentStrap", new Color(.16f, .17f, .19f), smoothness: .15f);
+                    break;
+                case ItemId.Burner:
+                    // a gas cartridge with the burner screwed on top: the whole of the water supply above 4 600 m
+                    a.Tube(0, Vector3.zero, new Vector3(0, .1f, 0), .055f, .055f, 14, 1f, 0, true);
+                    a.Tube(0, new Vector3(0, .1f, 0), new Vector3(0, .115f, 0), .055f, .022f, 14);
+                    b.Tube(0, new Vector3(0, .115f, 0), new Vector3(0, .15f, 0), .016f, .016f, 10, 1f, 0, true);
+                    b.Tube(0, new Vector3(0, .15f, 0), new Vector3(0, .158f, 0), .045f, .045f, 12, 1f, 0, true);
+                    for (int k = 0; k < 3; k++)
+                    {
+                        float t = k / 3f * Mathf.PI * 2f;
+                        b.Box(0, new Vector3(Mathf.Cos(t) * .05f, .162f, Mathf.Sin(t) * .05f), new Vector3(.05f, .004f, .012f), Quaternion.Euler(0, -t * Mathf.Rad2Deg, 0));
+                    }
+                    ma = Materials.Get("CargoGas", new Color(.72f, .2f, .16f), smoothness: .55f); mb = steel;
+                    break;
             }
             if (a.VertexCount > 0) Part(root.transform, "A", a, ma);
             if (b.VertexCount > 0) Part(root.transform, "B", b, mb);

@@ -201,7 +201,7 @@ namespace Height1079.Runtime
             if (!paused && !finished && !Backpacks.UiOpen && Input.GetMouseButtonDown(0) && Cursor.lockState != CursorLockMode.Locked) SetCursor(true);
             if (paused && Input.GetMouseButtonDown(0) && !Bootstrap.PointerOverUi()) { paused = false; SetCursor(true); }
             if (Controls.ToggleView) firstPerson = !firstPerson;
-            if (!paused && !finished) { equipment.HandleInput(); Backpacks.HandleInput(this); skis.HandleInput(); climb.HandleInput(); }
+            if (!paused && !finished) { equipment.HandleInput(); Backpacks.HandleInput(this); skis.HandleInput(); climb.HandleInput(); Camps.HandleInput(this); }
             if (Backpacks.UiOpen != packUi)
             {
                 packUi = Backpacks.UiOpen;

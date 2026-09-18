@@ -33,6 +33,11 @@ namespace Height1079.Runtime
 
         public static RentalService Instance { get; private set; }
 
+        /// <summary>The order window is up. Its digits belong to it and not to the mountain: the rucksack's own hold
+        /// on <see cref="Backpacks.OpenPack"/> is cleared and put back every frame, so it cannot be asked
+        /// (see <see cref="Camps.HandleInput"/>).</summary>
+        public static bool Ordering => Instance != null && Instance.open;
+
         readonly List<Transform> stands = new List<Transform>();
         static Hire[] board;
 

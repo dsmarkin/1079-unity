@@ -53,6 +53,7 @@ namespace Height1079.Runtime
             Ambience.Create();
             Weather.Create();
             PackView.Create();
+            CampView.Create();
             var driver = new GameObject("Atmosphere", typeof(Atmosphere));
             Object.DontDestroyOnLoad(driver);
             atmosphere = driver.GetComponent<Atmosphere>();
@@ -197,6 +198,24 @@ namespace Height1079.Runtime
             if (network.StartHost()) Hud.ShowMenu(false); else Hud.SetStatus("Не удалось открыть порт 7777.");
         }
 
+        /// <summary>«Продолжить»: pick up the newest save of the place chosen in the menu and host from it. The place
+        /// is applied first (it rebuilds the whole world), then the save is parked in <see cref="Saves.Pending"/>,
+        /// where the host's <see cref="NightSession"/> takes it as it spawns and puts the clock, the weather and the
+        /// tent back before anybody is placed.</summary>
+        public static void Continue(string name)
+        {
+            var slot = Saves.Newest(World.Current);
+            if (slot.IsEmpty) { Hud.SetStatus("Сохранения для этого места нет."); return; }
+            var save = Saves.Read(slot.Path);
+            if (save == null) { Hud.SetStatus("Сейв не читается. Начните новый подъём."); return; }
+            SetPlace(save.Place);
+            Saves.Hold(save);
+            Host(name);
+            if (NetworkManager.Singleton != null && NetworkManager.Singleton.IsListening)
+                Hud.SetStatus($"Продолжаем: {save.Where}, {Height1079.Core.AscentRoute.Clock(save.Hour)}.");
+            else Saves.Forget();
+        }
+
         public static void Join(string name, string address)
         {
             PlayerName = string.IsNullOrWhiteSpace(name) ? "Путник" : name.Trim();
@@ -215,6 +234,8 @@ namespace Height1079.Runtime
         static void OnLeft()
         {
             AutoKindle = false;
+            // a save that was picked but never applied must not leak into the next session
+            Saves.Forget();
             Cursor.lockState = CursorLockMode.None; Cursor.visible = true;
             if (Hud != null) { Hud.ShowMenu(true); Hud.SetStatus("Ночь закончена. Можно начать новую."); }
         }

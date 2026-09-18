@@ -43,6 +43,10 @@ namespace Height1079.Runtime
             public double Started;
             public float Needed;
             public Vector3 From;
+            /// <summary>Which way the tent will face (<see cref="ClimbJob.Pitch"/>).</summary>
+            public float Yaw;
+            /// <summary>Which camp is being taken down (<see cref="ClimbJob.Strike"/>).</summary>
+            public int Camp;
         }
 
         readonly Dictionary<ulong, Climber> climbers = new Dictionary<ulong, Climber>();
@@ -416,22 +420,19 @@ namespace Height1079.Runtime
                     }
                     run.Record($"{name} пьёт из термоса. Осталось глотков: {c.ThermosSips}.");
                     break;
+                case ClimbJob.Pitch:
+                    PitchDone(id, token, job, name);
+                    break;
+                case ClimbJob.Strike:
+                    StrikeDone(id, token, job, name);
+                    break;
             }
         }
 
         // ── acclimatisation between runs ──────────────────────────────────────────────────────────────────
-
-        /// <summary>Owner tells the host what its body already knows about height. Carried between runs on the
-        /// client's own machine (<see cref="ClimbGear"/> reads and writes the player prefs); the host takes it on
-        /// trust, the way a co-op game takes everything else its players say about themselves.</summary>
-        public void ReportAcclimatisation(float acclim) => AcclimRpc(Mathf.Clamp01(acclim));
-
-        [Rpc(SendTo.Server)]
-        void AcclimRpc(float acclim, RpcParams rpc = default)
-        {
-            if (!Climb.On) return;
-            ClimberOf(rpc.Receive.SenderClientId).Acclimatisation = Mathf.Clamp01(acclim);
-        }
+        // What the body already knows about height arrives with the rest of what a client says about itself
+        // (NightSession.Camp.ReportProfile): the key its saves live under, its acclimatisation and its purse. The
+        // host takes all three on trust and overrides them at once when the save it loaded knows that key.
 
         /// <summary>The outing is over: climb high, sleep low. Whatever height this one touched is credited against a
         /// night back down on the meadow, and the answer goes home with the player.</summary>
@@ -498,6 +499,7 @@ namespace Height1079.Runtime
                 climbers.Remove(id); climbWere.Remove(id); gateSafe.Remove(id);
                 droppedAt.Remove(id); climbJobs.Remove(id); sortieSent.Remove(id);
                 wasRiding.Remove(id); strength.Remove(id);
+                CampsClientLeft(id);
             }
         }
     }

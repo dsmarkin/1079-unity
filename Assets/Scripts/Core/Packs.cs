@@ -16,6 +16,9 @@ namespace Height1079.Core
         // rocks. Every one of them is a separate object in the rucksack with its own weight and its own price.
         Crampons, IceAxe, Harness, Helmet, Goggles, SnowMask, DownJacket, Balaclava, HighMittens, SpareGloves,
         Thermos, Headlamp, SpaceBlanket,
+        // the bivouac: what turns a halt into a camp you can come back to (see Camp). Carried, pitched and struck,
+        // never checked by Ascent.Required — the gate at Pastukhov rocks is about surviving the day, not the night.
+        Tent, Burner,
     }
 
     public enum ItemKind : byte { Food, Gear, Clothes, Fuel }
@@ -128,6 +131,10 @@ namespace Height1079.Core
             new ItemSpec(ItemId.Thermos, "Термос, 1 л", .95f, 1.3f, ItemKind.Gear),
             new ItemSpec(ItemId.Headlamp, "Налобный фонарь", .15f, .4f, ItemKind.Gear),
             new ItemSpec(ItemId.SpaceBlanket, "Спасодеяло", .06f, .2f, ItemKind.Gear),
+            // a two-man tent packs to about nine litres and weighs what a two-man tent weighs; the burner is the
+            // whole of the water supply up here, because there is nothing to drink on this mountain that is not snow
+            new ItemSpec(ItemId.Tent, "Палатка-двойка", 2.9f, 9f, ItemKind.Gear),
+            new ItemSpec(ItemId.Burner, "Горелка с газом", .6f, 1.5f, ItemKind.Gear),
         };
 
         public static ItemSpec Spec(ItemId id) => (int)id < specs.Length ? specs[(int)id] : specs[0];
@@ -150,6 +157,28 @@ namespace Height1079.Core
             foreach (var id in Starter) list.Add(new ItemStack(id));
             list.Add(new ItemStack(ItemId.Matches, MatchesInBox));
             list.Add(new ItemStack(Tool(index)));
+            return list;
+        }
+
+        /// <summary>What a visitor comes up the Azau ropeway with. Nothing of 1959 is in it — no axe, no saw, no
+        /// tinned stew for a fire there is nothing to build — and the two things that make a halt into a camp are:
+        /// a двойка and a burner. Everything <see cref="Ascent.Required"/> checks for is hired at the counter below
+        /// (<see cref="Rental"/>) and goes into the same rucksack; the two together come to about forty of its fifty
+        /// litres, which is the point.</summary>
+        public static readonly ItemId[] ElbrusStarter =
+        {
+            ItemId.Rusks, ItemId.Chocolate, ItemId.CondensedMilk, ItemId.Flask, ItemId.Socks,
+            ItemId.Tent, ItemId.Burner,
+        };
+
+        /// <summary>The starting kit for a place: the night on Kholat Syakhl is carried up the Auspiya,
+        /// the day on the southern slope of Elbrus is bought in Azau.</summary>
+        public static List<ItemStack> StarterFor(int index, Place place)
+        {
+            if (place != Place.Elbrus) return StarterFor(index);
+            var list = new List<ItemStack>();
+            foreach (var id in ElbrusStarter) list.Add(new ItemStack(id));
+            list.Add(new ItemStack(ItemId.Matches, MatchesInBox));
             return list;
         }
     }
@@ -255,6 +284,19 @@ namespace Height1079.Core
             Packs[p.Id] = p;
             Changed();
             return p;
+        }
+
+        /// <summary>Throws away whatever is in a participant's rucksack and puts <paramref name="contents"/> there
+        /// instead. For one caller only: a save being loaded, where the host has just built a starting rucksack for
+        /// somebody who already has one on disk. Anything that will not fit is dropped rather than silently kept.</summary>
+        public bool Refill(string token, IEnumerable<ItemStack> contents)
+        {
+            var pack = Worn(token);
+            if (pack == null) return false;
+            while (pack.Contents.Count > 0) pack.TakeAt(0);
+            if (contents != null) foreach (var s in contents) if (!s.IsEmpty) pack.Put(s);
+            Changed();
+            return true;
         }
 
         public LooseItem AddLoose(ItemStack stack, float x, float y, float z, float yaw = 0f)
