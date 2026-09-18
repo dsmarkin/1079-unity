@@ -12,6 +12,10 @@ namespace Height1079.Core
         Axe, Saw, Branch,
         // taken away from a café of Prielbrusye (see Refreshments); the night on Kholat never hands these out
         Khychin, Shashlyk, PizzaBox, HotCup,
+        // hired at the counter on the Azau meadow (see Rental): the kit Ascent.Required checks for above Pastukhov
+        // rocks. Every one of them is a separate object in the rucksack with its own weight and its own price.
+        Crampons, IceAxe, Harness, Helmet, Goggles, SnowMask, DownJacket, Balaclava, HighMittens, SpareGloves,
+        Thermos, Headlamp, SpaceBlanket,
     }
 
     public enum ItemKind : byte { Food, Gear, Clothes, Fuel }
@@ -109,6 +113,21 @@ namespace Height1079.Core
             new ItemSpec(ItemId.Shashlyk, "Шашлык в лаваше", .4f, .9f, ItemKind.Food),
             new ItemSpec(ItemId.PizzaBox, "Пицца в коробке", .45f, 3f, ItemKind.Food),
             new ItemSpec(ItemId.HotCup, "Стакан горячего", .35f, .5f, ItemKind.Food),
+            // the hire kit. Weights are what the shelf of a hire counter actually gives out; the volumes are what they
+            // take out of a 50-litre sack, which is the point — the full kit is 22 litres and 5.8 kg on top of the food.
+            new ItemSpec(ItemId.Crampons, "Кошки, 12 зубьев", 1f, 2.2f, ItemKind.Gear),
+            new ItemSpec(ItemId.IceAxe, "Ледоруб", .55f, 2f, ItemKind.Gear),
+            new ItemSpec(ItemId.Harness, "Система с усом и тремя карабинами", .9f, 2.5f, ItemKind.Gear),
+            new ItemSpec(ItemId.Helmet, "Каска", .35f, 3.5f, ItemKind.Gear),
+            new ItemSpec(ItemId.Goggles, "Очки S3–S4", .12f, .6f, ItemKind.Gear),
+            new ItemSpec(ItemId.SnowMask, "Маска S2–S3", .15f, .7f, ItemKind.Gear),
+            new ItemSpec(ItemId.DownJacket, "Пуховка", 1.1f, 7f, ItemKind.Clothes),
+            new ItemSpec(ItemId.Balaclava, "Балаклава", .08f, .3f, ItemKind.Clothes),
+            new ItemSpec(ItemId.HighMittens, "Варежки пуховые", .25f, 1.2f, ItemKind.Clothes),
+            new ItemSpec(ItemId.SpareGloves, "Запасные перчатки", .12f, .5f, ItemKind.Clothes),
+            new ItemSpec(ItemId.Thermos, "Термос, 1 л", .95f, 1.3f, ItemKind.Gear),
+            new ItemSpec(ItemId.Headlamp, "Налобный фонарь", .15f, .4f, ItemKind.Gear),
+            new ItemSpec(ItemId.SpaceBlanket, "Спасодеяло", .06f, .2f, ItemKind.Gear),
         };
 
         public static ItemSpec Spec(ItemId id) => (int)id < specs.Length ? specs[(int)id] : specs[0];

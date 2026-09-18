@@ -63,12 +63,6 @@ namespace Height1079.Runtime
 
         internal static float Ground(float x, float z) => dem.Sample(x, z);
 
-        static GameObject Place(GameObject prefab, Transform parent, float x, float z, float yaw, float dy = 0f)
-        {
-            if (prefab == null) return null;
-            return Object.Instantiate(prefab, new Vector3(x, Ground(x, z) + dy, z), Quaternion.Euler(0, yaw, 0), parent);
-        }
-
         /// <summary>Compass bearing (degrees) from a to b in the game's frame (z = north).</summary>
         static float Yaw(float ax, float az, float bx, float bz) => Mathf.Atan2(bx - ax, bz - az) * Mathf.Rad2Deg;
 
@@ -82,10 +76,11 @@ namespace Height1079.Runtime
             Azau(root);
             Stations(root);
             Camp(root);
-            Route(root);
+            RouteFurniture(root);
             ElbrusDressing.Build(root);
             root.gameObject.AddComponent<ElbrusRides>();
             CafeService.Create(root);
+            RentalService.Create(root);
         }
 
         // ── putting things on a slope ─────────────────────────────────────────────────────────────────────
@@ -597,9 +592,8 @@ namespace Height1079.Runtime
                 float x = l.X + lx * (k - 1) * 7.5f, z = l.Z + lz * (k - 1) * 7.5f;
                 Seat("Elb_Hut_Capsule", camp, x, z, FaceDownhill(x, z, 15f), 0f, Sit.Pad);
             }
-            // the emergency box on the saddle (RedFox 5300)
-            var saddle = Elbrus.Saddle;
-            Seat("Elb_Hut_Small", camp, saddle.X + 25f, saddle.Z + 12f, FaceDownhill(saddle.X + 25f, saddle.Z + 12f), 0f, Sit.Pad);
+            // the emergency box on the saddle (RedFox 5300) is no longer a placeholder hut: the real one, with its
+            // bunks, its tambour and its six guys, stands in the same spot inside Elb_Ascent (see RouteFurniture)
         }
 
         static void Hut(string id, string prefab, Transform parent, float turn = 0f)
@@ -609,21 +603,22 @@ namespace Height1079.Runtime
         }
 
         // ── route ─────────────────────────────────────────────────────────────────────────────────────────
-        static void Route(Transform root)
+        /// <summary>Everything the rules of <see cref="Ascent"/> and <see cref="AscentRoute"/> hang on, as objects on
+        /// the mountain: the wands every 40 m along the whole route, the МЧС cable strung from 4 901 to 5 251 m, the
+        /// fixed ropes of the summit rise, Pastukhov rocks as a corridor the wands run down the middle of, the
+        /// snow-cat lane with its spoil banks lying on the very line the crevasse rule checks, the hollows and the two
+        /// open crevasses right of that lane and the brooks left of it, the huts of the moraine, and the Red Fox box
+        /// on the saddle with its fumarole beside it.
+        ///
+        /// All of it is one prefab, baked by <c>ElbrusAscent</c> in the editor: everything inside is already in world
+        /// coordinates and already sat on the height field, so the runtime has exactly one thing to do. The old
+        /// runtime wands every 55 m and the placeholder hut on the saddle are gone — the prefab carries both, in the
+        /// right places and to the right spacing (see docs/ELBRUS.md).</summary>
+        static void RouteFurniture(Transform root)
         {
-            var wands = new GameObject("Wands").transform; wands.SetParent(root, false);
-            var wand = Load("Elb_Wand");
-            if (wand == null) return;
-            float total = Elbrus.Length(Elbrus.SummitRoute);
-            var rng = new System.Random(5642);
-            for (float s = 0; s < total; s += 55f)
-            {
-                var (x, z) = Elbrus.PointAt(Elbrus.SummitRoute, s);
-                x += (float)(rng.NextDouble() - .5) * 3f;
-                z += (float)(rng.NextDouble() - .5) * 3f;
-                var go = Place(wand, wands, x, z, (float)rng.NextDouble() * 360f, -.15f);
-                if (go != null) go.transform.Rotate(Vector3.forward, (float)(rng.NextDouble() - .5) * 18f, Space.Self);
-            }
+            var prefab = Load("Elb_Ascent");
+            if (prefab == null) return;
+            Object.Instantiate(prefab, Vector3.zero, Quaternion.identity, root);
         }
 
         // ── daylight ──────────────────────────────────────────────────────────────────────────────────────

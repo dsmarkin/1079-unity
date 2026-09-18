@@ -38,6 +38,15 @@ namespace Height1079.Runtime
         /// <summary>What is left in the legs, 0..255. The host spends it through <see cref="Skiing.Effort"/> and gives it back
         /// when a hiker stands still (<see cref="NightSession.TickSkisServer"/>).</summary>
         public readonly NetworkVariable<byte> Strength = new NetworkVariable<byte>(255);
+        /// <summary>Everything the mountain is doing to this one on the southern slope of Elbrus: the frostbite pools,
+        /// the sickness, the heart, the kit in the rucksack and what the rules make of it. The host writes it — it is
+        /// the only one that runs <see cref="Ascent.Tick"/> — and both the legs and the HUD read it
+        /// (<see cref="ClimbGear"/>). Untouched on Kholat Syakhl.</summary>
+        public readonly NetworkVariable<ClimbNet> Climb = new NetworkVariable<ClimbNet>();
+        /// <summary>Carried by a cabin, a chair or a snow-cat. The owner writes it, because only the owner knows
+        /// (<see cref="Ride"/> is a local transform); the host needs it to stop charging a passenger for the cold and
+        /// to know the moment a snow-cat puts somebody down at 5 100 m.</summary>
+        public readonly NetworkVariable<bool> Riding = new NetworkVariable<bool>(false, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Owner);
 
         /// <summary>What the hiker carries in the hands out of a rucksack (Core.ItemId); written by the host's PackWorld.</summary>
         public readonly NetworkVariable<StackNet> Carried = new NetworkVariable<StackNet>();
@@ -56,9 +65,12 @@ namespace Height1079.Runtime
         SnowTrail trail;
         Equipment equipment;
         SkiGear skis;
+        ClimbGear climb;
         public Equipment Gear => equipment;
         /// <summary>Skis, poles and the волокуша, and the snow figures under the feet.</summary>
         public SkiGear Skis => skis;
+        /// <summary>The mountain under the boots on the southern slope of Elbrus; silent on Kholat Syakhl.</summary>
+        public ClimbGear Climbing => climb;
         Camera cam;
         Transform head;
         float yaw, pitch = .08f, orbit = 6f;
@@ -105,6 +117,8 @@ namespace Height1079.Runtime
             if (equipment == null) equipment = gameObject.AddComponent<Equipment>();
             skis = GetComponent<SkiGear>();
             if (skis == null) skis = gameObject.AddComponent<SkiGear>();
+            climb = GetComponent<ClimbGear>();
+            if (climb == null) climb = gameObject.AddComponent<ClimbGear>();
         }
 
         public override void OnNetworkDespawn() { All.Remove(this); }
@@ -187,7 +201,7 @@ namespace Height1079.Runtime
             if (!paused && !finished && !Backpacks.UiOpen && Input.GetMouseButtonDown(0) && Cursor.lockState != CursorLockMode.Locked) SetCursor(true);
             if (paused && Input.GetMouseButtonDown(0) && !Bootstrap.PointerOverUi()) { paused = false; SetCursor(true); }
             if (Controls.ToggleView) firstPerson = !firstPerson;
-            if (!paused && !finished) { equipment.HandleInput(); Backpacks.HandleInput(this); skis.HandleInput(); }
+            if (!paused && !finished) { equipment.HandleInput(); Backpacks.HandleInput(this); skis.HandleInput(); climb.HandleInput(); }
             if (Backpacks.UiOpen != packUi)
             {
                 packUi = Backpacks.UiOpen;
@@ -223,7 +237,22 @@ namespace Height1079.Runtime
             short look = (short)Mathf.RoundToInt(Mathf.Repeat(yaw, 360f));
             if (Mathf.Abs(look - LookYaw.Value) > 1) LookYaw.Value = look;
             impact = Mathf.MoveTowards(impact, 0f, Time.deltaTime * 1.4f);
-            UpdateCamera();
+        }
+
+        /// <summary>A cabin moves its own transform in <c>Update</c>, and the passenger used to be snapped to the seat in
+        /// <c>FixedUpdate</c>: fifty times a second against a frame rate of sixty-odd, and at eight times speed the car
+        /// covers most of a metre between two physics steps. The rider lagged behind the seat and caught up in jerks, and
+        /// the camera, read a frame earlier still, shook with him. Follow the seat here instead — after every Update has
+        /// run, so the seat is where it will be drawn — and move the camera last of all.</summary>
+        void LateUpdate()
+        {
+            if (IsOwner && Ride != null)
+            {
+                var seat = Ride.position;
+                body.position = seat; transform.position = seat;
+                body.rotation = Ride.rotation; transform.rotation = Ride.rotation;
+            }
+            if (IsOwner) UpdateCamera();
         }
 
         void FixedUpdate()
@@ -231,10 +260,11 @@ namespace Height1079.Runtime
             if (!IsOwner) return;
             if (Ride != null)
             {
-                // carried by a cabin, a chair or a snow-cat: the vehicle owns the position, the legs do nothing
-                var seat = Ride.position;
-                body.position = seat; transform.position = seat; body.linearVelocity = Vector3.zero;
+                // carried by a cabin, a chair or a snow-cat: the vehicle owns the position (see LateUpdate), the legs do nothing
+                body.linearVelocity = Vector3.zero;
                 lastVerticalSpeed = 0f;
+                // the HUD still wants to know where on the mountain the cabin has got to
+                if (climb != null && Height1079.Core.World.IsElbrus) climb.Sample(Vector3.zero);
                 return;
             }
             EnsurePlaced();
@@ -253,14 +283,21 @@ namespace Height1079.Runtime
             if (grounded && lastVerticalSpeed < -HardLanding) { StumbleRpc(); stumbleUntil = Time.time + 1.2f; }
             lastVerticalSpeed = v.y;
 
-            bool locked = paused || finished || Stumbling || (skis != null && skis.Busy);
+            // the southern slope of Elbrus: the mountain has a say about the next step before the legs do
+            bool climbing = climb != null && Height1079.Core.World.IsElbrus;
+            bool locked = paused || finished || Stumbling || (skis != null && skis.Busy)
+                || (climbing && (climb.Busy || climb.Sliding));
             float f = locked ? 0f : (Controls.Forward ? 1f : 0f) - (Controls.Back ? 1f : 0f);
             float r = locked ? 0f : (Controls.Right ? 1f : 0f) - (Controls.Left ? 1f : 0f);
             Vector3 forward = Quaternion.Euler(0, yaw, 0) * Vector3.forward, right = Quaternion.Euler(0, yaw, 0) * Vector3.right;
             var wish = (forward * f + right * r); if (wish.sqrMagnitude > 1f) wish.Normalize();
             // what is carried: heavy loads slow the legs and running needs a light pack
             float load = Backpacks.CarriedKg(this);
-            bool hurry = Controls.Run && !Crawling && load < SurvivalRules.RunLimitKg;
+            // read the ground under the boots and the pools the host keeps, then let the gear gate cut the wish down:
+            // above the rocks without the kit the uphill component is simply gone
+            if (climbing) { climb.Sample(wish); wish = climb.Allow(wish); }
+            // above 4 600 m nobody runs. Not "running costs more" — the move is gone (Ascent.MayRun)
+            bool hurry = Controls.Run && !Crawling && load < SurvivalRules.RunLimitKg && (!climbing || climb.MayRun);
             bool snow = skis != null && Bootstrap.Dem != null && !Height1079.Core.World.IsElbrus;
             var mode = snow ? skis.Mode : Travel.Foot;
             bool gliding = snow && (mode == Travel.Skis || mode == Travel.Hauling);
@@ -288,13 +325,32 @@ namespace Height1079.Runtime
             {
                 speed = hurry ? RunSpeed : WalkSpeed;
                 speed *= SurvivalRules.LoadSpeedFactor(load);
+                // surface × thin air × mountain sickness × drowsiness, and nothing at all while the heart is making
+                // him stand and breathe (Ascent.SpeedFactor, Ascent.Report.MustStop)
+                if (climbing) speed *= climb.SpeedFactor;
             }
             speed *= Mathf.Lerp(1f, .35f, crouch);
             // Cold slows the legs: clarity/heat below 40 costs up to 35 % of speed.
             if (session != null) speed *= Mathf.Lerp(.65f, 1f, Mathf.Clamp01(session.Heat / 40f));
 
             float slope = Vector3.Angle(groundNormal, Vector3.up);
-            if (grounded && slope <= SlopeLimit && Stumbling && impact > 0f)
+            if (grounded && climbing && climb.Sliding)
+            {
+                // the feet went and the axe did not hold: nothing the player does matters until the run-out is spent.
+                // On the косая полка that is three to six hundred metres down the line of the water (Ascent.RunoutM)
+                var fall = Vector3.ProjectOnPlane(Vector3.down, groundNormal).normalized;
+                body.AddForce(fall * ClimbGear.SlidePull, ForceMode.Acceleration);
+                var run = body.linearVelocity;
+                var flat = new Vector2(run.x, run.z);
+                if (flat.magnitude > ClimbGear.SlideTopMs)
+                {
+                    flat = flat.normalized * ClimbGear.SlideTopMs;
+                    body.linearVelocity = new Vector3(flat.x, run.y, flat.y);
+                }
+                climb.Slid(flat.magnitude * Time.fixedDeltaTime);
+                if (!climb.Sliding) stumbleUntil = Time.time + 1.6f;
+            }
+            else if (grounded && slope <= SlopeLimit && Stumbling && impact > 0f)
             {
                 // thrown by a blow: let the body fly and skid, only gravity and snow drag it
                 body.linearVelocity = new Vector3(v.x * .96f, v.y, v.z * .96f);
@@ -354,6 +410,18 @@ namespace Height1079.Runtime
             }
             else body.AddForce(wish * 1.5f, ForceMode.Acceleration);
 
+            // the wind of the funnel and the ataxia of the mountain sickness both push the same way — toward the fall
+            // line, which on the shelf is where they kill (Ascent.Report.DriftMs)
+            if (grounded && climbing && !climb.Sliding)
+            {
+                var push = climb.Drift(forward);
+                if (push.sqrMagnitude > 1e-4f)
+                {
+                    var now = body.linearVelocity;
+                    body.linearVelocity = new Vector3(now.x + push.x, now.y, now.z + push.z);
+                }
+            }
+
             if (wish.sqrMagnitude > .01f)
             {
                 var face = Quaternion.LookRotation(new Vector3(wish.x, 0, wish.z));
@@ -395,8 +463,13 @@ namespace Height1079.Runtime
         {
             if (!IsOwner || seat == null || Ride != null) return;
             Ride = seat;
+            Riding.Value = true;
+            climb?.StopSlide();
             body.linearVelocity = Vector3.zero;
             body.isKinematic = true;
+            // interpolation draws a kinematic body where it was a physics step ago; on a moving cabin that is a lag of
+            // its own on top of everything else, and at speed it reads as a shudder
+            body.interpolation = RigidbodyInterpolation.None;
             capsule.enabled = false;
         }
 
@@ -405,7 +478,9 @@ namespace Height1079.Runtime
         {
             if (!IsOwner || Ride == null) return;
             Ride = null;
+            Riding.Value = false;
             body.isKinematic = false;
+            body.interpolation = RigidbodyInterpolation.Interpolate;
             capsule.enabled = true;
             Place(pos);
         }

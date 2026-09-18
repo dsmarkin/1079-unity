@@ -13,8 +13,11 @@ namespace NUnit.Framework {
     public static void AreSame(object a, object b) { if (!ReferenceEquals(a, b)) Fail("not same"); }
     public static void AreEqual(object e, object a, string m = null) { if (!Equals(e, a) && !(e is IConvertible && a is IConvertible && Convert.ToDouble(e) == Convert.ToDouble(a))) Fail(m ?? $"expected {e} but was {a}"); }
     public static void AreEqual(double e, double a, double tol, string m = null) { if (Math.Abs(e - a) > tol) Fail(m ?? $"expected {e}±{tol} but was {a}"); }
+    public static void AreNotEqual(object e, object a, string m = null) { if (Equals(e, a)) Fail(m ?? $"did not expect {e}"); }
     public static void Less(double a, double b, string m = null) { if (!(a < b)) Fail(m ?? $"{a} !< {b}"); }
     public static void Greater(double a, double b, string m = null) { if (!(a > b)) Fail(m ?? $"{a} !> {b}"); }
+    public static void LessOrEqual(double a, double b, string m = null) { if (!(a <= b)) Fail(m ?? $"{a} !<= {b}"); }
+    public static void GreaterOrEqual(double a, double b, string m = null) { if (!(a >= b)) Fail(m ?? $"{a} !>= {b}"); }
     public static void DoesNotThrow(Action act) { try { act(); } catch (Exception e) { Fail("threw " + e.GetType().Name + ": " + e.Message); } }
     public static void Throws<T>(Action act) where T : Exception { try { act(); } catch (T) { return; } catch (Exception e) { Fail("wrong exception " + e.GetType().Name); } Fail("no exception"); }
   }

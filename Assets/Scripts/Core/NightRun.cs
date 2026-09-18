@@ -233,6 +233,32 @@ namespace Height1079.Core
             return true;
         }
 
+        /// <summary>A hard knock that nobody dealt: a slide stopped with the axe, a leg through a snow bridge on the
+        /// Garabashi glacier. Takes warmth and wits and writes a line; whether it ends the run is left to the next
+        /// <see cref="Step"/>, which is where the cold has always decided things.</summary>
+        public bool Hurt(string token, float damage, string text)
+        {
+            if (Outcome != Outcome.None || !Players.TryGetValue(token, out var p) || p.Outcome != Outcome.None) return false;
+            p.Heat = Math.Max(0f, p.Heat - damage);
+            p.Clarity = Math.Max(0f, p.Clarity - damage * .5f);
+            p.KindlingStarted = null;
+            Record(text.Replace("{name}", p.Name));
+            return true;
+        }
+
+        /// <summary>A slide nobody arrested, on a belt <see cref="Ascent.FallIsFatal"/> marks. This one does not go
+        /// through the warmth: a run-out of three to six hundred metres onto the ice cliffs below the saddle ends the
+        /// ascent whatever is left in the participant.</summary>
+        public bool Fall(string token, string text)
+        {
+            if (Outcome != Outcome.None || !Players.TryGetValue(token, out var p) || p.Outcome != Outcome.None) return false;
+            p.KindlingStarted = null;
+            Record(text.Replace("{name}", p.Name));
+            p.Outcome = Outcome.Fall;
+            Record($"{p.Name}: {SurvivalRules.Describe(p.Outcome).Title.ToLowerInvariant()}.");
+            return true;
+        }
+
         /// <summary>Kindling progress for HUD: (seconds held, seconds needed) or null.</summary>
         public (float progress, float needed)? Kindling(string token, double now)
         {

@@ -85,7 +85,7 @@ namespace Height1079.Core
         public static float KindleSeconds(float hands) => 3.2f + (100f - hands) * .09f;
 
         /// <summary>A player who is out of the night without reaching shelter.</summary>
-        public static bool Fell(Outcome o) => o == Outcome.Cold || o == Outcome.Taken;
+        public static bool Fell(Outcome o) => o == Outcome.Cold || o == Outcome.Taken || o == Outcome.Fall;
 
         /// <summary>Blizzards: the first front at 110 s, then 170 s of пурга and 100 s of lull, again and again; toward morning (≈05:05)
         /// the wind drops for good, so the waning moon that rose at 04:21 shows over the south-east before the end.</summary>
@@ -100,11 +100,12 @@ namespace Height1079.Core
             Outcome.Separated => new OutcomeText("Разделённая пара", "Один дошёл до укрытия, другой остался на склоне. Протокол показывает, где решения разошлись."),
             Outcome.Lost => new OutcomeText("Никто не дошёл", "Тепло иссякло у всех участников до выхода к укрытию."),
             Outcome.Taken => new OutcomeText("Менк", "Лесной великан, притворявшийся сухим деревом, настиг вас в темноте. Это вымысел игры по мотивам мансийских преданий, а не версия гибели реальных людей."),
+            Outcome.Fall => new OutcomeText("Срыв", "Ноги ушли на жёстком фирне, и задержаться не вышло. На косой полке выкат — триста-шестьсот метров до ледовых сбросов; там останавливаются не сами. Это игровой исход, а не описание конкретного случая."),
             _ => new OutcomeText("", "")
         };
     }
 
-    public enum Outcome { None, Cold, Arrival, Dawn, Together, Separated, Lost, Taken }
+    public enum Outcome { None, Cold, Arrival, Dawn, Together, Separated, Lost, Taken, Fall }
 
     public readonly struct OutcomeText
     {

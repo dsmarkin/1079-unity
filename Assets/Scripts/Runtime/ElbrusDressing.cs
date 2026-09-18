@@ -81,6 +81,10 @@ namespace Height1079.Runtime
             P("Elb_SignPost", 5f, 62f, 8f, 3f);
             for (int k = 0; k < 3; k++) P("Elb_FlagPole", 17f, 4f + k * 7f, 0f, 7.4f);
             P("Elb_RentStand", -13f, 106f, -90f, 2.8f);
+            // the mountaineering counter, on the square where a visitor actually lands (Elbrus.Start is about u 18,
+            // v 34): without it nobody gets past Pastukhov rocks, so it is a Fixture and not a Prop — it goes down
+            // whatever else the ground is already holding (see RentalService)
+            Hire(26f, 44f, -90f);
             P("Elb_SkiRack", 12f, 98f, 90f, 1.8f);
             P("Elb_SkiRack", -12f, 24f, -90f, 1.8f);
 
@@ -162,6 +166,14 @@ namespace Height1079.Runtime
         static void Run((float x, float z) a, (float x, float z) b, string prefab, float pitch)
             => Run(prefab, a.x, a.z, b.x, b.z, pitch);
 
+        /// <summary>A hire counter that must exist, in the Azau frame. <see cref="ElbrusWorld.Prop"/> drops anything
+        /// the ground will not hold; a climber who cannot hire crampons cannot play, so this one is a fixture.</summary>
+        static void Hire(float u, float v, float turn)
+        {
+            var (x, z) = ElbrusWorld.AzauAt(u, v);
+            ElbrusWorld.Fixture("Elb_RentStand", props, x, z, ElbrusWorld.AzauYaw + turn, 0f, ElbrusWorld.Sit.Flat, 2.4f);
+        }
+
         // ── Старый Кругозор, 3 000 м ──────────────────────────────────────────────────────────────────────
         /// <summary>The first change: a shabby yard on a shelf with the whole Baksan valley falling away from its eastern
         /// edge. Everything that is delivered here comes up by cable, so it stands about in crates and drums.</summary>
@@ -241,6 +253,11 @@ namespace Height1079.Runtime
             P(g, "Elb_Bin_Barrel", 28f, 12f, 0f, 1f);
             P(g, "Elb_Deck", 20f, 6f, 0f, .6f);
             P(g, "Elb_SkiRack", 24f, 14f, 0f, 1.8f);
+            // the last counter before the snow: what people forget at the bottom is hired here, at the same price
+            {
+                float x = g.X + 30f, z = g.Z + 22f;
+                ElbrusWorld.Fixture("Elb_RentStand", props, x, z, ElbrusWorld.FaceContour(x, z), 0f, ElbrusWorld.Sit.Flat, 2.4f);
+            }
             P(g, "Elb_Windsock", -10f, 34f, 0f, 5.4f);
             Scatter("Elb_Drum", g.X + 46f, g.Z + 22f, 4f, 5, 1f, 360f);
             // the snowmobiles of the carriers, drawn up below the platform with their sledges

@@ -80,7 +80,7 @@ namespace Height1079.Core
             Row("priut11", Kind.Hut, "Приют 11 (Дизель-хат) · 4050", 43.313898, 42.459270, 4050, "Новый приют на месте сгоревшего в 1998 году «Приюта одиннадцати». Рядом — «Приют 88», «Мария», «Орлиное гнездо»."),
             Row("priut88", Kind.Hut, "Приют 88 · 4100", 43.314764, 42.459111, 4100, "Соседний приют на той же морене."),
             Row("pastukhov", Kind.Landmark, "Скалы Пастухова · 4650", 43.331069, 42.458679, 4650, "Выходы лавы на южном склоне, названы по А. В. Пастухову (1890). Обычная точка разворота ратрака."),
-            Row("shelf", Kind.Route, "Косая полка · ~5100", 43.343307, 42.451724, 5100, "Длинный траверс от скал к седловине; самое ветреное место маршрута."),
+            Row("shelf", Kind.Route, "Косая полка · 5290–5380", 43.343307, 42.451724, 5380, "Длинный траверс от «зеркала» к седловине: 940 м, вдоль тропы 3–8°, поперёк склона 23–34°, тропа шириной в полметра в жёстком фирне. Самое ветреное место маршрута. Отметка — верхний конец полки: наш DEM даёт здесь 5380 м, начало траверса лежит на 5290 м, на 445 м раньше по SummitRoute. Прежняя подпись «~5100» была ошибкой: 5100 достигается ещё в «зеркале», ниже скал полки."),
             Row("saddle", Kind.Landmark, "Седловина · 5416", 43.350413, 42.447307, 5416, "Между вершинами; рядом аварийная хижина RedFox 5300."),
             Row("westSummit", Kind.Landmark, "Западная вершина · 5642", 43.352410, 42.437843, 5642, "Высшая точка Эльбруса, Кавказа и Европы."),
             Row("eastSummit", Kind.Landmark, "Восточная вершина · 5621", 43.346794, 42.453904, 5621, "Вторая вершина, кратер сохранился лучше."),
@@ -164,15 +164,36 @@ namespace Height1079.Core
             43.35171, 42.44310, 43.35201, 42.44275, 43.35223, 42.44226, 43.35245, 42.44146, 43.35266, 42.44018,
             43.35280, 42.43939, 43.35282, 42.43902, 43.35277, 42.43865, 43.35267, 42.43837, 43.35241, 42.43784);
 
-        /// <summary>Named stages of the ascent, as the wands and the HUD call them (arc-length fraction along SummitRoute).</summary>
-        public static readonly (string label, float ele)[] RouteStages =
+        /// <summary>Stages of the ascent as the wands and the HUD name them, each with the arc-length along
+        /// <see cref="SummitRoute"/> where it begins and the height OUR height field measures at that point.
+        ///
+        /// The measured heights are the ones the rules trigger on (<see cref="Ascent"/> reads nothing but the DEM);
+        /// the round signpost figures — Приют 11 «4050», седловина «5416» — differ by up to 34 m and stay in the
+        /// labels and the POI notes, where they belong. The old table carried the signpost numbers and no arc-length
+        /// at all, so a mechanic hung on «Косая полка 5100» would have fired in the «зеркало», 480 m too early.
+        ///
+        /// Profile measured along SummitRoute on elbrus/height_2049.r16: 6 694 m, 1 800 m of gain, eight sections —
+        /// cat road 9.7°, rolled firn 17.8°, the «зеркало» 24–27°, the step onto the shelf, the косая полка
+        /// (3–8° along, 23–34° across), the saddle, the summit rise, the plateau.</summary>
+        public static readonly (string label, float ele, float s)[] RouteStages =
         {
-            ("Гара-Баши", 3847), ("Приют 11", 4050), ("Скалы Пастухова", 4650), ("Косая полка", 5100),
-            ("Седловина", 5416), ("Взлёт", 5550), ("Западная вершина", 5642),
+            ("Гара-Баши",        3842f,    0f),
+            ("Приют 11",         4034f, 1118f),
+            ("Скалы Пастухова",  4651f, 3035f),
+            ("Зеркало 5100",     5100f, 4026f),
+            ("Косая полка",      5290f, 4507f),
+            ("Седловина",        5382f, 5496f),
+            ("Вершинный взлёт",  5382f, 5635f),
+            ("Плато",            5550f, 6173f),
+            ("Западная вершина", 5642f, 6694f),
         };
 
-        /// <summary>Snow-cat road: the barrels, the huts, and up the same slope to about 5 100 m under the shelf.
-        /// The snow-cats turn round at Pastukhov rocks or, on a good morning, at the foot of the косая полка.</summary>
+        /// <summary>Snow-cat road: the barrels, the huts, and up the same slope to the top of the groomed lane.
+        /// Measured on our own height field the last point of this line sits at 5 087 m — the real end of the lane is
+        /// 5 080 m and the price list calls it "5 100", so the line is right as it stands and needs no extending.
+        /// It crosses 4 800 m about 4 050 m along itself, which is where the lower of the two drops
+        /// (<see cref="AscentRoute.RatrakStops"/>) belongs. On a bad morning the cats turn round at Pastukhov rocks
+        /// (<see cref="AscentRoute.RatrakDropEle"/>).</summary>
         public static readonly (float x, float z)[] RatrakRoute = Path(
             43.29894, 42.46406, 43.29961, 42.46299, 43.30040, 42.46150, 43.30160, 42.46060, 43.30423, 42.46021,
             43.30980, 42.46090, 43.31220, 42.45995, 43.31596, 42.46049, 43.31898, 42.46051, 43.32497, 42.45907,
@@ -207,6 +228,40 @@ namespace Height1079.Core
                 s -= d;
             }
             return path[path.Length - 1];
+        }
+
+        /// <summary>Where a point stands relative to a polyline: the arc-length of the closest point on the line, and
+        /// the offset from it — <b>signed, positive to the RIGHT of the line's own direction of travel</b>. For
+        /// <see cref="SummitRoute"/> and <see cref="RatrakRoute"/>, which both run bottom to top, that is "plus to the
+        /// right going up", and the whole of the crevasse rule hangs on it
+        /// (<see cref="AscentRoute.CrevasseChance"/>): right of the snow-cat lane is forbidden, left is free.
+        ///
+        /// The sign is the cross product of the segment direction with the vector to the point, in the game's frame
+        /// (x east, z north): the right of a heading (dx, dz) is (dz, −dx).</summary>
+        public static (float s, float offset) Nearest((float x, float z)[] path, float x, float z)
+        {
+            float bestD = float.MaxValue, bestS = 0f, bestOff = 0f, run = 0f;
+            for (int i = 1; i < path.Length; i++)
+            {
+                float ax = path[i - 1].x, az = path[i - 1].z;
+                float dx = path[i].x - ax, dz = path[i].z - az;
+                float len2 = dx * dx + dz * dz;
+                float seg = (float)Math.Sqrt(len2);
+                float t = len2 < 1e-6f ? 0f : (float)Math.Max(0, Math.Min(1, ((x - ax) * dx + (z - az) * dz) / len2));
+                float cx = ax + dx * t, cz = az + dz * t;
+                float vx = x - cx, vz = z - cz;
+                float d = (float)Math.Sqrt(vx * vx + vz * vz);
+                if (d < bestD)
+                {
+                    bestD = d;
+                    bestS = run + seg * t;
+                    // right of the heading (dx, dz) is (dz, −dx)
+                    float side = seg < 1e-6f ? 0f : (vx * dz - vz * dx) / seg;
+                    bestOff = side >= 0f ? d : -d;
+                }
+                run += seg;
+            }
+            return (bestS, bestOff);
         }
     }
 }

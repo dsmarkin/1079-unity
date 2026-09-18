@@ -114,7 +114,9 @@ namespace Height1079.Runtime
         {
             var s = NightSession.Instance;
             var me = Bootstrap.LocalHiker;
-            bool storming = s != null && s.Storm.Value;
+            // the night of 1959 has its own blizzard cycle; the mountain breaks its weather after noon by itself
+            // (NightSession.MountainStorm), and either of them drives the same driving snow
+            bool storming = s != null && (s.Storm.Value || s.MountainStorm.Value);
             // the front takes ~25 s to arrive and ~40 s to die down
             float want = storming ? 1f : 0f, rate = Time.deltaTime / (storming ? 25f : 40f);
             // the demo reel has seconds, not minutes, to show the weather turn

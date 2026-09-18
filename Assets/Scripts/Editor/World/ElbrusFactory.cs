@@ -74,11 +74,35 @@ namespace Height1079.EditorTools.World
             }
         }
 
+        /// <summary>The glazing of a gondola cabin, and it is not glass: the Diamond is glazed in polycarbonate, and after
+        /// twenty seasons of blown ice it is scratched to a haze — riders on Elbrus complain you cannot take a decent
+        /// photograph through it. So this is smoky, half matt and never a mirror; a bright pane would read as a city tram.</summary>
+        static Material CabinGlass
+        {
+            get
+            {
+                var m = Materials.Get("ElbCabinGlass", new Color(.56f, .6f, .62f, .44f), smoothness: .42f);
+                m.SetFloat("_Mode", 3);
+                m.SetOverrideTag("RenderType", "Transparent");
+                m.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
+                m.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+                m.SetInt("_ZWrite", 0);
+                m.DisableKeyword("_ALPHATEST_ON"); m.EnableKeyword("_ALPHABLEND_ON"); m.DisableKeyword("_ALPHAPREMULTIPLY_ON");
+                m.renderQueue = 3000;
+                EditorUtility.SetDirty(m);
+                return m;
+            }
+        }
+
         // ── materials ─────────────────────────────────────────────────────────────────────────────────────
         static Material Steel => Materials.Get("ElbSteel", new Color(.46f, .48f, .5f), smoothness: .55f);
         static Material Paint => Materials.Get("ElbPaint", new Color(.82f, .28f, .2f), smoothness: .45f);
         static Material PaintBlue => Materials.Get("ElbPaintBlue", new Color(.15f, .35f, .58f), smoothness: .45f);
         static Material Cabin => Materials.Get("ElbCabin", new Color(.92f, .93f, .95f), smoothness: .5f);
+        /// <summary>Anthracite: the blank skirt under the windows of a Diamond cabin and the plinths that go with it.</summary>
+        static Material CabinDark => Materials.Get("ElbCabinDark", new Color(.2f, .21f, .23f), smoothness: .42f);
+        /// <summary>Half a century of glacier wind on the red of the jig-back car: chalky, and a long way off fresh paint.</summary>
+        static Material PaintWorn => Materials.Get("ElbPaintWorn", new Color(.64f, .23f, .17f), smoothness: .2f);
         static Material Glass => Materials.Get("ElbGlass", new Color(.14f, .2f, .26f), smoothness: .92f);
         static Material Concrete => Materials.Get("ElbConcrete", new Color(.62f, .61f, .58f), smoothness: .08f);
         static Material Rubber => Materials.Get("ElbRubber", new Color(.09f, .09f, .1f), smoothness: .12f);
@@ -309,62 +333,59 @@ namespace Height1079.EditorTools.World
             return Save(root);
         }
 
-        // ── cars ──────────────────────────────────────────────────────────────────────────────────────────
-        /// <summary>Eight-seat detachable cabin. Pivot = the grip on the haul rope; the body hangs 2.4 m below it, +Z = travel.</summary>
-        static GameObject GondolaCabin()
+        // ── rounded bodies ────────────────────────────────────────────────────────────────────────────────
+        /// <summary>The plan of a cabin: a rectangle whose four vertical edges are rounded off with radius
+        /// <paramref name="r"/>. Points run anticlockwise in x–z from the +x+z corner and the straights between the four
+        /// arcs close the loop, so lofting two of these gives a shell with soft corners and flat sides — which is the
+        /// whole difference between a gondola cabin and a packing case.</summary>
+        static Vector3[] RoundedRect(float hx, float hz, float r, int seg, float y)
         {
-            var root = new GameObject("Elb_Cabin_Gondola");
-            var t = root.transform;
-            float bodyY = -3f, w = 1.02f, l = 1.25f, h = 1.25f;
-
-            var arm = new MeshBuilder(1);
-            arm.Box(0, new Vector3(0, -.12f, 0), new Vector3(.5f, .42f, .8f), Quaternion.identity, 1f);   // grip
-            arm.Tube(0, new Vector3(0, -.3f, 0), new Vector3(0, bodyY + h + .1f, 0), .07f, .07f, 8, 1f);   // hanger
-            arm.Box(0, new Vector3(0, bodyY + h + .12f, 0), new Vector3(.3f, .16f, 1.3f), Quaternion.identity, 1f);
-            Part(t, "Hanger", arm, Steel);
-
-            var body = new MeshBuilder(1);
-            // rounded shell: a stack of rings, widest at seat height
-            int rings = 9;
-            for (int k = 0; k < rings; k++)
+            r = Mathf.Max(.01f, Mathf.Min(r, Mathf.Min(hx, hz) - .01f));
+            var pts = new Vector3[4 * (seg + 1)];
+            int w = 0;
+            for (int c = 0; c < 4; c++)
             {
-                float u0 = k / (float)rings, u1 = (k + 1) / (float)rings;
-                float y0 = bodyY - h + 2 * h * u0, y1 = bodyY - h + 2 * h * u1;
-                float r0 = Mathf.Sin(Mathf.PI * (0.12f + 0.76f * u0)), r1 = Mathf.Sin(Mathf.PI * (0.12f + 0.76f * u1));
-                RingBox(body, 0, y0, y1, w * r0, l * r0, w * r1, l * r1);
+                float sx = c == 0 || c == 3 ? 1f : -1f, sz = c < 2 ? 1f : -1f;
+                float cx = sx * (hx - r), cz = sz * (hz - r);
+                for (int i = 0; i <= seg; i++)
+                {
+                    float a = (c * 90f + i * 90f / seg) * Mathf.Deg2Rad;
+                    pts[w++] = new Vector3(cx + Mathf.Cos(a) * r, y, cz + Mathf.Sin(a) * r);
+                }
             }
-            Part(t, "Shell", body, Cabin);
-
-            // the glazing runs from knee height to above the eyes of a standing passenger: this is what one rides a
-            // gondola for, and a band too low left the rider staring at the inside of the shell
-            var glassMb = new MeshBuilder(1);
-            for (int i = -1; i <= 1; i += 2)
-                glassMb.Quad(0, new Vector3(i * (w * .985f), bodyY - .78f, -l * .72f), new Vector3(i * (w * .985f), bodyY - .78f, l * .72f),
-                    new Vector3(i * (w * .985f), bodyY + .88f, l * .64f), new Vector3(i * (w * .985f), bodyY + .88f, -l * .64f),
-                    Vector2.zero, Vector2.right, Vector2.one, Vector2.up, true);
-            for (int i = -1; i <= 1; i += 2)
-                glassMb.Quad(0, new Vector3(-w * .7f, bodyY - .72f, i * (l * .985f)), new Vector3(w * .7f, bodyY - .72f, i * (l * .985f)),
-                    new Vector3(w * .62f, bodyY + .9f, i * (l * .985f)), new Vector3(-w * .62f, bodyY + .9f, i * (l * .985f)),
-                    Vector2.zero, Vector2.right, Vector2.one, Vector2.up, true);
-            Part(t, "Windows", glassMb, Glass);
-
-            var seats = new MeshBuilder(1);
-            for (int i = -1; i <= 1; i += 2)
-            {
-                seats.Box(0, new Vector3(0, bodyY - .68f, i * .5f), new Vector3(1.75f, .12f, .5f), Quaternion.identity, 1f);
-                seats.Box(0, new Vector3(0, bodyY - .38f, i * .74f), new Vector3(1.75f, .56f, .1f), Quaternion.identity, 1f);
-            }
-            seats.Box(0, new Vector3(0, bodyY - 1.18f, 0), new Vector3(1.9f, .1f, 2.3f), Quaternion.identity, 1f);  // floor
-            Part(t, "Interior", seats, Materials.Get("ElbSeat", new Color(.2f, .23f, .28f), smoothness: .2f));
-
-            var ride = new GameObject("Seat"); ride.transform.SetParent(t, false);
-            ride.transform.localPosition = new Vector3(0, bodyY - 1.12f, 0);          // the floor: the eyes then sit in the glazing
-            var box = new GameObject("Hull"); box.transform.SetParent(t, false);
-            box.transform.localPosition = new Vector3(0, bodyY, 0);
-            var bc = box.AddComponent<BoxCollider>(); bc.size = new Vector3(2.1f, 2.5f, 2.6f);
-            return Save(root);
+            return pts;
         }
 
+        /// <summary>Skins the band between two outlines of equal length — one storey of a cabin wall, or a flat ring when
+        /// both outlines share a height. Faces outward (downward, for a ring read inner → outer); <paramref name="both"/>
+        /// adds the inner face, which is what keeps the daylight out of the wall when the passenger sits inside it.</summary>
+        static void Loft(MeshBuilder mb, int s, Vector3[] lo, Vector3[] hi, float uv = 1f, bool both = false)
+        {
+            float u = 0f;
+            for (int i = 0; i < lo.Length; i++)
+            {
+                int j = (i + 1) % lo.Length;
+                float du = Vector3.Distance(lo[i], lo[j]) * uv, h = Vector3.Distance(lo[i], hi[i]) * uv;
+                mb.Quad(s, lo[j], lo[i], hi[i], hi[j],
+                    new Vector2(u + du, 0), new Vector2(u, 0), new Vector2(u, h), new Vector2(u + du, h), both);
+                u += du;
+            }
+        }
+
+        /// <summary>The same outline shrunk about the body axis and moved to <paramref name="y"/> — one ring of a domed roof.</summary>
+        static Vector3[] Shrink(Vector3[] ring, float k, float y)
+        {
+            var o = new Vector3[ring.Length];
+            for (int i = 0; i < ring.Length; i++) o[i] = new Vector3(ring[i].x * k, y, ring[i].z * k);
+            return o;
+        }
+
+        /// <summary>Closes an outline with a fan: a floor pan, a ceiling, the crown of a dome.</summary>
+        static void Deck(MeshBuilder mb, int s, Vector3[] ring, bool up)
+            => Surf.Fan(mb, s, Matrix4x4.identity, ring, up ? Vector3.up : Vector3.down, 1f);
+
+        /// <summary>A four-sided band between two centred rectangles — the square-cornered taper of an old car body,
+        /// where the rounded plan above would be wrong.</summary>
         static void RingBox(MeshBuilder mb, int s, float y0, float y1, float w0, float l0, float w1, float l1)
         {
             Vector3 A(float y, float w, float l, int sx, int sz) => new Vector3(sx * w, y, sz * l);
@@ -374,74 +395,316 @@ namespace Height1079.EditorTools.World
             mb.Quad(s, A(y0, w0, l0, 1, -1), A(y0, w0, l0, -1, -1), A(y1, w1, l1, -1, -1), A(y1, w1, l1, 1, -1), Vector2.zero, Vector2.right, Vector2.one, Vector2.up);
         }
 
-        /// <summary>Twenty-place jig-back car of 1969. Pivot = the carriage on the track rope.</summary>
+        /// <summary>A shallow dome on top of an outline: two rings and a crown, 2–3 courses is all a roof this size needs.</summary>
+        static void Dome(MeshBuilder mb, int s, Vector3[] eave, float rise)
+        {
+            float y = eave[0].y;
+            var r1 = Shrink(eave, .80f, y + rise * .62f);
+            var r2 = Shrink(eave, .46f, y + rise);
+            Loft(mb, s, eave, r1); Loft(mb, s, r1, r2); Deck(mb, s, r2, true);
+        }
+
+        // ── cars ──────────────────────────────────────────────────────────────────────────────────────────
+        /// <summary>Sigma Diamond C8 — the cabin of all three Poma gondolas of Elbrus (Azau–Krugozor, Krugozor–Mir and
+        /// Mir–Gara-Bashi carry 58, 58 and 35 of them), eight seats, 730 kg empty, a 900 mm door. Three things make it
+        /// itself and are worth the triangles: a body that is very nearly a 1.9 m cube with all four vertical edges
+        /// rounded off to a radius of 280 mm; a metre of glazing that runs right around those corners without a break,
+        /// which is what Sigma sold the Diamond on; and a shallow domed roof with a drip that overhangs the sides. Below
+        /// the glass the shell is a blank anthracite skirt with vent slits, under that a rubber bumper takes the knocks
+        /// of the station. The two sliding doors are glazed in the same line as the band, so a closed cabin reads as one
+        /// ribbon of plastic and only the shut lines, the bottom guide rail and the step give them away. Sigma hangs the
+        /// cabin on struts that pass through the roof into the saloon: the box in the ceiling and the two posts down to
+        /// the seat backs are those struts, and they are the first thing a passenger notices inside.
+        /// Pivot = the point <see cref="Ropeway.Hang"/> under the haul rope, where <c>RopewayRig</c> puts the car; the
+        /// floor sits exactly <see cref="Ropeway.Drop"/> under the rope, the height the line profile and the station
+        /// platforms are computed from. +Z = travel, doors on ±X.</summary>
+        static GameObject GondolaCabin()
+        {
+            var root = new GameObject("Elb_Cabin_Gondola");
+            var t = root.transform;
+
+            float rope = Ropeway.Hang(RopewayKind.Gondola);                   // the haul rope runs this far above the pivot
+            float floor = rope - Ropeway.Drop(RopewayKind.Gondola);           // and the floor this far below the rope
+            const float HX = .95f, HZ = .95f, R = .28f;                       // 1.9 × 1.9 m in plan, corners of 280 mm
+            const int Seg = 5;                                                // segments per rounded corner → 24 points a ring
+            const float Sill = -.06f, Belt = .78f, Head = 1.78f, Cant = 1.88f;
+            float Y(float h) => floor + h;
+
+            var sill = RoundedRect(HX, HZ, R, Seg, Y(Sill));
+            var belt = RoundedRect(HX, HZ, R, Seg, Y(Belt));
+            var head = RoundedRect(HX - .012f, HZ - .012f, R, Seg, Y(Head));  // the sides lean in a little going up
+            var cant = RoundedRect(HX - .02f, HZ - .02f, R, Seg, Y(Cant));
+
+            // ── the blank skirt, the floor pan and the strake under the glass ─────────────────────────────
+            var skirt = new MeshBuilder(1);
+            Loft(skirt, 0, sill, belt, 1f, true);
+            Loft(skirt, 0, RoundedRect(HX, HZ, R, Seg, Y(.66f)), RoundedRect(HX + .014f, HZ + .014f, R, Seg, Y(.68f)));
+            Loft(skirt, 0, RoundedRect(HX + .014f, HZ + .014f, R, Seg, Y(.68f)), RoundedRect(HX, HZ, R, Seg, Y(Belt)));
+            Deck(skirt, 0, RoundedRect(HX, HZ, R, Seg, floor), true);
+            Part(t, "Skirt", skirt, CabinDark);
+
+            // ── the shell above the glass, the ceiling and the domed roof ─────────────────────────────────
+            var shell = new MeshBuilder(1);
+            Loft(shell, 0, head, cant, 1f, true);
+            Deck(shell, 0, Shrink(cant, 1f, Y(1.855f)), false);                                   // the ceiling, seen from the seat
+            var eaveLo = RoundedRect(HX + .045f, HZ + .045f, R + .045f, Seg, Y(1.80f));
+            var eaveHi = RoundedRect(HX + .045f, HZ + .045f, R + .045f, Seg, Y(1.90f));
+            Loft(shell, 0, RoundedRect(HX - .014f, HZ - .014f, R, Seg, Y(1.80f)), eaveLo);        // under the drip
+            Loft(shell, 0, eaveLo, eaveHi);                                                        // the drip itself
+            Dome(shell, 0, eaveHi, .155f);
+            Part(t, "Shell", shell, Cabin);
+
+            // ── the glazing band: one ribbon, corners and doors included ──────────────────────────────────
+            var glassMb = new MeshBuilder(1);
+            Loft(glassMb, 0, belt, head, 1f, true);
+            var pane = Part(t, "Windows", glassMb, CabinGlass);
+            pane.GetComponent<MeshRenderer>().shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+
+            // ── rubber: the bumper right round the bottom, the vent slits, the shut lines of the doors ────
+            var rubber = new MeshBuilder(1);
+            var bumpLo = RoundedRect(HX + .035f, HZ + .035f, R + .035f, Seg, Y(-.155f));
+            var bumpHi = RoundedRect(HX + .035f, HZ + .035f, R + .035f, Seg, Y(-.035f));
+            Loft(rubber, 0, bumpLo, bumpHi);
+            Loft(rubber, 0, bumpHi, RoundedRect(HX, HZ, R, Seg, Y(-.035f)));
+            Deck(rubber, 0, bumpLo, false);
+            for (int i = -1; i <= 1; i += 2)
+            {
+                for (int k = -1; k <= 1; k += 2)                              // the door slides between these two lines
+                    rubber.Box(0, new Vector3(i * (HX + .012f), Y(.87f), k * .45f), new Vector3(.03f, 1.72f, .022f), Quaternion.identity, 1f);
+                rubber.Box(0, new Vector3(i * (HX + .012f), Y(1.74f), 0), new Vector3(.03f, .022f, .92f), Quaternion.identity, 1f);
+                for (int k = 0; k < 4; k++)                                   // vents low in the blank skirt
+                    rubber.Box(0, new Vector3(0, Y(.12f + k * .055f), i * (HZ + .008f)), new Vector3(.92f, .022f, .026f), Quaternion.identity, 1f);
+            }
+            Part(t, "Rubber", rubber, Rubber);
+
+            // ── the running gear, the struts through the roof and the hanger to the grip ──────────────────
+            var gear = new MeshBuilder(1);
+            for (int i = -1; i <= 1; i += 2)
+            {
+                for (int k = -1; k <= 1; k += 2)                              // rollers that hold the cabin to the station rail
+                    gear.Tube(0, new Vector3(k * .45f, Y(-.15f), i * (HZ + .045f)), new Vector3(k * .45f, Y(-.03f), i * (HZ + .045f)), .055f, .055f, 6, 1f, 0, true);
+                gear.Box(0, new Vector3(i * (HX + .03f), Y(.02f), 0), new Vector3(.06f, .07f, 1.04f), Quaternion.identity, 1f);      // door rail
+                gear.Box(0, new Vector3(i * (HX + .06f), Y(-.03f), 0), new Vector3(.12f, .035f, .94f), Quaternion.identity, 1f);     // the step under the door
+                gear.Box(0, new Vector3(i * (HX + .035f), Y(1.02f), .34f), new Vector3(.05f, .05f, .2f), Quaternion.identity, 1f);   // door handle
+                gear.Box(0, new Vector3(0, Y(1.28f), i * .62f), new Vector3(.11f, 1.02f, .11f), Quaternion.identity, 1f);            // strut inside the saloon
+            }
+            gear.Box(0, new Vector3(0, Y(1.815f), 0), new Vector3(.17f, .09f, 1.84f), Quaternion.identity, 1f);  // and the box they hang from
+            gear.Box(0, new Vector3(.24f, Y(2.04f), .06f), new Vector3(.26f, .12f, .3f), Quaternion.identity, 1f); // the collar where the arm leaves the roof
+
+            // the hanger is not a stick: a goose-neck that leaves the roof off-centre, bows out and comes back
+            // vertical under the grip. Roof to rope is about 2.2 m here, set by Drop, not by the cabin.
+            var path = new Vector3[7];
+            for (int k = 0; k < path.Length; k++)
+            {
+                float u = k / (float)(path.Length - 1), e = u * u * (3f - 2f * u);
+                path[k] = new Vector3(Mathf.Lerp(.24f, 0f, e), Mathf.Lerp(Y(1.86f), .16f, u), Mathf.Lerp(.06f, 0f, e));
+            }
+            Surf.Sweep(gear, 0, path, (a, b) => .05f, 8, 14, new Surf.Options { UvScale = new Vector2(.5f, 1f) }, capStart: false, capEnd: true);
+            gear.Box(0, new Vector3(0, .19f, 0), new Vector3(.13f, .1f, .46f), Quaternion.identity, 1f);          // the shelf under the grip
+            gear.Box(0, new Vector3(0, .3f, 0), new Vector3(.15f, .15f, .4f), Quaternion.identity, 1f);
+            gear.Tube(0, new Vector3(0, .3f, -.21f), new Vector3(0, .3f, .21f), .085f, .085f, 8, 1f, 0, true);    // the spring pack
+            gear.Box(0, new Vector3(0, rope, 0), new Vector3(.22f, .1f, .3f), Quaternion.identity, 1f);           // jaws closed on the haul rope
+            gear.Box(0, new Vector3(0, .5f, 0), new Vector3(.1f, .05f, .36f), Quaternion.identity, 1f);
+            for (int k = -1; k <= 1; k += 2)                                   // the rollers that open the grip in the station
+                gear.Tube(0, new Vector3(-.06f, .51f, k * .14f), new Vector3(.06f, .51f, k * .14f), .055f, .055f, 8, 1f, 0, true);
+            Part(t, "Gear", gear, Steel);
+
+            // ── ski racks outside, hand rails inside ──────────────────────────────────────────────────────
+            var rails = new MeshBuilder(1);
+            for (int i = -1; i <= 1; i += 2)
+            {
+                float z0 = i * (HZ - .01f), z1 = i * (HZ + .11f);
+                foreach (float y in new[] { .30f, .58f })
+                {
+                    rails.Tube(0, new Vector3(-.62f, Y(y), z1), new Vector3(.62f, Y(y), z1), .018f, .018f, 5, 1f, 0, true);
+                    for (int k = -1; k <= 1; k += 2)
+                        rails.Tube(0, new Vector3(k * .58f, Y(y), z0), new Vector3(k * .58f, Y(y), z1), .016f, .016f, 4, 1f, 0, true);
+                }
+                for (int k = 0; k < 5; k++)                                    // four slots a side: four pairs of skis
+                    rails.Tube(0, new Vector3(-.6f + k * .3f, Y(.3f), z1), new Vector3(-.6f + k * .3f, Y(.58f), z1), .012f, .012f, 4, 1f, 0, true);
+                rails.Tube(0, new Vector3(i * (HX - .07f), Y(.88f), -.52f), new Vector3(i * (HX - .07f), Y(1.72f), -.52f), .022f, .022f, 5, 1f);
+            }
+            var run = RoundedRect(HX - .06f, HZ - .06f, R, 3, Y(.88f));        // the rail follows the rounded plan
+            for (int i = 0; i < run.Length; i++)
+                rails.Tube(0, run[i], run[(i + 1) % run.Length], .022f, .022f, 5, 1f);
+            Part(t, "Rails", rails, Alu);
+
+            // ── two benches of four, facing each other across a metre of legroom ──────────────────────────
+            var seats = new MeshBuilder(1);
+            for (int i = -1; i <= 1; i += 2)
+            {
+                for (int k = 0; k < 4; k++)
+                    seats.Box(0, new Vector3(-.6f + k * .4f, Y(.38f), i * .7f), new Vector3(.37f, .08f, .4f), Quaternion.identity, 1f);
+                seats.Box(0, new Vector3(0, Y(.6f), i * .87f), new Vector3(1.62f, .35f, .06f), Quaternion.identity, 1f);   // a low back, up to the glass
+                seats.Box(0, new Vector3(0, Y(.2f), i * .84f), new Vector3(1.62f, .3f, .06f), Quaternion.identity, 1f);
+            }
+            Part(t, "Interior", seats, Materials.Get("ElbSeat", new Color(.2f, .23f, .28f), smoothness: .2f));
+
+            // the floor: the rider's eyes then sit in the glazing, a hand under the top rail, as they do in a C8
+            var ride = new GameObject("Seat"); ride.transform.SetParent(t, false);
+            ride.transform.localPosition = new Vector3(0, floor, 0);
+            var box = new GameObject("Hull"); box.transform.SetParent(t, false);
+            box.transform.localPosition = new Vector3(0, Y(.9f), 0);
+            var bc = box.AddComponent<BoxCollider>(); bc.size = new Vector3(1.95f, 2.05f, 1.95f);
+            return Save(root);
+        }
+
+        /// <summary>«Эльбрус-1» — the jig-back car of 1968–70 by Ceretti &amp; Tanfani, some twenty-five aboard, and for
+        /// everyone who has ridden it simply «красный вагончик»: the red is the thing to get right. Rounded corners,
+        /// sides that fall away inwards as they rise, a ribbon of big square windows with rounded corners nearly all the
+        /// way round, one wide sliding door a side and the conductor's box in the end. Over the roof a trapezoid frame
+        /// carries it to the carriage, which rides the track rope on two balanced bogies. Half a century of wind off the
+        /// glacier has rubbed the paint dull. Pivot = the carriage on the track rope; the floor sits
+        /// <see cref="Ropeway.Drop"/> below it, about five metres, as on the real line.</summary>
         static GameObject PendulumCar()
         {
             var root = new GameObject("Elb_Car_Pendulum");
             var t = root.transform;
-            float bodyY = -3.1f, w = 1.25f, l = 2.3f, h = 1.3f;
 
-            var carriage = new MeshBuilder(1);
-            for (int i = -1; i <= 1; i += 2)
-                for (int k = -1; k <= 1; k += 2)
-                    carriage.Tube(0, new Vector3(i * .13f, .05f, k * .7f), new Vector3(i * .13f, .05f, k * .7f + i * .01f), .26f, .26f, 10, .5f, 0, true);
-            carriage.Box(0, new Vector3(0, -.28f, 0), new Vector3(.7f, .4f, 2.2f), Quaternion.identity, .5f);
-            carriage.Tube(0, new Vector3(0, -.48f, 0), new Vector3(0, bodyY + h + .15f, 0), .11f, .11f, 8, .5f);
-            carriage.Box(0, new Vector3(0, bodyY + h + .16f, 0), new Vector3(.45f, .2f, 2.4f), Quaternion.identity, .5f);
-            Part(t, "Carriage", carriage, Steel);
+            float rope = Ropeway.Hang(RopewayKind.Pendulum);
+            float floor = rope - Ropeway.Drop(RopewayKind.Pendulum);           // −4.02 m: the floor of the car
+            const float HX = 1.1f, HZ = 1.9f, R = .3f;                         // 2.2 × 3.8 m in plan
+            const int Seg = 4;
+            const float Sill = -.1f, Belt = .95f, Head = 1.95f, Cant = 2.12f;
+            const float TopX = .99f, TopZ = 1.81f, CapX = .95f, CapZ = 1.78f;  // the sides lean in by 110 mm over the windows
+            float Y(float h) => floor + h;
+
+            var sill = RoundedRect(HX, HZ, R, Seg, Y(Sill));
+            var belt = RoundedRect(HX, HZ, R, Seg, Y(Belt));
+            var head = RoundedRect(TopX, TopZ, R, Seg, Y(Head));
+            var cant = RoundedRect(CapX, CapZ, R, Seg, Y(Cant));
 
             var body = new MeshBuilder(1);
-            body.Box(0, new Vector3(0, bodyY, 0), new Vector3(w * 2, h * 2, l * 2), Quaternion.identity, .6f);
-            body.Box(0, new Vector3(0, bodyY + h + .12f, 0), new Vector3(w * 2 + .2f, .25f, l * 2 + .25f), Quaternion.identity, .6f);
-            Part(t, "Body", body, Paint);
+            Loft(body, 0, sill, belt, 1f, true);
+            Loft(body, 0, head, cant, 1f, true);
+            Deck(body, 0, RoundedRect(HX, HZ, R, Seg, floor), true);                              // the floor
+            Deck(body, 0, Shrink(cant, 1f, Y(2.09f)), false);                                     // the ceiling
+            Deck(body, 0, RoundedRect(HX, HZ, R, Seg, Y(Sill)), false);                           // and the underside
+            var eaveLo = RoundedRect(CapX + .06f, CapZ + .06f, R + .06f, Seg, Y(2.06f));
+            var eaveHi = RoundedRect(CapX + .06f, CapZ + .06f, R + .06f, Seg, Y(2.14f));
+            Loft(body, 0, RoundedRect(CapX - .01f, CapZ - .01f, R, Seg, Y(2.06f)), eaveLo);
+            Loft(body, 0, eaveLo, eaveHi);
+            Dome(body, 0, eaveHi, .2f);
+            Part(t, "Body", body, PaintWorn);
 
             var glassMb = new MeshBuilder(1);
-            for (int i = -1; i <= 1; i += 2)
-                glassMb.Quad(0, new Vector3(i * (w + .01f), bodyY - .25f, -l + .25f), new Vector3(i * (w + .01f), bodyY - .25f, l - .25f),
-                    new Vector3(i * (w + .01f), bodyY + .8f, l - .25f), new Vector3(i * (w + .01f), bodyY + .8f, -l + .25f),
-                    Vector2.zero, Vector2.right, Vector2.one, Vector2.up, true);
-            for (int i = -1; i <= 1; i += 2)
-                glassMb.Quad(0, new Vector3(-w + .2f, bodyY - .2f, i * (l + .01f)), new Vector3(w - .2f, bodyY - .2f, i * (l + .01f)),
-                    new Vector3(w - .2f, bodyY + .8f, i * (l + .01f)), new Vector3(-w + .2f, bodyY + .8f, i * (l + .01f)),
-                    Vector2.zero, Vector2.right, Vector2.one, Vector2.up, true);
-            Part(t, "Windows", glassMb, Glass);
+            Loft(glassMb, 0, belt, head, 1f, true);
+            var pane = Part(t, "Windows", glassMb, CabinGlass);
+            pane.GetComponent<MeshRenderer>().shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
 
-            var inside = new MeshBuilder(1);
-            inside.Box(0, new Vector3(0, bodyY - h + .08f, 0), new Vector3(w * 2 - .2f, .14f, l * 2 - .2f), Quaternion.identity, 1f);
+            // the pillars that cut the ribbon into windows; they lean with the side, so the boxes lean too
+            var posts = new MeshBuilder(1);
+            float leanX = Mathf.Atan2(HX - TopX, Head - Belt) * Mathf.Rad2Deg;
+            float leanZ = Mathf.Atan2(HZ - TopZ, Head - Belt) * Mathf.Rad2Deg;
+            float midX = (HX + TopX) / 2f, midZ = (HZ + TopZ) / 2f, midY = Y((Belt + Head) / 2f);
             for (int i = -1; i <= 1; i += 2)
-                inside.Tube(0, new Vector3(i * (w - .22f), bodyY + .35f, -l + .3f), new Vector3(i * (w - .22f), bodyY + .35f, l - .3f), .035f, .035f, 6, 1f);
+            {
+                foreach (float z in new[] { .65f, 1.12f, 1.6f })                                   // door jamb, then two mullions
+                    for (int k = -1; k <= 1; k += 2)
+                        posts.Box(0, new Vector3(i * midX, midY, k * z), new Vector3(.06f, 1.06f, .1f), Quaternion.Euler(0, 0, i * leanX), 1f);
+                posts.Box(0, new Vector3(.38f, midY, i * midZ), new Vector3(.1f, 1.06f, .06f), Quaternion.Euler(i * leanZ, 0, 0), 1f); // the conductor's corner
+            }
+            // the waist strake, and the wide sliding door on each side
+            Loft(posts, 0, RoundedRect(HX, HZ, R, Seg, Y(.86f)), RoundedRect(HX + .025f, HZ + .025f, R, Seg, Y(.9f)));
+            Loft(posts, 0, RoundedRect(HX + .025f, HZ + .025f, R, Seg, Y(.9f)), RoundedRect(HX, HZ, R, Seg, Y(Belt)));
+            for (int i = -1; i <= 1; i += 2)
+            {
+                posts.Box(0, new Vector3(i * (HX + .03f), Y(.14f), 0), new Vector3(.07f, .08f, 1.36f), Quaternion.identity, 1f);   // door rail
+                posts.Box(0, new Vector3(i * (HX + .07f), Y(.06f), 0), new Vector3(.16f, .05f, 1.2f), Quaternion.identity, 1f);    // the step
+                posts.Box(0, new Vector3(i * (HX + .04f), Y(1.05f), .5f), new Vector3(.06f, .06f, .26f), Quaternion.identity, 1f); // handle
+            }
+            Part(t, "Trim", posts, Steel);
+
+            // ── inside: standing room, poles, and the conductor's box in the uphill end ───────────────────
+            var inside = new MeshBuilder(1);
+            foreach (float x in new[] { -.62f, .62f })                                             // poles to hold on to, out of the gangway
+                foreach (float z in new[] { -1.15f, -.4f, .4f, 1.15f })
+                    inside.Tube(0, new Vector3(x, Y(.02f), z), new Vector3(x, Y(2.08f), z), .028f, .028f, 5, 1f);
+            var hold = RoundedRect(HX - .08f, HZ - .08f, R, 3, Y(.95f));
+            for (int i = 0; i < hold.Length; i++)
+                inside.Tube(0, hold[i], hold[(i + 1) % hold.Length], .026f, .026f, 5, 1f);
+            inside.Box(0, new Vector3(.52f, Y(.5f), 1.42f), new Vector3(.9f, 1f, .06f), Quaternion.identity, 1f);      // the conductor's counter
+            inside.Box(0, new Vector3(.95f, Y(1.05f), 1.6f), new Vector3(.06f, 2.05f, .74f), Quaternion.identity, 1f); // and his partition
             Part(t, "Interior", inside, Alu);
 
+            // ── the trapezoid frame and the carriage on the track rope ────────────────────────────────────
+            var frame = new MeshBuilder(1);
+            for (int i = -1; i <= 1; i += 2)
+                for (int k = -1; k <= 1; k += 2)
+                {
+                    frame.Tube(0, new Vector3(i * .78f, Y(2.02f), k * 1.3f), new Vector3(i * .17f, .04f, k * .44f), .062f, .05f, 6, .5f);
+                    frame.Tube(0, new Vector3(i * .78f, Y(2.02f), k * 1.3f), new Vector3(i * .5f, Y(2.02f), 0), .04f, .04f, 5, .5f);
+                }
+            float tie = (Y(2.02f) + .04f) * .5f;                                // ties across the frame, half way up
+            for (int k = -1; k <= 1; k += 2)
+                frame.Tube(0, new Vector3(-.48f, tie, k * .87f), new Vector3(.48f, tie, k * .87f), .034f, .034f, 5, .5f);
+            frame.Box(0, new Vector3(0, .1f, 0), new Vector3(.46f, .14f, 1.04f), Quaternion.identity, .5f);
+            frame.Tube(0, new Vector3(0, .1f, 0), new Vector3(0, .99f, 0), .07f, .07f, 8, .5f);                        // the king pin
+            frame.Box(0, new Vector3(0, .99f, 0), new Vector3(.2f, .12f, 1.85f), Quaternion.identity, .5f);            // the balance beam
+            for (int k = -1; k <= 1; k += 2)
+            {
+                frame.Box(0, new Vector3(0, .85f, k * .8f), new Vector3(.26f, .1f, .9f), Quaternion.identity, .5f);    // a bogie either end
+                foreach (float z in new[] { .35f, 1.05f })
+                    frame.Tube(0, new Vector3(-.075f, rope + .2f, k * z), new Vector3(.075f, rope + .2f, k * z), .2f, .2f, 12, .5f, 0, true); // running on the rope
+            }
+            Part(t, "Carriage", frame, Steel);
+
             var ride = new GameObject("Seat"); ride.transform.SetParent(t, false);
-            ride.transform.localPosition = new Vector3(0, bodyY - h + .2f, 0);
+            ride.transform.localPosition = new Vector3(0, floor, 0);
             var box = new GameObject("Hull"); box.transform.SetParent(t, false);
-            box.transform.localPosition = new Vector3(0, bodyY, 0);
-            var bc = box.AddComponent<BoxCollider>(); bc.size = new Vector3(w * 2, h * 2, l * 2);
+            box.transform.localPosition = new Vector3(0, Y(1.05f), 0);
+            var bc = box.AddComponent<BoxCollider>(); bc.size = new Vector3(2.2f, 2.3f, 3.8f);
             return Save(root);
         }
 
-        /// <summary>The old single fixed-grip chair between Mir and Garabashi: a seat, a footrest and a bar.</summary>
+        /// <summary>The single fixed-grip chair of 1981 between Mir and Gara-Bashi, Transporta Chrudim: 1.5 m/s, sixteen
+        /// minutes, and nothing between you and the glacier. One bent steel tube runs from the grip down and forward to a
+        /// narrow painted seat with a low back; the bar folds down in front and the footrest hangs off it. Pivot = the
+        /// grip; the footrest is <see cref="Ropeway.Drop"/> below the rope, which is what the line is built to clear.</summary>
         static GameObject ChairSeat()
         {
             var root = new GameObject("Elb_Chair");
             var t = root.transform;
+            float rope = Ropeway.Hang(RopewayKind.Chair);
+            float low = rope - Ropeway.Drop(RopewayKind.Chair);                 // −2.28 m: the footrest, the lowest thing on the line
+            float pan = low + .48f;                                             // the seat, a knee above it
+
             var mb = new MeshBuilder(1);
-            mb.Box(0, new Vector3(0, -.1f, 0), new Vector3(.3f, .3f, .5f), Quaternion.identity, 1f);
-            mb.Tube(0, new Vector3(0, -.25f, 0), new Vector3(0, -1.9f, -.05f), .045f, .045f, 6, 1f);
-            mb.Tube(0, new Vector3(0, -1.9f, -.05f), new Vector3(0, -2.0f, .3f), .045f, .045f, 6, 1f);
+            mb.Box(0, new Vector3(0, rope, 0), new Vector3(.17f, .13f, .34f), Quaternion.identity, 1f);      // the grip on the rope
+            mb.Box(0, new Vector3(0, rope - .13f, 0), new Vector3(.12f, .14f, .2f), Quaternion.identity, 1f);
+            // the hanger: one tube, bent, not a pair of straight sticks
+            var path = new[]
+            {
+                new Vector3(0, rope - .18f, 0),
+                new Vector3(0, Mathf.Lerp(rope - .18f, pan + .42f, .33f), -.03f),
+                new Vector3(0, Mathf.Lerp(rope - .18f, pan + .42f, .7f), .02f),
+                new Vector3(0, pan + .42f, .16f), new Vector3(0, pan + .2f, .3f),
+            };
+            Surf.Sweep(mb, 0, path, (a, b) => .042f, 6, 10, new Surf.Options { UvScale = new Vector2(.5f, 1f) }, capStart: false, capEnd: false);
+            for (int i = -1; i <= 1; i += 2)                                     // the fork that carries the seat
+            {
+                mb.Tube(0, new Vector3(0, pan + .2f, .3f), new Vector3(i * .21f, pan - .05f, .26f), .03f, .026f, 5, 1f);
+                mb.Tube(0, new Vector3(i * .21f, pan - .05f, .26f), new Vector3(i * .21f, pan - .06f, .62f), .026f, .026f, 5, 1f);
+            }
             Part(t, "Hanger", mb, Steel);
+
             var seat = new MeshBuilder(1);
-            seat.Box(0, new Vector3(0, -2.05f, .32f), new Vector3(.56f, .09f, .5f), Quaternion.identity, 1f);
-            seat.Box(0, new Vector3(0, -1.72f, .58f), new Vector3(.56f, .58f, .08f), Quaternion.identity, 1f);
-            Part(t, "Seat", seat, PaintBlue);
+            seat.Box(0, new Vector3(0, pan - .025f, .44f), new Vector3(.48f, .05f, .42f), Quaternion.identity, 1f);            // 450 mm of seat
+            seat.Box(0, new Vector3(0, pan + .19f, .21f), new Vector3(.48f, .44f, .05f), Quaternion.Euler(-9f, 0, 0), 1f);     // and a low back
+            Part(t, "Seat", seat, Paint);
+
             var bar = new MeshBuilder(1);
-            bar.Tube(0, new Vector3(-.3f, -1.55f, .05f), new Vector3(.3f, -1.55f, .05f), .03f, .03f, 6, 1f);
-            bar.Tube(0, new Vector3(-.3f, -1.55f, .05f), new Vector3(-.3f, -2.35f, .18f), .03f, .03f, 6, 1f);
-            bar.Tube(0, new Vector3(.3f, -1.55f, .05f), new Vector3(.3f, -2.35f, .18f), .03f, .03f, 6, 1f);
-            bar.Box(0, new Vector3(0, -2.4f, .2f), new Vector3(.7f, .06f, .22f), Quaternion.identity, 1f);
+            bar.Tube(0, new Vector3(-.28f, pan + .3f, .8f), new Vector3(.28f, pan + .3f, .8f), .022f, .022f, 6, 1f);           // the bar, down
+            for (int i = -1; i <= 1; i += 2)
+            {
+                bar.Tube(0, new Vector3(i * .28f, pan + .3f, .8f), new Vector3(i * .28f, pan + .36f, .24f), .022f, .022f, 6, 1f);
+                bar.Tube(0, new Vector3(i * .22f, pan + .26f, .78f), new Vector3(i * .22f, low + .04f, .7f), .022f, .022f, 6, 1f); // to the footrest
+            }
+            bar.Box(0, new Vector3(0, low + .02f, .7f), new Vector3(.54f, .05f, .16f), Quaternion.identity, 1f);
             Part(t, "Bar", bar, Steel);
+
             var ride = new GameObject("Seat"); ride.transform.SetParent(t, false);
-            ride.transform.localPosition = new Vector3(0, -2.0f, .32f);
+            ride.transform.localPosition = new Vector3(0, pan, .4f);
             return Save(root);
         }
 

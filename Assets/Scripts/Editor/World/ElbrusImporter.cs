@@ -76,6 +76,9 @@ namespace Height1079.EditorTools.World
             var meadow = Meadow(dem);
             ApplyMeadow(data, meadow.protos, meadow.density);
 
+            EditorUtility.DisplayProgressBar("1079 Эльбрус", "Маршрут: вешки, перила, хижина, трещины", .9f);
+            ElbrusAscent.Build(dem);
+
             EditorUtility.DisplayProgressBar("1079 Эльбрус", "Карта района", .92f);
             ElbrusMapFactory.Build(dem);
 

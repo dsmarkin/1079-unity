@@ -142,9 +142,12 @@ namespace Height1079.Runtime
         {
             if (!IsServer || run == null) return;
             if (Controls.MenkWake && menk != null) menk.WakeNow();
-            if (Controls.SkipMinute) run.SkipAhead(60);
+            // F6: a minute of the night, or a whole hour of the Elbrus clock — the ascent runs nine hours of the day
+            // over an hour and a half of play, and the turn-round time is worth being able to reach in a check
+            if (Controls.SkipMinute) run.SkipAhead(Climb.On ? 600 : 60);
             TickMenk();
             TickWork();
+            TickAscentServer(Time.deltaTime);
             TickWeatherOnItems(Time.deltaTime);
             SyncPacks();
             double now = Time.timeAsDouble;

@@ -191,6 +191,33 @@ namespace Height1079.Runtime
 #endif
             );
 
+        // ---- the ascent of Elbrus --------------------------------------------
+        // F1…F3 belong to the Kholat night (travel, archive, site views) and do nothing on the southern slope, so the
+        // two things a climber does with his hands take them as spares: letter keys never reach the game under UI
+        // automation, and both also have a button in the HUD.
+
+        /// <summary>C — put the crampons on or take them off (12 s standing still). Spare: F1.</summary>
+        public static bool Crampons => Pressed(KeyCode.C
+#if ENABLE_INPUT_SYSTEM
+            , Key.C
+#endif
+            ) || Pressed(KeyCode.F1
+#if ENABLE_INPUT_SYSTEM
+            , Key.F1
+#endif
+            );
+
+        /// <summary>T — a sip of hot out of the thermos. Spare: F2.</summary>
+        public static bool Thermos => Pressed(KeyCode.T
+#if ENABLE_INPUT_SYSTEM
+            , Key.T
+#endif
+            ) || Pressed(KeyCode.F2
+#if ENABLE_INPUT_SYSTEM
+            , Key.F2
+#endif
+            );
+
         // ---- skis, poles and the волокуша ------------------------------------
         // Letter keys do not reach the game under UI automation, so every one of these has a digit and a keypad twin,
         // and the two free function keys (F1, F12) cover the whole set: F1 steps through all four ways of travelling,
