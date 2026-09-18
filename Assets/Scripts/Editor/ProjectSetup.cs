@@ -46,6 +46,30 @@ namespace Height1079.EditorTools
             EnsureAll(false);
             Builds.EnsureData();
             AssetDatabase.SaveAssets();
+            RunErrand();
+        }
+
+        /// <summary>Runs <c>push-1079.command</c> next to the project when a file named <c>.push-now</c> sits beside it.
+        /// An agent working through the desktop can write files but cannot make one executable, and a .command file
+        /// without the executable bit cannot be launched from Finder — so the build script, which can be launched,
+        /// carries the errand. The errand script removes the marker itself, so a build without it does nothing at all.
+        /// Harmless to leave in: no marker, no errand.</summary>
+        static void RunErrand()
+        {
+            string root = Directory.GetCurrentDirectory();
+            string marker = Path.Combine(root, ".push-now"), script = Path.Combine(root, "push-1079.command");
+            if (!File.Exists(marker) || !File.Exists(script)) return;
+            try
+            {
+                var p = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("/bin/bash", $"\"{script}\"")
+                {
+                    UseShellExecute = false, WorkingDirectory = root,
+                });
+                if (p == null) { Debug.LogWarning("1079: не удалось запустить push-1079.command"); return; }
+                if (!p.WaitForExit(240000)) Debug.LogWarning("1079: push-1079.command не закончил за 4 минуты");
+                else Debug.Log($"1079: push-1079.command отработал, код {p.ExitCode}");
+            }
+            catch (System.Exception e) { Debug.LogWarning("1079: push-1079.command — " + e.Message); }
         }
 
         /// <summary>Active input handling = Both: the Input System reads physical keys (WASD work with a Russian layout on macOS),
