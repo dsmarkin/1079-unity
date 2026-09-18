@@ -25,6 +25,17 @@ namespace Height1079.Core
 
         /// <summary>Testing: move the night clock forward (sky, storms, dawn) without charging the players for the skipped time.</summary>
         public void SkipAhead(double seconds) => skipped += Math.Max(0, seconds);
+
+        /// <summary>Elbrus: a night has actually been slept, so the mountain wakes on the next day. The clock is the
+        /// only thing a run keeps about the time of day (<see cref="Height1079.Core.AscentRoute.HourAt"/>), so a new
+        /// morning is that clock back at its start: without this, going to bed at half past eleven put the party
+        /// back on the snow at half past eleven the following day, with two hours left to the control time.
+        /// The one way this differs from <see cref="SkipAhead"/> is the direction.</summary>
+        public void NewMorning()
+        {
+            skipped -= Elapsed;
+            Elapsed = 0f;
+        }
         public bool Storm { get; private set; }
         /// <summary>Absolute time until which the shared fire burns; 0 when out.</summary>
         public double FireUntil { get; private set; }

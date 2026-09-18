@@ -177,8 +177,13 @@ namespace Height1079.Runtime
             if (climbLine != null) climbLine.gameObject.SetActive(World.IsElbrus);
             ApplyPlacePlan();
             // the ascent block is four lines where the snow line was one, so the panel grows with it
-            if (hudBox != null) hudBox.sizeDelta = new Vector2(360, World.IsElbrus ? 392f : 316f);
-            if (keys != null) keys.rectTransform.anchoredPosition = new Vector2(22, World.IsElbrus ? -322f : -248f);
+            if (hudBox != null) hudBox.sizeDelta = new Vector2(360, World.IsElbrus ? 426f : 316f);
+            if (keys != null) keys.rectTransform.anchoredPosition = new Vector2(22, World.IsElbrus ? -356f : -248f);
+            // on the mountain the amber line runs to two lines ("Дыхания не хватает…") and used to print through the
+            // two hand buttons. They move under the ascent block instead, where they read as what to do about it.
+            if (hint != null) hint.rectTransform.sizeDelta = new Vector2(320, World.IsElbrus ? 44f : 26f);
+            if (cramponButton != null) cramponButton.GetComponent<RectTransform>().anchoredPosition = new Vector2(22, World.IsElbrus ? -320f : -136f);
+            if (thermosButton != null) thermosButton.GetComponent<RectTransform>().anchoredPosition = new Vector2(212, World.IsElbrus ? -320f : -136f);
         }
 
         // ---- screens ---------------------------------------------------------

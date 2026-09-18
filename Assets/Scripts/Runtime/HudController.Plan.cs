@@ -98,7 +98,7 @@ namespace Height1079.Runtime
         void BuildPlan()
         {
             // the card, standing on top of the ascent block in the same corner
-            planCard = Rect("Plan", hud.transform, Vector2.zero, Vector2.zero, new Vector2(20, 420), new Vector2(360, 134));
+            planCard = Rect("Plan", hud.transform, Vector2.zero, Vector2.zero, new Vector2(20, 452), new Vector2(360, 134));
             PanelImage(planCard, Panel);
             planHead = Label("Head", planCard, new Vector2(18, -12), new Vector2(326, 18), 13, new Color(.69f, .76f, .8f));
             planLine = Label("Line", planCard, new Vector2(18, -31), new Vector2(326, 56), 15, Ink);

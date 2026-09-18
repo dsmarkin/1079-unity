@@ -370,7 +370,12 @@ namespace Height1079.Runtime
                 save.Date = Forecast.DateOf(WeatherDay.Value);
                 freshSnowCm = 0f;
                 weatherDt = WeatherTick;
-                run.Record($"Утро {save.Date:dd.MM}. {MountainDay.Verdict}");
+                // and the day starts in the morning, not at the hour the party went to bed: the run clock is the
+                // only time of day this game has (NightRun.NewMorning), and the save keeps it, so both go back
+                run.NewMorning();
+                save.Elapsed = 0f;
+                Elapsed.Value = 0f;
+                run.Record($"Утро {save.Date:dd.MM}, {AscentRoute.Clock(AscentRoute.RunStartHour)}. {MountainDay.Verdict}");
             }
 
             string path = Saves.Write(save);
