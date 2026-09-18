@@ -87,6 +87,20 @@ namespace Height1079.Runtime
         /// <summary>How trodden this spot is, 0..1 — the <c>packed</c> every <see cref="Skiing"/> rule asks for.</summary>
         public float Packed(float x, float z) => Track.Packed(x, z, Time.timeAsDouble);
 
+        /// <summary>The snow a walker is about to step into, which is the only one that matters for how hard the going
+        /// is. Asking about the snow underfoot answers with the print the walker has just made — and then breaking
+        /// trail through waist-deep powder feels exactly like following a road, which was the bug.</summary>
+        public float PackedAhead(Vector3 pos, Vector3 dir)
+        {
+            var f = new Vector2(dir.x, dir.z);
+            if (f.sqrMagnitude < 1e-4f) return 0f;                 // standing still: nothing to walk into
+            f.Normalize();
+            return Track.Packed(pos.x + f.x * Lookahead, pos.z + f.y * Lookahead, Time.timeAsDouble);
+        }
+
+        /// <summary>How far ahead the going is judged, metres: past one's own last few prints (the memory grid is 1 m).</summary>
+        public const float Lookahead = 2.5f;
+
         void Awake()
         {
             Instance = this;

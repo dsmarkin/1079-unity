@@ -82,7 +82,8 @@ namespace Height1079.Runtime
 
                 float depth = SnowCover.Depth(dem, pos.x, pos.z);
                 float crust = SnowCover.Crust(dem, pos.x, pos.z);
-                float packed = SkiTrailFx.Instance != null ? SkiTrailFx.Instance.Packed(pos.x, pos.z) : 0f;
+                // the snow this one is walking INTO: under the boot it is always trodden, by this very boot
+                float packed = SkiTrailFx.Instance != null ? SkiTrailFx.Instance.PackedAhead(pos, hiker.transform.forward) : 0f;
                 float load = packs != null ? packs.CarriedKg(Token(id)) : 0f;
                 float slope = SlopeAhead(pos, hiker.transform.forward);
                 bool walking = moved / dt > MovingSpeed;

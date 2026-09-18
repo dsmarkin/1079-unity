@@ -159,7 +159,9 @@ namespace Height1079.Runtime
             sampledAt = Time.time; sampledFrom = p;
             depth = SnowCover.Depth(Bootstrap.Dem, p.x, p.z);
             crust = SnowCover.Crust(Bootstrap.Dem, p.x, p.z);
-            packed = SkiTrailFx.Instance != null ? SkiTrailFx.Instance.Packed(p.x, p.z) : 0f;
+            // the snow AHEAD, not the print under the boot — see SkiTrailFx.PackedAhead
+            var look = hiker != null ? hiker.transform.forward : transform.forward;
+            packed = SkiTrailFx.Instance != null ? SkiTrailFx.Instance.PackedAhead(p, look) : 0f;
             sink = Skiing.Sink(Mode, depth, crust, packed, Backpacks.CarriedKg(hiker));
         }
 
