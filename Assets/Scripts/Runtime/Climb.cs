@@ -30,17 +30,35 @@ namespace Height1079.Runtime
         /// <summary>Acclimatisation 0…255 and hours of undigested altitude ×10.</summary>
         public byte Acclim, Load;
         public byte Sips;
-        /// <summary>Speed multiplier ×200, recovery share ×100, sideways drift ×100 m/s.</summary>
+        /// <summary>Speed multiplier ×100, recovery share ×100, sideways drift ×100 m/s. The speed is packed at a
+        /// hundred and not two hundred because a descent is allowed to be faster than a walk
+        /// (<see cref="Ascent.DescentSpeed"/>) and 1.6 would have saturated the byte.</summary>
         public byte Speed, Recovery, Drift;
         /// <summary>Felt temperature in whole degrees, and the wind at the climber ×4 m/s.</summary>
         public short Feels;
         public byte Wind;
         /// <summary>What his hands are busy with (<see cref="ClimbJob"/>) and how far along it is, 0…255.</summary>
         public byte Job, Progress;
+        /// <summary>The second half of the day, which would not fit in <see cref="Marks"/>: 1 — this step is going
+        /// DOWN, 2 — standing in the belt of Pastukhov rocks and outside the corridor between the lava ridges
+        /// (<see cref="AscentRoute.MissedTheGate"/>), 4 — registered with the rescuers, 8 — somebody is on the way.</summary>
+        public byte Marks2;
+        /// <summary>Centimetres of sideways error gathered per metre walked while nothing marks the line, SIGNED —
+        /// the host picks the side and holds it, so a lost party drifts steadily off the route instead of shivering
+        /// about it (<see cref="AscentRoute.WanderPerMetre"/>). 0 whenever the route can be read.</summary>
+        public sbyte Wander;
+
+        /// <summary>The bits of <see cref="Marks2"/>.</summary>
+        [Flags]
+        public enum Mark2 : byte { None = 0, Down = 1, MissedGate = 2, Filed = 4, HelpComing = 8 }
 
         public Gear Gear => (Gear)Kit;
         public bool Has(Mark m) => ((Mark)Marks & m) != 0;
-        public float SpeedFactor => Speed / 200f;
+        public bool Has(Mark2 m) => ((Mark2)Marks2 & m) != 0;
+        /// <summary>Metres of sideways error per metre walked, signed.</summary>
+        public float WanderPerMetre => Wander / 100f;
+        public Going Way => Has(Mark2.Down) ? Going.Down : Going.Up;
+        public float SpeedFactor => Speed / 100f;
         public float RecoveryFactor => Recovery / 100f;
         public float DriftMs => Drift / 100f;
         public float WindMs => Wind / 4f;
@@ -76,6 +94,7 @@ namespace Height1079.Runtime
             s.SerializeValue(ref Speed); s.SerializeValue(ref Recovery); s.SerializeValue(ref Drift);
             s.SerializeValue(ref Feels); s.SerializeValue(ref Wind);
             s.SerializeValue(ref Job); s.SerializeValue(ref Progress);
+            s.SerializeValue(ref Marks2); s.SerializeValue(ref Wander);
         }
 
         public bool Equals(ClimbNet o)
@@ -83,7 +102,8 @@ namespace Height1079.Runtime
             && Dry == o.Dry && Sleep == o.Sleep && Blind == o.Blind && Pulse == o.Pulse
             && Acclim == o.Acclim && Load == o.Load && Sips == o.Sips
             && Speed == o.Speed && Recovery == o.Recovery && Drift == o.Drift
-            && Feels == o.Feels && Wind == o.Wind && Job == o.Job && Progress == o.Progress;
+            && Feels == o.Feels && Wind == o.Wind && Job == o.Job && Progress == o.Progress
+            && Marks2 == o.Marks2 && Wander == o.Wander;
 
         public override int GetHashCode() => Kit << 16 | Marks << 8 | Speed;
     }
@@ -154,8 +174,12 @@ namespace Height1079.Runtime
         // ── the air ───────────────────────────────────────────────────────────────────────────────────────
 
         /// <summary>A July morning on the meadow at 2 350 m. The lapse rate of <see cref="AscentCold"/> takes it from
-        /// here to −12 °C on the summit, which is what the summit measures in summer.</summary>
+        /// here to −12 °C on the summit, which is what the summit measures in summer. It is the fallback: a session
+        /// that has drawn a day uses that day's own base (<see cref="MountainDay"/>).</summary>
         public const float MeadowBaseC = 8f;
+
+        /// <summary>Air at the meadow at the coldest hour, °C — the day the host drew, or the July default.</summary>
+        public static float BaseTempC => MountainDay.Known ? MountainDay.Day.BaseTempC : MeadowBaseC;
         /// <summary>What the weather's own 0…1 wind means in metres per second down in the valley, and how much of it
         /// the height adds before the funnel of the shelf and the saddle gets hold of it.</summary>
         public const float CalmMs = 2f, GaleMs = 12f, HeightGainMs = .6f;
@@ -163,8 +187,15 @@ namespace Height1079.Runtime
         /// <summary>Wind on the meadow, m/s, from the weather the whole game shares.</summary>
         public static float BaseWindMs => CalmMs + GaleMs * Mathf.Clamp01(Weather.Wind);
 
-        /// <summary>How much of the mountain can be seen, from the same storm figure the particles use.</summary>
+        /// <summary>How much of the mountain can be seen. The day drawn from the save's seed decides it
+        /// (<see cref="MountainDay"/>): the morning sky until the front arrives at <see cref="DayWeather.BreakHour"/>,
+        /// two steps worse after. The smoothed storm figure of the particles is only the fallback — for the menu, the
+        /// demo reel and any session that has not published a day.</summary>
         public static SkyState Sky(float storm)
+            => MountainDay.Known ? MountainDay.SkyNow : StormSky(storm);
+
+        /// <summary>The old guess, straight off the blizzard the particles are drawing.</summary>
+        public static SkyState StormSky(float storm)
             => storm < .12f ? SkyState.Clear
              : storm < .45f ? SkyState.Cloud
              : storm < .75f ? SkyState.Snow
@@ -178,7 +209,7 @@ namespace Height1079.Runtime
         {
             float wind = BaseWindMs * (1f + HeightGainMs * Mathf.Clamp01((ele - 3000f) / 2600f));
             wind = AscentCold.WindAt(wind, ele, MetresFromSaddle(x, z));
-            return new MountainAir(AscentCold.AirTempC(MeadowBaseC, ele), wind, AscentRoute.VisibilityM(Sky(storm)), freshSnowCm);
+            return new MountainAir(AscentCold.AirTempC(BaseTempC, ele), wind, AscentRoute.VisibilityM(Sky(storm)), freshSnowCm);
         }
 
         // ── the clock ─────────────────────────────────────────────────────────────────────────────────────

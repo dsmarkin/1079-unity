@@ -516,5 +516,126 @@ namespace Height1079.Tests
             Assert.AreEqual(r.SpeedFactor, again.SpeedFactor, 1e-6);
             Assert.AreEqual(r.SlipPerMetre, again.SlipPerMetre, 1e-6);
         }
+
+        // ── the second half of the day ────────────────────────────────────────────────────────────────────
+
+        [Test]
+        public void TheDescentIsTheDangerousHalfOfTheSameSlope()
+        {
+            // one point, one climber, one difference: which way he is walking
+            Assert.AreEqual(Ascent.SlipPerMetre(Mirror, true) * Ascent.DescentSlip,
+                Ascent.SlipPerMetre(Mirror, true, Going.Down), 1e-9);
+            Assert.Greater(Ascent.SlipPerMetre(Mirror, true, Going.Down), Ascent.SlipPerMetre(Mirror, true, Going.Up),
+                "на спуске срываются чаще: идёшь спиной к склону, ноги устали");
+            Assert.Greater(Ascent.SlipPerMetre(Shelf, false, Going.Down), Ascent.SlipPerMetre(Shelf, false, Going.Up));
+
+            // but the direction does not invent a slip where the ground holds
+            Assert.AreEqual(0f, Ascent.SlipPerMetre(Road, false, Going.Down), 1e-9, "ниже 4000 не срываются ни вверх, ни вниз");
+
+            // and the axe works worse the wrong way up
+            Assert.Less(Ascent.SelfArrestChance(30f, Gear.IceAxe, Going.Down), Ascent.SelfArrestChance(30f, Gear.IceAxe, Going.Up));
+            Assert.AreEqual(Ascent.SelfArrestChance(30f, Gear.IceAxe) * Ascent.DescentArrest,
+                Ascent.SelfArrestChance(30f, Gear.IceAxe, Going.Down), 1e-9);
+            Assert.AreEqual(0f, Ascent.SelfArrestChance(30f, Gear.None, Going.Down), 1e-9, "без ледоруба самозадержания нет и вниз");
+
+            // the old two-argument calls are the ascent, unchanged
+            Assert.AreEqual(Ascent.SlipPerMetre(Mirror, true, Going.Up), Ascent.SlipPerMetre(Mirror, true), 1e-9);
+            Assert.AreEqual(Ascent.SelfArrestChance(30f, Gear.IceAxe, Going.Up), Ascent.SelfArrestChance(30f, Gear.IceAxe), 1e-9);
+        }
+
+        [Test]
+        public void GoingDownIsFasterAndTheSlushTakesSomeOfItBack()
+        {
+            var c = new Climber { Acclimatisation = .6f, Gear = Ascent.Required, CramponsOn = true };
+
+            // losing height is the one thing that helps the lungs, and the legs carry themselves
+            Assert.Greater(Ascent.Hypoxia(5400f, .6f, Going.Down), Ascent.Hypoxia(5400f, .6f, Going.Up));
+            Assert.Less(Ascent.Hypoxia(5400f, .6f, Going.Down), 1f, "но воздух не становится воздухом поляны");
+            Assert.AreEqual(Ascent.Hypoxia(3800f, .6f), Ascent.Hypoxia(3800f, .6f, Going.Up), 1e-9);
+
+            float up = Ascent.SpeedFactor(c, Shelf, Going.Up, 8f);
+            float down = Ascent.SpeedFactor(c, Shelf, Going.Down, 8f);
+            Assert.Greater(down / up, 2f, "с полки вниз идут вдвое с лишним быстрее — 3,5–5 часов против 7–10");
+
+            // and below the «зеркало» after ten in the morning the road has turned to porridge
+            Assert.IsFalse(Ascent.Slush(4500f, 9.9f), "до десяти держит");
+            Assert.IsTrue(Ascent.Slush(4500f, 10f));
+            Assert.IsFalse(Ascent.Slush(4700f, 12f), "выше 4600 снег не раскисает");
+            Assert.AreEqual(.7f, Ascent.SlushFactor(3900f, 12f), 1e-6, "по колее ×0,7");
+
+            Assert.AreEqual(Ascent.SpeedFactor(c, Road, Going.Down, 9f) * Ascent.SlushSpeed,
+                Ascent.SpeedFactor(c, Road, Going.Down, 12f), 1e-6, "чавкающая каша съедает треть темпа");
+            Assert.Less(Ascent.SpeedFactor(c, Road, Going.Down, 12f), Ascent.SpeedFactor(c, Road, Going.Down, 9f),
+                "тот же спуск по той же колее в полдень медленнее, чем в девять");
+
+            // the one-argument call is still the ascent at night, with nothing melted
+            Assert.AreEqual(Ascent.SpeedFactor(c, Road, Going.Up, 0f), Ascent.SpeedFactor(c, Road), 1e-9);
+        }
+
+        [Test]
+        public void ComingDownYouHaveToFindTheGateBetweenTheLavaRidges()
+        {
+            // the corridor is a fact about the ground: the two ridges of Pastukhov rocks, and the wands between them
+            Assert.IsFalse(AscentRoute.AtTheGate(4500f));
+            Assert.IsTrue(AscentRoute.AtTheGate(4650f), "скалы Пастухова");
+            Assert.IsFalse(AscentRoute.AtTheGate(4800f));
+            Assert.IsTrue(AscentRoute.InTheGate(4650f, 30f), "в коридоре");
+            Assert.IsTrue(AscentRoute.MissedTheGate(4650f, 60f), "мимо гряды");
+            Assert.IsFalse(AscentRoute.MissedTheGate(5300f, 600f), "выше коридора мимо него не пройти");
+            Assert.Greater(AscentRoute.MetresToTheGate(Elbrus.Saddle.Ele), 700f);
+            Assert.AreEqual(0f, AscentRoute.MetresToTheGate(4000f), 1e-6);
+
+            // while anything marks the line nobody wanders: that is what the wands and the cable are for
+            Assert.AreEqual(0f, AscentRoute.WanderPerMetre(Going.Down, true), 1e-9);
+            Assert.AreEqual(0f, AscentRoute.WanderPerMetre(Going.Down, true, Ams.Ataxia, 1f), 1e-9);
+
+            // blind, the descent drifts off two and a half times as fast as the climb
+            float down = AscentRoute.WanderPerMetre(Going.Down, false);
+            float up = AscentRoute.WanderPerMetre(Going.Up, false);
+            Assert.Greater(down, up, "вниз уходят с линии быстрее: наверх ведёт склон, вниз — только маршрут");
+            Assert.Greater(AscentRoute.WanderPerMetre(Going.Down, false, Ams.Ataxia), down, "атаксия");
+            Assert.Greater(AscentRoute.WanderPerMetre(Going.Down, false, Ams.None, 1f), down, "и пустые ноги");
+
+            // and that is the arithmetic of the 70 %: from the saddle to the rocks is some 2,5 км of route,
+            // and at this rate the ±38 м коридор is gone long before it comes into sight
+            float fromSaddle = 2500f * down;
+            Assert.Greater(fromSaddle, AscentRoute.GateHalfWidthM,
+                "слепой спуск с седловины выносит за гряды — это и есть главная опасность спуска");
+        }
+
+        [Test]
+        public void OneTickKnowsWhichWayTheDayIsGoing()
+        {
+            var c = new Climber { Acclimatisation = .5f, Gear = Ascent.Required, CramponsOn = true };
+            var gate = new RoutePoint(4650f, -22f, 12f, 60f);                       // мимо коридора, вниз
+            var whiteOut = new MountainAir(-12f, 6f, AscentRoute.VisibilityM(SkyState.Blizzard));
+
+            var descending = Ascent.Tick(c, new Step(gate, whiteOut, .5f) { Way = Going.Down, Hour = 12f, Tiredness = .8f }, 1f);
+            Assert.IsTrue(descending.RouteLost, "ни видимости, ни вешки, ни троса, ни колеи");
+            Assert.Greater(descending.WanderPerMetre, 0f);
+            Assert.IsTrue(descending.MissedTheGate, "коридор остался в стороне");
+            StringAssert.Contains("коридор", descending.Warning);
+
+            // the same place, the same weather, walked upward: the same lost route, less of everything else
+            var twin = new Climber { Acclimatisation = .5f, Gear = Ascent.Required, CramponsOn = true };
+            var climbing = Ascent.Tick(twin, new Step(gate, whiteOut, .5f) { Way = Going.Up, Hour = 12f, Tiredness = .8f }, 1f);
+            Assert.IsTrue(climbing.RouteLost);
+            Assert.Less(climbing.WanderPerMetre, descending.WanderPerMetre);
+            Assert.Less(climbing.SlipPerMetre, descending.SlipPerMetre, "на спуске шанс срыва выше при прочих равных");
+            Assert.Greater(climbing.SelfArrest, descending.SelfArrest);
+            Assert.Less(climbing.SpeedFactor, descending.SpeedFactor);
+
+            // and with the snow-cat track underfoot nobody wanders anywhere
+            var onTrack = new Climber { Acclimatisation = .5f, Gear = Ascent.Required, CramponsOn = true };
+            var kept = Ascent.Tick(onTrack, new Step(gate, whiteOut, .5f) { Way = Going.Down, CatTrack = true }, 1f);
+            Assert.IsFalse(kept.RouteLost);
+            Assert.AreEqual(0f, kept.WanderPerMetre, 1e-9);
+
+            // a default Step is still the ascent in clear air, and reports nothing new
+            var plain = Ascent.Tick(new Climber(), new Step(Road, new MountainAir(-2f, 3f), .5f), 1f);
+            Assert.IsFalse(plain.RouteLost);
+            Assert.AreEqual(0f, plain.WanderPerMetre, 1e-9);
+            Assert.IsFalse(plain.MissedTheGate);
+        }
     }
 }

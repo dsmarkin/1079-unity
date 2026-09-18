@@ -39,12 +39,13 @@ namespace Height1079.Runtime
         {
             if (ratrak != null)
             {
-                string where = ratrak.Standing ? "E — выйти" : "едем наверх";
+                string where = ratrak.Standing ? "E — выйти" : "едем";
                 hud?.SetPrompt($"Ратрак · {ratrak.Altitude:0} м · {where}");
                 if (ratrak.Standing && Controls.Board)
                 {
                     var p = ratrak.transform.position + ratrak.transform.right * 3.2f;
                     me.LeaveRide(new Vector3(p.x, Bootstrap.Dem.Sample(p.x, p.z) + .1f, p.z));
+                    ratrak.Aboard = false;
                     ratrak = null;
                 }
                 return;
@@ -67,19 +68,24 @@ namespace Height1079.Runtime
         {
             var p = me.transform.position;
             // a snow-cat first: it stands right in the camp
-            RatrakRide nearestCat = null; float best = RatrakReach;
-            foreach (var r in ElbrusWorld.Ratraks)
+            RatrakRide nearestCat = null; float best = RatrakReach; int catIndex = 0;
+            for (int i = 0; i < ElbrusWorld.Ratraks.Count; i++)
             {
+                var r = ElbrusWorld.Ratraks[i];
                 if (r == null || !r.Standing) continue;
                 float d = Vector3.Distance(p, r.transform.position);
-                if (d < best) { best = d; nearestCat = r; }
+                if (d < best) { best = d; nearestCat = r; catIndex = i; }
             }
             if (nearestCat != null)
             {
-                hud?.SetPrompt("Ратрак до 5100 · E — сесть");
-                if (Controls.Board) { me.BoardRide(nearestCat.Seat); nearestCat.Go(); ratrak = nearestCat; }
+                // the snow-cat is a service and not a lift: where it will go today, and what it asks for it, are
+                // decided at its own little counter (RatrakService)
+                var service = RatrakService.Create(transform);
+                var boarded = service != null ? service.Hail(me, nearestCat, catIndex, hud) : null;
+                if (boarded != null) ratrak = boarded;
                 return;
             }
+            RatrakService.Instance?.Drop();
 
             RopewayRig bestRig = null; bool bestBottom = false; int bestCar = -1; float bestD = TerminalReach;
             foreach (var r in ElbrusWorld.Lines)

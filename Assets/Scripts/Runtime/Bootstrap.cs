@@ -354,13 +354,25 @@ namespace Height1079.Runtime
                 }
             }
 
-            /// <summary>Daylight on Elbrus: nothing of the night machinery runs, the film stays clean.</summary>
+            /// <summary>A clear day on the southern slope: aerial perspective and nothing else.</summary>
+            const float ClearFog = .00012f;
+            static readonly Color ClearHaze = new Color(.66f, .76f, .88f), CloudHaze = new Color(.84f, .87f, .9f);
+
+            /// <summary>Daylight on Elbrus: nothing of the night machinery runs, the film stays clean — but the sky of
+            /// the day is a <em>rule</em> before it is a picture. When <see cref="AscentRoute.VisibilityM"/> says a
+            /// party can see three hundred metres, the player has to be unable to see further either, or the mountain
+            /// is lying to him in the one place it must not (docs/ELBRUS.md, «Как это вызывается из рантайма»).</summary>
             void ElbrusDay()
             {
                 Darkness = 0f;
                 if (film != null) film.Set(0f, 0f);
                 var cam = Camera.main;
                 if (cam != null && cam.farClipPlane < 15000f) cam.farClipPlane = 20000f;
+
+                float vis = Height1079.Core.AscentRoute.VisibilityM(Climb.Sky(Weather.Storm));
+                float want = vis >= 2000f ? ClearFog : Mathf.Clamp(1.2f / Mathf.Max(60f, vis), ClearFog, .025f);
+                RenderSettings.fogDensity = Mathf.MoveTowards(RenderSettings.fogDensity, want, Time.deltaTime * .006f);
+                RenderSettings.fogColor = Color.Lerp(ClearHaze, CloudHaze, Mathf.InverseLerp(2000f, 120f, vis));
             }
         }
     }

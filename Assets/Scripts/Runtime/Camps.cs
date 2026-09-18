@@ -62,7 +62,8 @@ namespace Height1079.Runtime
         {
             var s = Session;
             if (!On || s == null || me == null) return;
-            if (Backpacks.UiOpen || RentalService.Ordering || CafeService.Ordering) return;
+            if (Backpacks.UiOpen || RentalService.Ordering || CafeService.Ordering
+                || LodgeService.Booking || RescueDesk.Filing || Ratraks.Hailing) return;
             if (Controls.CampToggle) s.RequestCamp();
             if (Controls.CampSleep) s.RequestSleep();
         }

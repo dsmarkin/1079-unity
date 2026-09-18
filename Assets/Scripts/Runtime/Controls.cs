@@ -240,6 +240,19 @@ namespace Height1079.Runtime
 #endif
             );
 
+        /// <summary>9 — SOS to the ЭВПСО. Every function key is taken and every letter is unreliable under UI
+        /// automation, so the call for help takes the one digit nothing else wanted, plus the button in the rucksack
+        /// window. It works wherever the party is: a party that needs it is not standing at a counter.</summary>
+        public static bool Sos => Pressed(KeyCode.Alpha9
+#if ENABLE_INPUT_SYSTEM
+            , Key.Digit9
+#endif
+            ) || Pressed(KeyCode.Keypad9
+#if ENABLE_INPUT_SYSTEM
+            , Key.Numpad9
+#endif
+            );
+
         /// <summary>T — a sip of hot out of the thermos. Spare: F2.</summary>
         public static bool Thermos => Pressed(KeyCode.T
 #if ENABLE_INPUT_SYSTEM

@@ -131,6 +131,10 @@ namespace Height1079.Runtime
             // the demo reel has no session behind it, but its blizzard still has to blow
             bool live = s != null || DemoReel.StormWanted >= 0f;
             Wind = !live ? .15f : Mathf.Clamp01(Mathf.Lerp(.22f, .75f, Storm) + Gust * Mathf.Lerp(.25f, .3f, Storm));
+            // on the southern slope the strength of the wind is a property of the day, not of the blizzard cycle: the
+            // host drew it once from the save's seed (MountainDay) and the gusts ride on top of it
+            float dayWind = MountainDay.WindShare;
+            if (live && dayWind >= 0f) Wind = Mathf.Clamp01(dayWind + Gust * Mathf.Lerp(.15f, .3f, Storm));
 
             float wander = (Mathf.PerlinNoise(seed + 7f, Time.time * .02f) - .5f) * 50f;
             var dir = Quaternion.Euler(0, wander, 0) * new Vector3(.7071f, 0, -.7071f);

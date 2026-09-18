@@ -26,6 +26,13 @@ namespace Height1079.Runtime
         /// <summary>Centimetres of new snow since the wands were last readable, ×4.</summary>
         public readonly NetworkVariable<byte> FreshSnow = new NetworkVariable<byte>();
 
+        /// <summary>The two integers the whole weather of the southern slope is drawn from: one seed per save and the
+        /// day being played. Everything else — wind, temperature, sky, the hour the front arrives, and the board at
+        /// the rescue base — is <see cref="Forecast.Day"/> of these two, so the host and every client build the same
+        /// day without a byte of weather crossing the wire (<see cref="MountainDay"/>). 0 off the southern slope.</summary>
+        public readonly NetworkVariable<int> WeatherSeed = new NetworkVariable<int>();
+        public readonly NetworkVariable<int> WeatherDay = new NetworkVariable<int>();
+
         /// <summary>The pools are moved four times a second, not every frame: a tick is a dozen height samples and a
         /// handful of dice, and the rules are all rates.</summary>
         const float ClimbTick = .25f;
@@ -55,6 +62,18 @@ namespace Height1079.Runtime
         readonly Dictionary<ulong, float> droppedAt = new Dictionary<ulong, float>();
         readonly Dictionary<ulong, ClimbTask> climbJobs = new Dictionary<ulong, ClimbTask>();
         readonly Dictionary<ulong, bool> wasRiding = new Dictionary<ulong, bool>();
+        /// <summary>Height at the previous tick, which is the only honest way to know whether this step is going up
+        /// or down (<see cref="Going"/>). Flat ground keeps whatever it was.</summary>
+        readonly Dictionary<ulong, float> wereEle = new Dictionary<ulong, float>();
+        readonly Dictionary<ulong, Going> going = new Dictionary<ulong, Going>();
+        /// <summary>Where the snow-cat put this body down. Height it was CARRIED to is not height it climbed, so the
+        /// sortie's high point does not start counting again until it is genuinely above this
+        /// (<see cref="AscentRoute.RatrakGivesAcclimatisation"/>).</summary>
+        readonly Dictionary<ulong, float> carriedTo = new Dictionary<ulong, float>();
+        /// <summary>Which side of the line a lost party is drifting to, and when the host next reconsiders. The dice
+        /// belong to the host, and a side that changed every tick would average out to walking straight.</summary>
+        readonly Dictionary<ulong, float> wanderSide = new Dictionary<ulong, float>();
+        readonly Dictionary<ulong, double> wanderUntil = new Dictionary<ulong, double>();
         readonly HashSet<ulong> sortieSent = new HashSet<ulong>();
         readonly List<ulong> climbGone = new List<ulong>();
         float climbDt, weatherDt, freshSnowCm;
@@ -113,7 +132,12 @@ namespace Height1079.Runtime
                 // stepping out of a warm cab at 4 800 or 5 100 m is the trade the snow-cat sells; the ten minutes
                 // after it are the coldest of the ascent (AscentRoute.ColdShock)
                 bool wasIn = wasRiding.TryGetValue(id, out var before) && before;
-                if (wasIn && !riding && point.Ele > AscentRoute.CrevasseToEle) droppedAt[id] = Time.time;
+                if (wasIn && !riding && point.Ele > AscentRoute.CrevasseToEle)
+                {
+                    droppedAt[id] = Time.time;
+                    // and the other half of the snow-cat's bargain: this height was bought, not climbed
+                    if (!carriedTo.TryGetValue(id, out var had) || had < point.Ele) carriedTo[id] = point.Ele;
+                }
                 wasRiding[id] = riding;
                 bool sheltered = riding || Climb.Sheltered(pos.x, pos.z, air.VisibilityM);
                 bool eyesOpen = light && air.VisibilityM > AscentRoute.LostVisibilityM;
@@ -126,22 +150,48 @@ namespace Height1079.Runtime
                 // standing, and every rule that cares (the heart, the recovery, the feet freezing at the stops) reads
                 // it from here
                 float speedMs = riding || moved / dt <= MovingSpeed ? 0f : moved / dt;
+                // which half of the day this step belongs to: the sign of the height change, with a dead band so that
+                // a flat traverse keeps whatever it was doing instead of flickering between up and down
+                var way = going.TryGetValue(id, out var wasWay) ? wasWay : Going.Up;
+                if (wereEle.TryGetValue(id, out var wasEle))
+                {
+                    if (point.Ele < wasEle - .12f) way = Going.Down;
+                    else if (point.Ele > wasEle + .12f) way = Going.Up;
+                }
+                wereEle[id] = point.Ele;
+                going[id] = way;
+                bool onCatTrack = Climb.CatTrack(pos.x, pos.z);
+                float left = strength.TryGetValue(id, out var bar) ? bar : 1f;
+
                 var step = new Ascent.Step(point, air, speedMs)
                 {
                     Daylight = eyesOpen,
                     Sheltered = sheltered,
                     BareHands = bare,
+                    Way = way,
+                    Hour = hour,
+                    CatTrack = onCatTrack,
+                    Tiredness = Mathf.Clamp01(1f - left),
                 };
+                // forty minutes of engine buy no acclimatisation whatever (AscentRoute.RatrakGivesAcclimatisation):
+                // while a body is being carried, and everywhere at or below the height it was put down at, the high
+                // point of the sortie stands still. Climb above the drop on your own feet and it counts again.
+                float wasHighest = c.HighestEle;
+                float carried = carriedTo.TryGetValue(id, out var floorEle) ? floorEle : 0f;
                 var report = Ascent.Tick(c, step, dt);
+                if (riding || point.Ele <= carried) c.HighestEle = wasHighest;
                 ColdShock(id, c, air, sheltered, moved > 0f, dt);
 
                 Legs(hiker, id, point, token, report, speedMs, dt);
                 if (!riding && p.Outcome == Outcome.None) Dice(id, token, p, point, air, report, moved, dt);
                 Gate(id, hiker, point, c.Gear);
+                float wander = Wander(id, report, riding);
+                // the duty officer is asked about the LIGHT, not about the eyes: a white-out grounds the machine for
+                // want of visibility and it should say so, not «темно»
+                var watch = RescueTick(id, token, p, c, point, air, hour, light);
 
-                bool canRead = AscentRoute.CanReadTheRoute(point.Ele, point.OffRouteM, air.VisibilityM,
-                    freshSnowCm, Climb.CatTrack(pos.x, pos.z));
-                Publish(hiker, c, point, air, report, onRope, canRead, eyesOpen, job);
+                bool canRead = !report.RouteLost;
+                Publish(hiker, c, point, air, report, onRope, canRead, eyesOpen, job, way, wander, watch);
             }
             PruneClimb();
         }
@@ -254,12 +304,38 @@ namespace Height1079.Runtime
             GateRpc(RpcTarget.Single(id, RpcTargetUse.Temp));
         }
 
+        // ── walking off the line ──────────────────────────────────────────────────────────────────────────
+
+        /// <summary>How long the host holds the side a lost party is drifting to, seconds. Long enough that the error
+        /// accumulates into real metres (which is the whole point of <see cref="AscentRoute.WanderPerMetre"/>), short
+        /// enough that a party is not marched off the mountain in one straight line.</summary>
+        const float WanderHoldSeconds = 25f;
+
+        /// <summary>The side of the line, signed, as metres of error per metre walked. The host throws the die, holds
+        /// the answer for a while and publishes it; the owner applies it across its own direction of travel
+        /// (<see cref="ClimbGear.Drift"/>), which is the same place the wind's push already lands.</summary>
+        float Wander(ulong id, Ascent.Report report, bool riding)
+        {
+            if (riding || report.WanderPerMetre <= 0f)
+            {
+                wanderUntil.Remove(id);
+                return 0f;
+            }
+            double now = Time.timeAsDouble;
+            if (!wanderUntil.TryGetValue(id, out var until) || now >= until)
+            {
+                wanderUntil[id] = now + WanderHoldSeconds;
+                wanderSide[id] = Random.value < .5f ? -1f : 1f;
+            }
+            return report.WanderPerMetre * (wanderSide.TryGetValue(id, out var side) ? side : 1f);
+        }
+
         // ── what goes on the wire ─────────────────────────────────────────────────────────────────────────
 
         static byte Pool(float v) => (byte)Mathf.Clamp(Mathf.RoundToInt(v * 255f), 0, 255);
 
         void Publish(HikerController hiker, Climber c, RoutePoint point, MountainAir air, Ascent.Report report,
-            bool onRope, bool canRead, bool daylight, ClimbTask job)
+            bool onRope, bool canRead, bool daylight, ClimbTask job, Going way, float wander, Watch watch)
         {
             var marks = ClimbNet.Mark.None;
             if (c.CramponsOn) marks |= ClimbNet.Mark.Crampons;
@@ -270,6 +346,12 @@ namespace Height1079.Runtime
             if (daylight) marks |= ClimbNet.Mark.Daylight;
             if (onRope) marks |= ClimbNet.Mark.OnRope;
             if (!canRead) marks |= ClimbNet.Mark.Lost;
+
+            var marks2 = ClimbNet.Mark2.None;
+            if (way == Going.Down) marks2 |= ClimbNet.Mark2.Down;
+            if (report.MissedTheGate) marks2 |= ClimbNet.Mark2.MissedGate;
+            if (watch != null && watch.Reg.Filed) marks2 |= ClimbNet.Mark2.Filed;
+            if (watch != null && watch.Mission.Coming) marks2 |= ClimbNet.Mark2.HelpComing;
 
             float progress = job == null || job.Needed <= 0f ? 0f
                 : Mathf.Clamp01((float)(Time.timeAsDouble - job.Started) / job.Needed);
@@ -283,38 +365,58 @@ namespace Height1079.Runtime
                 Acclim = Pool(c.Acclimatisation),
                 Load = (byte)Mathf.Clamp(Mathf.RoundToInt(c.SicknessLoad * 10f), 0, 255),
                 Sips = (byte)Mathf.Clamp(c.ThermosSips, 0, 255),
-                Speed = (byte)Mathf.Clamp(Mathf.RoundToInt(report.SpeedFactor * 200f), 0, 255),
+                Speed = (byte)Mathf.Clamp(Mathf.RoundToInt(report.SpeedFactor * 100f), 0, 255),
                 Recovery = (byte)Mathf.Clamp(Mathf.RoundToInt(report.RecoveryFactor * 100f), 0, 255),
                 Drift = (byte)Mathf.Clamp(Mathf.RoundToInt(report.DriftMs * 100f), 0, 255),
                 Feels = (short)Mathf.Clamp(Mathf.RoundToInt(report.FeelsC), -120, 60),
                 Wind = (byte)Mathf.Clamp(Mathf.RoundToInt(air.WindMs * 4f), 0, 255),
                 Job = (byte)(job != null ? job.Kind : ClimbJob.None),
                 Progress = (byte)Mathf.RoundToInt(progress * 255f),
+                Marks2 = (byte)marks2,
+                Wander = (sbyte)Mathf.Clamp(Mathf.RoundToInt(wander * 100f), -127, 127),
             };
             if (!hiker.Climb.Value.Equals(net)) hiker.Climb.Value = net;
         }
 
         // ── the weather of the mountain ───────────────────────────────────────────────────────────────────
 
-        /// <summary>Nothing before noon, then it breaks: eight per cent an hour until two, a fifth of an hour after.
-        /// Once it has broken it stays broken — a front on the southern side does not blow over in a morning.</summary>
+        /// <summary>Server, once: one seed for the whole save and the day it is played on. A continued run keeps the
+        /// seed and the date the save carries, so the mountain a party comes back to is the mountain they left; a
+        /// fresh run draws a new seed and takes today's date. From here on the weather is not rolled at all — it is
+        /// read out of <see cref="Forecast.Day"/> (see <see cref="MountainWeather"/>).</summary>
+        void InitWeather()
+        {
+            if (!IsServer || !Climb.On || run == null) return;
+            int seed = loaded != null && loaded.Seed != 0 ? loaded.Seed : NewSeed();
+            var date = loaded != null ? loaded.Date : System.DateTime.UtcNow.Date;
+            WeatherSeed.Value = seed;
+            WeatherDay.Value = Forecast.DayIndex(date);
+            var day = Forecast.Day(seed, date);
+            run.Record($"{date:dd.MM}. {Forecast.Verdict(day)}");
+        }
+
+        /// <summary>A seed that is not zero (zero means «no day drawn yet» on the wire) and is different every time.</summary>
+        static int NewSeed()
+        {
+            int s = Random.Range(int.MinValue, int.MaxValue);
+            return s == 0 ? 1079 : s;
+        }
+
+        /// <summary>The weather of the day, not a die. <see cref="Forecast.BreakHour"/> already spent the eight per
+        /// cent an hour after noon and the fifth of an hour after two, once, for the whole day: the host only has to
+        /// look at the clock. Once the front is in it stays in — a front on the southern side does not blow over in a
+        /// morning, and <see cref="DayWeather.SkyAt"/> says so.</summary>
         void MountainWeather(float dt)
         {
             weatherDt += dt;
             if (weatherDt < WeatherTick) return;
             float span = weatherDt; weatherDt = 0f;
-            if (!MountainStorm.Value)
-            {
-                float hour = Climb.Hour(run.Elapsed);
-                float risk = AscentRoute.WeatherRiskPerHour(hour);
-                float hours = span * AscentRoute.RunHours / Height1079.Core.World.ElbrusPlan.Profile.Seconds;
-                if (risk > 0f && Random.value < risk * hours)
-                {
-                    MountainStorm.Value = true;
-                    run.Record("Погода ломается. С седловины тянет снегом, вешки уходят в мглу.");
-                }
-            }
-            if (MountainStorm.Value) freshSnowCm = Mathf.Min(MaxFreshCm, freshSnowCm + span * SnowPerSecondCm);
+            float hour = Climb.Hour(run.Elapsed);
+            bool blowing = MountainDay.Blowing(hour);
+            if (blowing && !MountainStorm.Value)
+                run.Record("Погода ломается. С седловины тянет снегом, вешки уходят в мглу.");
+            if (MountainStorm.Value != blowing) MountainStorm.Value = blowing;
+            if (blowing) freshSnowCm = Mathf.Min(MaxFreshCm, freshSnowCm + span * SnowPerSecondCm);
             byte cm = (byte)Mathf.Clamp(Mathf.RoundToInt(freshSnowCm * 4f), 0, 255);
             if (FreshSnow.Value != cm) FreshSnow.Value = cm;
         }
@@ -499,6 +601,8 @@ namespace Height1079.Runtime
                 climbers.Remove(id); climbWere.Remove(id); gateSafe.Remove(id);
                 droppedAt.Remove(id); climbJobs.Remove(id); sortieSent.Remove(id);
                 wasRiding.Remove(id); strength.Remove(id);
+                wereEle.Remove(id); going.Remove(id); carriedTo.Remove(id);
+                wanderSide.Remove(id); wanderUntil.Remove(id);
                 CampsClientLeft(id);
             }
         }

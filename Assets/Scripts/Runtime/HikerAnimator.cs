@@ -51,6 +51,9 @@ namespace Height1079.Runtime
             if (anim == null) return;
             var delta = transform.position - lastPosition; lastPosition = transform.position;
             float v = Time.deltaTime > 0 ? new Vector2(delta.x, delta.z).magnitude / Time.deltaTime : 0f;
+            // Carried by a cabin, a chair or a snow-cat the legs do nothing, but the body covers ground at six metres a
+            // second: measured by displacement alone the rider sprinted on the spot the whole way up.
+            if (hiker != null && hiker.Ride != null) v = 0f;
             speed = Mathf.Lerp(speed, v, 1f - Mathf.Exp(-9f * Time.deltaTime));
             byte action = hiker != null ? hiker.Action.Value : (byte)0;
             string wanted = action == 2 ? Kindle : speed > 4f ? Run : speed > .35f ? Walk : action == 1 ? Cold : Idle;

@@ -110,6 +110,59 @@ namespace Height1079.Core
         public const float SaddleStrayM = 150f;
         public static bool OnTheSeracs(float metresBelowSaddle) => metresBelowSaddle > SaddleStrayM;
 
+        // ── the gate between the lava ridges ──────────────────────────────────────────────────────────────
+
+        /// <summary>Pastukhov rocks are two outcrops of lava standing ±38…64 m off the route line between 4 550 and
+        /// 4 700 m, with the wands going down the middle of the corridor between them (docs/ELBRUS.md, the
+        /// <c>Elb_Ascent</c> prefab). Climbing you walk into that gate from below and cannot miss it — it is the
+        /// widest thing on the slope and it is above you. Coming down off the saddle you have to <em>find</em> it in
+        /// a two-and-a-half-kilometre convex slope with no horizon, and this is where the 70 % go: past the ridges
+        /// the fall line carries east into the ice cliffs under the saddle and west onto the Garabashi séracs.
+        ///
+        /// Nothing here knows about the direction of travel: the geometry is the geometry. What the direction
+        /// changes is how fast a party drifts out of it (<see cref="WanderPerMetre"/>).</summary>
+        public const float GateFromEle = 4550f, GateToEle = 4700f, GateHalfWidthM = 38f;
+
+        /// <summary>Standing in the belt where the two ridges are.</summary>
+        public static bool AtTheGate(float ele) => ele >= GateFromEle && ele <= GateToEle;
+
+        /// <summary>Standing in the belt and inside the corridor: the way home.</summary>
+        public static bool InTheGate(float ele, float offRouteM)
+            => AtTheGate(ele) && Math.Abs(offRouteM) <= GateHalfWidthM;
+
+        /// <summary>Standing in the belt and outside the corridor: past the ridges, on the wrong side of them.</summary>
+        public static bool MissedTheGate(float ele, float offRouteM)
+            => AtTheGate(ele) && Math.Abs(offRouteM) > GateHalfWidthM;
+
+        /// <summary>Metres of height still to lose before the gate decides anything, or 0 once it is behind.</summary>
+        public static float MetresToTheGate(float ele) => Math.Max(0f, ele - GateToEle);
+
+        // ── wandering off the line ────────────────────────────────────────────────────────────────────────
+
+        /// <summary>Metres of sideways error a party gathers per metre walked when nothing marks the line — no
+        /// visibility, no wand, no cable, no snow-cat track (<see cref="CanReadTheRoute"/>). While anything at all
+        /// still marks it, this is zero: a party that can see the next wand does not wander, it walks.
+        ///
+        /// Downhill costs two and a half times as much. Climbing, the slope itself is a handrail — you know which way
+        /// is up and the line goes there; descending, every direction is down and only the route is home, so an
+        /// uncorrected step is a step off it. At 0.05 m per metre the ±38 m corridor of
+        /// <see cref="GateHalfWidthM"/> is lost after some 760 m of blind descent, and it is 2.5 km from the saddle
+        /// to the rocks. That is the shape of the 70 %.</summary>
+        public const float WanderUpPerMetre = .02f, WanderDownPerMetre = .05f;
+
+        /// <summary>What the state of the body does to it. By the descent the sickness and the fatigue are at their
+        /// worst, which is exactly when the navigation matters most — that is the whole trap.</summary>
+        public const float WanderAtaxia = 2f, WanderNausea = 1.4f, WanderTired = 1f;
+
+        public static float WanderPerMetre(Going going, bool canReadTheRoute, Ams sickness = Ams.None, float tiredness = 0f)
+        {
+            if (canReadTheRoute) return 0f;
+            float w = going == Going.Down ? WanderDownPerMetre : WanderUpPerMetre;
+            if (sickness >= Ams.Ataxia) w *= WanderAtaxia;
+            else if (sickness >= Ams.Nausea) w *= WanderNausea;
+            return w * (1f + WanderTired * Ascent.Clamp01(tiredness));
+        }
+
         /// <summary>The right answer to a пурга is not to walk. A trench 1.5 m deep takes three to four minutes and
         /// costs strength, and the cold then works at a third of its rate.</summary>
         public const float TrenchSeconds = 210f, TrenchDepthM = 1.5f, TrenchColdFactor = 1f / 3f;

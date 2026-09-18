@@ -64,6 +64,8 @@ namespace Height1079.Runtime
             // a save the menu picked with «Продолжить»: the clock, the weather and the tent go back before the first
             // player is placed, because CampSpawn puts everybody beside that tent
             InitCamps();
+            // and the one seed the whole weather of the day comes out of (MountainDay)
+            InitWeather();
             NetworkManager.OnClientConnectedCallback += OnClientConnected;
             NetworkManager.OnClientDisconnectCallback += OnClientDisconnected;
             foreach (var id in NetworkManager.ConnectedClientsIds) OnClientConnected(id);

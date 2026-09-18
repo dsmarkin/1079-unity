@@ -51,6 +51,7 @@ namespace Height1079.EditorTools.World
             EditorUtility.DisplayProgressBar("1079 Эльбрус", "Станции, кабины, приюты", .1f);
             ElbrusFactory.Build();
             ElbrusProps.Build();
+            ElbrusLodge.Build();
 
             EditorUtility.DisplayProgressBar("1079 Эльбрус", "Рельеф", .4f);
             var data = new TerrainData { heightmapResolution = Elbrus.Resolution };
@@ -80,6 +81,9 @@ namespace Height1079.EditorTools.World
             ElbrusAscent.Build(dem);
 
             EditorUtility.DisplayProgressBar("1079 Эльбрус", "Карта района", .92f);
+            EditorUtility.DisplayProgressBar("1079 Эльбрус", "Низ карты: Терскол, водопад, обсерватория", .91f);
+            ElbrusValley.Build(dem);
+
             ElbrusMapFactory.Build(dem);
 
             Report(data, "перед сохранением");
@@ -337,6 +341,32 @@ namespace Height1079.EditorTools.World
         // ── forest and boulders ───────────────────────────────────────────────────────────────────────────
         /// <summary>Pine forest of the Baksan valley and the boulders of the moraines. The tree line on the southern slope
         /// runs at about 2 500–2 700 m: Azau sits right at its upper edge, with the forest falling away east towards Terskol.</summary>
+        /// <summary>Half-width of the swathe cut under a ropeway, metres. Every line on the mountain has one: the
+        /// right-of-way is felled for its whole length, and it has to be wider than the track gauge, because the cars
+        /// hang to both sides of the rope and swing. Without it the pines of the Baksan valley stood right under the
+        /// first span out of Azau and a cabin rode straight through their crowns.</summary>
+        const float RopewaySwathe = 11f;
+
+        /// <summary>True where a tree would stand in the cleared corridor of one of the six lines.</summary>
+        static bool UnderTheRopeway(float x, float z)
+        {
+            foreach (var spec in Elbrus.Ropeways)
+            {
+                var towers = spec.Towers;
+                for (int i = 1; i < towers.Length; i++)
+                {
+                    var a = towers[i - 1]; var b = towers[i];
+                    float dx = b.x - a.x, dz = b.z - a.z;
+                    float len2 = dx * dx + dz * dz;
+                    if (len2 < 1e-3f) continue;
+                    float t = Mathf.Clamp01(((x - a.x) * dx + (z - a.z) * dz) / len2);
+                    float ox = a.x + dx * t - x, oz = a.z + dz * t - z;
+                    if (ox * ox + oz * oz < RopewaySwathe * RopewaySwathe) return true;
+                }
+            }
+            return false;
+        }
+
         static void Scatter(TerrainData data, HeightField dem, byte[] rock)
         {
             var protos = new List<TreePrototype>();
@@ -364,6 +394,7 @@ namespace Height1079.EditorTools.World
                     float density = (1f - Mathf.InverseLerp(2500f, 2760f, elev)) * Mathf.Lerp(1f, .4f, Mathf.InverseLerp(22f, 34f, slope));
                     density *= .35f + .75f * Mathf.PerlinNoise(px * .004f + 3, pz * .004f + 9);
                     if (Elbrus.Distance(px, pz, azau.X, azau.Z) < 130f) continue;
+                    if (UnderTheRopeway(px, pz)) continue;
                     if (rnd.NextDouble() > density * .85f) continue;
                     int pi = rnd.Next(trees.Count);
                     float hs = .7f + (float)rnd.NextDouble() * .6f;

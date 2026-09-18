@@ -35,7 +35,7 @@ namespace Height1079.Runtime
         // rucksack window
         RectTransform packPanel, packRows;
         Text packTitle, packLoad, packHandLine;
-        Button packWearButton, packStowButton, packDropButton, packPickButton, packCampButton, packSleepButton, packLeaveButton;
+        Button packWearButton, packStowButton, packDropButton, packPickButton, packCampButton, packSleepButton, packLeaveButton, packSosButton;
         readonly System.Collections.Generic.List<Button> packRowPool = new System.Collections.Generic.List<Button>();
         string packShown = "";
         Texture2D mapTex;
@@ -170,7 +170,7 @@ namespace Height1079.Runtime
             if (bigImage != null) { bigImage.texture = mapTex; bigImage.color = tint; }
             if (miniScale != null) miniScale.text = MiniMetres >= 1000f ? $"{MiniMetres / 1000f:0.#} км по диаметру" : $"{MiniMetres:0} м по диаметру";
             if (keys != null) keys.text = World.IsElbrus
-                ? "WASD · Shift бег (до 4600 м) · V вид · Esc пауза\nE — кабина, ратрак, кафе, прокат · C/F1 кошки · T/F2 термос\nB/7 лагерь · P/8 ночёвка и сохранение\n1 компас · 3/M карта · N мини-карта · Tab рюкзак"
+                ? "WASD · Shift бег (до 4600 м) · V вид · Esc пауза\nE — кабина, ратрак, кафе, прокат, спасатели, доска, нары\nC/F1 кошки · T/F2 термос · B/7 лагерь · P/8 ночёвка · 9 SOS\n1 компас · 3/M карта · N мини-карта · Tab рюкзак"
                 : "WASD · Shift бег · V вид · E костёр · Esc пауза\n1 компас · 2 фонарик (F — свет) · 3/M карта · Q убрать · N мини-карта\nTab рюкзак · G снять/надеть · R взять/убрать · X бросить\nK/4 лыжи · L/5 палки · H/6 волокуша · F1 — следующий способ";
             if (travel != null) travel.gameObject.SetActive(!World.IsElbrus);
             if (climbLine != null) climbLine.gameObject.SetActive(World.IsElbrus);
@@ -441,6 +441,21 @@ namespace Height1079.Runtime
             int legs = Mathf.RoundToInt(me.Strength.Value / 255f * 100f);
             if (legs < 60) sb.Append($" · силы {legs} %");
 
+            // the slip at the ЭВПСО desk. A control time nobody holds you to is not a control time, so the line only
+            // appears when there is one — and the silence when there is not is itself the message (Rescue.Watched).
+            if (RescueDesk.Known && RescueDesk.Mine.Filed)
+            {
+                float backHour = RescueDesk.Mine.BackHour;
+                if (hour >= backHour) sb.Append($" · не вернулись к {AscentRoute.Clock(backHour)}");
+                else if (hour >= backHour - 1f) sb.Append($" · в лагерь к {AscentRoute.Clock(backHour)}");
+            }
+            else if (p.Ele >= AscentRoute.LastHutEle)
+                sb.Append(" · в ЭВПСО не записаны");
+
+            // and what is being done about it, once something is
+            string help = RescueDesk.Line(hour);
+            if (help.Length > 0) sb.Append('\n').Append(help);
+
             // what is underfoot and what the air is doing, from where it starts to matter
             float wind = net.WindMs;
             if (p.Ele >= Ascent.FirnFromEle - 200f || wind >= AscentCold.DriftFromMs)
@@ -513,7 +528,16 @@ namespace Height1079.Runtime
         string Act(ClimbGear gear, ClimbNet net, RoutePoint p)
         {
             if (gear.Sliding) return "Срыв! Вас несёт вниз";
-            if (net.Has(ClimbNet.Mark.Lost)) return "Маршрут потерян: ни вешки, ни троса, ни колеи. Лучше встать и копать траншею, чем идти";
+            // the thing that kills seven parties in ten on this side: coming down off the saddle past the corridor
+            // between the two lava ridges of Pastukhov rocks (AscentRoute.MissedTheGate)
+            if (net.Has(ClimbNet.Mark2.MissedGate) && (net.Way == Going.Down || Mathf.Abs(p.OffRouteM) > AscentRoute.GateHalfWidthM * 2f))
+                return net.Way == Going.Down
+                    ? $"Коридор между грядами в стороне: {Mathf.RoundToInt(Mathf.Abs(p.OffRouteM))} м от линии. Траверс к вешкам, вниз отсюда нельзя"
+                    : $"Вы мимо коридора скал Пастухова, {Mathf.RoundToInt(Mathf.Abs(p.OffRouteM))} м вбок";
+            if (net.Has(ClimbNet.Mark.Lost))
+                return net.Wander != 0
+                    ? $"Маршрут потерян, сносит с линии ({Mathf.Abs(net.WanderPerMetre) * 100f:0} см на метр). Лучше встать и копать траншею, чем идти"
+                    : "Маршрут потерян: ни вешки, ни троса, ни колеи. Лучше встать и копать траншею, чем идти";
             // the gate is announced from the top station on, a good eight hundred metres of height before it, so
             // that turning round is a choice and not a surprise
             if (net.Has(ClimbNet.Mark.Barred))
@@ -572,7 +596,7 @@ namespace Height1079.Runtime
         /// (the same things the Tab/G/R/X keys do, so the window is enough on its own).</summary>
         void BuildPack()
         {
-            packPanel = Rect("Pack", hud.transform, new Vector2(1, .5f), new Vector2(1, .5f), new Vector2(-24, 0), new Vector2(340, 652));
+            packPanel = Rect("Pack", hud.transform, new Vector2(1, .5f), new Vector2(1, .5f), new Vector2(-24, 0), new Vector2(340, 692));
             packPanel.pivot = new Vector2(1, .5f);
             PanelImage(packPanel, Panel);
             packTitle = Label("Title", packPanel, new Vector2(20, -16), new Vector2(300, 26), 20, Ink);
@@ -613,7 +637,11 @@ namespace Height1079.Runtime
                 () => NightSession.Instance?.RequestSleep());
             // and the other half of playing in pieces: a way out that is not killing the process. The save is already
             // on disk by then, and «Продолжить» will be waiting in the menu
-            packLeaveButton = ButtonUi("Leave", packPanel, new Vector2(20, -606), new Vector2(304, 28), "Выйти в меню", new Color(.28f, .22f, .22f), Ink,
+            // the call for help. It has the key 9 as well, but a button is the only thing that is certain to reach the
+            // game under UI automation, and this is the one button nobody should have to find twice
+            packSosButton = ButtonUi("Sos", packPanel, new Vector2(20, -606), new Vector2(304, 28), "SOS — вызвать спасателей (9)", new Color(.45f, .2f, .18f), Ink,
+                () => NightSession.Instance?.SendSos());
+            packLeaveButton = ButtonUi("Leave", packPanel, new Vector2(20, -638), new Vector2(304, 28), "Выйти в меню", new Color(.28f, .22f, .22f), Ink,
                 Bootstrap.Leave);
             packPanel.gameObject.SetActive(false);
         }
@@ -657,6 +685,11 @@ namespace Height1079.Runtime
             if (packSleepButton.gameObject.activeSelf != canSleep) packSleepButton.gameObject.SetActive(canSleep);
             if (camping) packCampButton.GetComponentInChildren<Text>().text = Camps.ToggleLabel(me);
             if (packLeaveButton.gameObject.activeSelf != camping) packLeaveButton.gameObject.SetActive(camping);
+            if (packSosButton.gameObject.activeSelf != camping) packSosButton.gameObject.SetActive(camping);
+            if (camping)
+                packSosButton.GetComponentInChildren<Text>().text = RescueDesk.Known && RescueDesk.Mine.Mission.Coming
+                    ? "Помощь вызвана (9 — повторить)"
+                    : "SOS — вызвать спасателей (9)";
 
             // rows are rebuilt only when the contents change
             var key = new StringBuilder().Append(Backpacks.OpenPack).Append(':');

@@ -62,6 +62,18 @@ namespace Height1079.Core
         Edema = 4,
     }
 
+    /// <summary>Which half of the day a step belongs to. The ascent and the descent of Elbrus are not the same walk
+    /// run backwards: going down you face out from the slope, the legs are spent, the sickness is at its worst, the
+    /// snow has gone soft in the sun, and the whole task changes from "keep climbing" to "find the way home".
+    /// Every rule that differs takes this, and nothing else in the model carries it.</summary>
+    public enum Going : byte
+    {
+        /// <summary>Uphill, or across. The default everywhere, so old callers behave exactly as before.</summary>
+        Up = 0,
+        /// <summary>Downhill: the half the statistics belong to.</summary>
+        Down = 1,
+    }
+
     /// <summary>Everything about a place on the route the rules need, and nothing else: the runtime reads it off the
     /// DEM and the route polyline and hands it in. No rule below looks up a POI or a label.</summary>
     public readonly struct RoutePoint
@@ -208,11 +220,16 @@ namespace Height1079.Core
 
         /// <summary>Chance per metre of losing the feet here. The steepness that counts is the greater of the two
         /// angles: the косая полка is flat along the track and 23–34° across it, and it is the across that kills.</summary>
-        public static float SlipPerMetre(RoutePoint p, bool cramponsOn)
+        public static float SlipPerMetre(RoutePoint p, bool cramponsOn) => SlipPerMetre(p, cramponsOn, Going.Up);
+
+        /// <summary>The same, for a step taken in a known direction. Going down it is
+        /// <see cref="DescentSlip"/> times worse, and that is the one number the whole "descent is the dangerous
+        /// half" idea rests on.</summary>
+        public static float SlipPerMetre(RoutePoint p, bool cramponsOn, Going going)
         {
             var s = SpecAt(p.Ele);
             if (p.Steepness <= s.SlipFromDeg) return 0f;
-            return s.SlipPerMetre * (cramponsOn ? CramponSlip : 1f);
+            return s.SlipPerMetre * (cramponsOn ? CramponSlip : 1f) * (going == Going.Down ? DescentSlip : 1f);
         }
 
         static readonly (float at, float value)[] arrest =
@@ -220,8 +237,47 @@ namespace Height1079.Core
 
         /// <summary>Chance of stopping a slide with the ice axe once it has started. Without an axe there is no
         /// self-arrest at all — that is not a penalty, it is the absence of the move.</summary>
-        public static float SelfArrestChance(float slopeDeg, Gear gear)
-            => (gear & Gear.IceAxe) == 0 ? 0f : Curve(arrest, Math.Abs(slopeDeg));
+        public static float SelfArrestChance(float slopeDeg, Gear gear) => SelfArrestChance(slopeDeg, gear, Going.Up);
+
+        /// <summary>The same, for a known direction. A climber who goes over backwards has to turn face-down onto the
+        /// axe before it bites, and by the descent the arms that do it have been walking for eight hours.</summary>
+        public static float SelfArrestChance(float slopeDeg, Gear gear, Going going)
+            => (gear & Gear.IceAxe) == 0 ? 0f
+             : Curve(arrest, Math.Abs(slopeDeg)) * (going == Going.Down ? DescentArrest : 1f);
+
+        // ── up or down ────────────────────────────────────────────────────────────────────────────────────
+
+        /// <summary>What walking downhill is worth to the pace, on top of the air the lungs get back
+        /// (<see cref="DescentHypoxiaEase"/>). Guiding companies quote 7–10 h up against 3.5–5 h down on the same
+        /// line, so the whole descent has to come out at roughly half the climb or a little less; the two multipliers
+        /// together do that, because the slow upper half is where the air gives the most back.</summary>
+        public const float DescentSpeed = 1.6f;
+
+        /// <summary>Share of the thin-air penalty handed back on the way down. Losing height is the one thing that
+        /// helps hypoxia, and a body that is not lifting itself any more spends far less of what it breathes; at
+        /// 5 400 m the multiplier goes from 0.40 to 0.70 by this alone.</summary>
+        public const float DescentHypoxiaEase = .5f;
+
+        /// <summary>How much likelier the feet are to go downhill: the body faces out from the slope instead of into
+        /// it, the crampon takes the snow on the flat of the foot instead of on the front points, and the legs that
+        /// have to brake every step are the ones that have just done 1 800 m of climbing. Game balance, calibrated so
+        /// that the «зеркало» belt is the place a careless descent ends.</summary>
+        public const float DescentSlip = 1.6f;
+
+        /// <summary>And what is left of the self-arrest going down.</summary>
+        public const float DescentArrest = .7f;
+
+        /// <summary>The southern slope faces the sun, and after ten in the morning the rolled lane below the
+        /// «зеркало» stops carrying: the snow-cat track goes to <see cref="SlushSpeed"/> of its pace and below
+        /// <see cref="SlushToEle"/> the going is porridge. It is a property of the snow, not of the direction, so it
+        /// is charged both ways — but a party on the way up passed here before eight, and only the descent pays.</summary>
+        public const float SlushFromHour = 10f, SlushToEle = 4600f, SlushSpeed = .7f;
+
+        public static bool Slush(float ele, float hour) => hour >= SlushFromHour && ele < SlushToEle;
+        public static float SlushFactor(float ele, float hour) => Slush(ele, hour) ? SlushSpeed : 1f;
+
+        /// <summary>The pace multiplier of the direction alone.</summary>
+        public static float GoingFactor(Going going) => going == Going.Down ? DescentSpeed : 1f;
 
         public const float ShelfRunoutMin = 300f, ShelfRunoutMax = 600f;
 
@@ -246,6 +302,14 @@ namespace Height1079.Core
         /// gain per hour that is actually managed above the rocks. A badly acclimatised climber gets
         /// <see cref="AcclimFactor"/> of it.</summary>
         public static float Hypoxia(float ele, float acclim) => Curve(hypoxia, ele) * AcclimFactor(acclim);
+
+        /// <summary>The same, for a step taken in a known direction: going down, <see cref="DescentHypoxiaEase"/> of
+        /// whatever the air was taking away is handed back.</summary>
+        public static float Hypoxia(float ele, float acclim, Going going)
+        {
+            float h = Hypoxia(ele, acclim);
+            return going == Going.Down ? h + (1f - h) * DescentHypoxiaEase : h;
+        }
 
         /// <summary>What poor acclimatisation does to the whole curve: 1.0 at acclim 1, 0.6 at acclim 0.3 — the
         /// figure the design brief fixes — and worse below that.</summary>
@@ -382,8 +446,15 @@ namespace Height1079.Core
 
         /// <summary>The line for the HUD, chosen so that every phase is announced before the next one arrives and the
         /// first warning comes before there is any phase at all. A player must always be able to turn round in time.</summary>
-        public static string Warning(Climber c, RoutePoint p)
+        public static string Warning(Climber c, RoutePoint p) => Warning(c, p, Going.Up);
+
+        /// <summary>The same, knowing which way the party is walking. On the descent the sickness lines stay — they
+        /// are still true — but the corridor between the lava ridges outranks all of them, because it is the thing
+        /// that actually kills here and the only one a player can still do something about.</summary>
+        public static string Warning(Climber c, RoutePoint p, Going going)
         {
+            if (going == Going.Down && AscentRoute.MissedTheGate(p.Ele, p.OffRouteM))
+                return "Скалы Пастухова остались в стороне. Между двумя грядами — коридор; вы идёте мимо него.";
             if (c.Phase == Ams.Edema) return "Отёк. Дышать нечем. Спасает только сброс 500 м — вниз, немедленно.";
             if (c.Phase == Ams.Ataxia) return "Ноги не слушаются, ведёт вбок. На полке это смертельно.";
             if (c.Phase == Ams.Nausea) return "Тошнит. Отдых на месте больше не возвращает силы.";
@@ -477,10 +548,24 @@ namespace Height1079.Core
             /// <summary>Mittens off to work the carabiners or the axe. The hands start burning at once.</summary>
             public bool BareHands;
 
+            /// <summary>Which half of the day this step belongs to. <see cref="Going.Up"/> by default, so a runtime
+            /// that has not been taught about the descent yet behaves exactly as it did.</summary>
+            public Going Way;
+            /// <summary>The hour of the day (<see cref="AscentRoute.HourAt"/>), for the snow that goes soft after ten.
+            /// 0 by default, which is the middle of the night and charges nothing.</summary>
+            public float Hour;
+            /// <summary>A snow-cat has been up this morning and its track is underfoot: the route can be read off it
+            /// even in cloud (<see cref="AscentRoute.CanReadTheRoute"/>).</summary>
+            public bool CatTrack;
+            /// <summary>0 (fresh) … 1 (nothing left in the legs) — the runtime's own strength bar, inverted. It only
+            /// feeds the wandering rule: a spent party keeps a line worse than a fresh one.</summary>
+            public float Tiredness;
+
             public Step(RoutePoint where, MountainAir air, float speedMs = 0f)
             {
                 Where = where; Air = air; SpeedMs = speedMs;
                 Daylight = true; Sheltered = false; BareHands = false;
+                Way = Going.Up; Hour = 0f; CatTrack = false; Tiredness = 0f;
             }
         }
 
@@ -508,28 +593,47 @@ namespace Height1079.Core
             public readonly float FrostbiteMinutes;
             /// <summary>True while the heart is making the climber stand still.</summary>
             public readonly bool MustStop;
+            /// <summary>Nothing marks the line from here: no visibility, no wand, no cable, no snow-cat track
+            /// (<see cref="AscentRoute.CanReadTheRoute"/>).</summary>
+            public readonly bool RouteLost;
+            /// <summary>Metres of sideways error gathered per metre walked while the line cannot be read
+            /// (<see cref="AscentRoute.WanderPerMetre"/>). The runtime multiplies it by the metres covered and picks
+            /// the side; 0 whenever anything at all still marks the route.</summary>
+            public readonly float WanderPerMetre;
+            /// <summary>Standing in the belt of Pastukhov rocks and outside the corridor between the two lava ridges
+            /// (<see cref="AscentRoute.MissedTheGate"/>). Going down, this is the thing that kills people here.</summary>
+            public readonly bool MissedTheGate;
             /// <summary>Russian line for the HUD, or "".</summary>
             public readonly string Warning;
 
             public Report(float speedFactor, float recoveryFactor, bool mayRun, float slipPerMetre, float selfArrest,
                 float runoutM, bool deadly, float driftMs, Ams sickness, float feelsC, float frostbiteMinutes,
-                bool mustStop, string warning)
+                bool mustStop, string warning, bool routeLost = false, float wanderPerMetre = 0f,
+                bool missedTheGate = false)
             {
                 SpeedFactor = speedFactor; RecoveryFactor = recoveryFactor; MayRun = mayRun;
                 SlipPerMetre = slipPerMetre; SelfArrest = selfArrest; RunoutM = runoutM; Deadly = deadly;
                 DriftMs = driftMs; Sickness = sickness; FeelsC = feelsC; FrostbiteMinutes = frostbiteMinutes;
                 MustStop = mustStop; Warning = warning;
+                RouteLost = routeLost; WanderPerMetre = wanderPerMetre; MissedTheGate = missedTheGate;
             }
         }
 
         /// <summary>The speed multiplier on its own, for anything that wants to ask without ticking: the surface, the
         /// air, the sickness and the drowsiness. Below 4 000 m on the cat road with a fresh climber it is 1; just
         /// above the rocks without crampons it is about a quarter of that, and crampons give 2.5 of those back.</summary>
-        public static float SpeedFactor(Climber c, RoutePoint p)
+        public static float SpeedFactor(Climber c, RoutePoint p) => SpeedFactor(c, p, Going.Up, 0f);
+
+        /// <summary>The same, for a step taken in a known direction at a known hour: downhill the air gives some of
+        /// itself back and the legs carry themselves, and after ten in the morning the lane below the «зеркало» has
+        /// turned to porridge and takes a third of it away again.</summary>
+        public static float SpeedFactor(Climber c, RoutePoint p, Going going, float hour)
             => FootingFactor(p.Ele, c.CramponsOn)
-             * Hypoxia(p.Ele, c.Acclimatisation)
+             * Hypoxia(p.Ele, c.Acclimatisation, going)
              * SicknessStrength(c.Phase)
-             * DrowsyFactor(c.Drowsiness);
+             * DrowsyFactor(c.Drowsiness)
+             * GoingFactor(going)
+             * SlushFactor(p.Ele, hour);
 
         /// <summary>Advances the climber by dt seconds and answers for this tick. The runtime keeps the position, the
         /// strength bar and the dice; this only moves the pools that belong to the mountain.</summary>
@@ -570,10 +674,16 @@ namespace Height1079.Core
             float drift = AscentCold.SideDriftMs(s.Air.WindMs) + AtaxiaDriftMs(c.Phase);
             float recovery = RecoversInPlace(c.Phase) ? RecoveryFactor(p.Ele, standing) : 0f;
 
+            // the second half of the day: can the line still be read, and how fast does a party that cannot read it
+            // drift off it. Going down this is the rule that decides the run — not the cold and not the slip.
+            bool canRead = AscentRoute.CanReadTheRoute(p.Ele, p.OffRouteM, s.Air.VisibilityM, s.Air.FreshSnowCm, s.CatTrack);
+            float wander = AscentRoute.WanderPerMetre(s.Way, canRead, c.Phase, s.Tiredness);
+
             return new Report(
-                SpeedFactor(c, p), recovery, MayRun(p.Ele),
-                SlipPerMetre(p, c.CramponsOn), SelfArrestChance(p.Steepness, c.Gear), RunoutM(p), FallIsFatal(p),
-                drift, c.Phase, feels, minutes, c.StopSeconds > 0f, Warning(c, p));
+                SpeedFactor(c, p, s.Way, s.Hour), recovery, MayRun(p.Ele),
+                SlipPerMetre(p, c.CramponsOn, s.Way), SelfArrestChance(p.Steepness, c.Gear, s.Way), RunoutM(p), FallIsFatal(p),
+                drift, c.Phase, feels, minutes, c.StopSeconds > 0f, Warning(c, p, s.Way),
+                !canRead, wander, AscentRoute.MissedTheGate(p.Ele, p.OffRouteM));
         }
 
         // ── helpers ───────────────────────────────────────────────────────────────────────────────────────

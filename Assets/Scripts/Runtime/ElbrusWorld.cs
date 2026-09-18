@@ -77,10 +77,18 @@ namespace Height1079.Runtime
             Stations(root);
             Camp(root);
             RouteFurniture(root);
+            Valley(root);
             ElbrusDressing.Build(root);
             root.gameObject.AddComponent<ElbrusRides>();
             CafeService.Create(root);
             RentalService.Create(root);
+            // the three counters the markers inside the buildings were put there for, the snow-cat's own little
+            // counter, and the other parties on the slope (docs/ELBRUS.md, «Как это вызывать из рантайма»)
+            RescueDesk.Create(root);
+            WeatherBoards.Create(root);
+            LodgeService.Create(root);
+            RatrakService.Create(root);
+            Parties.Create(root);
         }
 
         // ── putting things on a slope ─────────────────────────────────────────────────────────────────────
@@ -343,6 +351,11 @@ namespace Height1079.Runtime
                 case "Elb_Hut_Diesel": return new Vector2(8.2f, 11.6f);
                 case "Elb_Hut_Capsule": return new Vector2(4.4f, 12f);
                 case "Elb_Barrel": return new Vector2(2.7f, 6.4f);
+                // the two buildings of ElbrusLodge you walk into: the base on the meadow (hall plus its porch) and
+                // the приют of the national park
+                case "Elb_Base_Azau": return new Vector2(13.4f, 13.4f);
+                case "Elb_Hut_Natspark": return new Vector2(9f, 14.6f);
+                case "Elb_Genset": return new Vector2(2.6f, 3.4f);
                 // ── street furniture ──
                 case "Elb_Rail": return new Vector2(8f, .3f);
                 case "Elb_Bench": return new Vector2(2.1f, .6f);
@@ -490,6 +503,10 @@ namespace Height1079.Runtime
             Put("Elb_Cafe", -36f, 86f, 90f);
             Put("Elb_Cafe", 34f, 64f, -90f);
             Put("Elb_Toilet", 22f, 24f, -90f);
+            // the base of the rescue service and the hire shop, on the upper corner of the square where the visitor
+            // lands (Elbrus.Start is about u 18, v 34): the one building the ascent is actually prepared in, its
+            // porch turned towards the path (ElbrusLodge.BaseAzau)
+            Put("Elb_Base_Azau", -34f, 26f, -90f);
             // hotels along the meadow, chalets under the pines
             Put("Elb_Hotel", -56f, 40f, 90f);
             Put("Elb_Hotel", -58f, 112f, 90f);
@@ -578,8 +595,14 @@ namespace Height1079.Runtime
                 Reserve(go.transform.position.x, go.transform.position.z, 5f);
             }
 
+            // the diesel that lights the camp, between the two rows where it always stands
+            {
+                float gx = b.X - 2f, gz = b.Z - 2.5f;
+                Seat("Elb_Genset", camp, gx, gz, FaceDownhill(gx, gz, 12f), 0f, Sit.Pad);
+            }
+
             Hut("redfox", "Elb_Hut_Small", camp);
-            Hut("garabashiHut", "Elb_Hut_Small", camp);
+            Hut("garabashiHut", "Elb_Hut_Natspark", camp);       // приют «Нацпарк»: rooms of four, heating, sockets
             Hut("priut88", "Elb_Hut_Small", camp);
             Hut("priut11", "Elb_Hut_Diesel", camp, 90f);      // eleven metres long: it lies along the contour
             // LeapRus: three capsules side by side across the slope, each looking down the valley through its
@@ -617,6 +640,17 @@ namespace Height1079.Runtime
         static void RouteFurniture(Transform root)
         {
             var prefab = Load("Elb_Ascent");
+            if (prefab == null) return;
+            Object.Instantiate(prefab, Vector3.zero, Quaternion.identity, root);
+        }
+
+        /// <summary>The floor of the valley: the village of Terskol, the Devichyi Kosy waterfall, the Pik Terskol
+        /// observatory and the four ways between them — one prefab baked by <c>ElbrusValley</c> in world coordinates
+        /// and already sat on the height field (docs/ELBRUS.md). The acclimatisation days of a real ascent happen
+        /// down here, and until now the whole lower half of the map stood empty.</summary>
+        static void Valley(Transform root)
+        {
+            var prefab = Load("Elb_Valley");
             if (prefab == null) return;
             Object.Instantiate(prefab, Vector3.zero, Quaternion.identity, root);
         }

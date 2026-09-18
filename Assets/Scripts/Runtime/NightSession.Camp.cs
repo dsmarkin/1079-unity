@@ -101,7 +101,9 @@ namespace Height1079.Runtime
             run.SkipAhead(pending.Elapsed);
             MountainStorm.Value = pending.Storm;
             freshSnowCm = Mathf.Max(0f, pending.FreshSnowCm);
-            AddCamp(CampNet.NoOwner, new Vector3(pending.CampX, pending.CampY, pending.CampZ), pending.CampYaw, pending.Burner);
+            // a night taken in a hut leaves no двойка on the snow: putting one back would stand it inside the wall
+            if (pending.Tent)
+                AddCamp(CampNet.NoOwner, new Vector3(pending.CampX, pending.CampY, pending.CampZ), pending.CampYaw, pending.Burner);
             run.Record($"Лагерь стоит: {pending.Where}. Продолжаем с {AscentRoute.Clock(pending.Hour)}.");
         }
 
@@ -276,15 +278,26 @@ namespace Height1079.Runtime
             SaveHere(camp);
         }
 
-        /// <summary>Writes the night. Everybody who is online is credited with a night in this camp — once per camp
-        /// per body — and then the whole party, including anybody who was in the save we started from and is not here
-        /// tonight, goes into one file.</summary>
+        /// <summary>Writes the night in the camp the player is standing at.</summary>
         void SaveHere(int campId)
         {
             if (!FindCamp(campId, out var camp, out _)) return;
             float ele = dem != null ? dem.Sample(camp.Pos.x, camp.Pos.z) : camp.Pos.y;
-            bool burner = camp.HasBurner;
+            SaveNight(camp.Pos, camp.Yaw, ele, camp.HasBurner, true, "camp:" + campId,
+                Camp.Where(camp.Pos.x, camp.Pos.z, ele), null);
+        }
 
+        /// <summary>Writes a night, in a двойка on the snow or in a bunk under somebody else's roof. Everybody who is
+        /// online is credited with it — once per place per body, because the file may be written as often as anyone
+        /// likes and a body sleeps once — and then the whole party, including anybody who was in the save we started
+        /// from and is not here tonight, goes into one file.
+        ///
+        /// <paramref name="night"/> is what a roof adds on top of the night itself: it is called instead of
+        /// <see cref="Camp.Sleep"/>, never as well, because climb-high-sleep-low is one rule and
+        /// <see cref="Lodging.Sleep"/> already calls it (docs/ELBRUS.md).</summary>
+        void SaveNight(Vector3 at, float yaw, float ele, bool burner, bool tent, string place, string where,
+            Action<ulong, Climber> night)
+        {
             var save = new SaveGame
             {
                 Place = Height1079.Core.World.Current,
@@ -292,11 +305,15 @@ namespace Height1079.Runtime
                 Elapsed = run.Elapsed,
                 Storm = MountainStorm.Value,
                 FreshSnowCm = freshSnowCm,
-                CampX = camp.Pos.x, CampY = camp.Pos.y, CampZ = camp.Pos.z, CampYaw = camp.Yaw, CampEle = ele,
+                Seed = WeatherSeed.Value,
+                Date = Forecast.DateOf(WeatherDay.Value),
+                CampX = at.x, CampY = at.y, CampZ = at.z, CampYaw = yaw, CampEle = ele,
                 Burner = burner,
-                Where = Camp.Where(camp.Pos.x, camp.Pos.z, ele),
+                Tent = tent,
+                Where = where,
             };
 
+            bool slept = false;
             foreach (var kv in NetworkManager.ConnectedClients)
             {
                 ulong id = kv.Key;
@@ -304,8 +321,14 @@ namespace Height1079.Runtime
                 if (!run.Players.TryGetValue(token, out var p)) continue;
                 var c = ClimberOf(id);
 
-                bool firstNight = sleptIn.Add(campId + ":" + id);
-                if (firstNight) Camp.Sleep(c, ele, burner);
+                bool firstNight = sleptIn.Add(place + ":" + id);
+                if (firstNight)
+                {
+                    slept = true;
+                    if (night != null) night(id, c); else Camp.Sleep(c, ele, burner);
+                    // a body that was carried to 5 100 by a snow-cat yesterday is not carried there today
+                    carriedTo.Remove(id);
+                }
 
                 var profile = ProfileOf(id);
                 var entry = save.Ensure(profile.Key, p.Name);
@@ -319,6 +342,7 @@ namespace Height1079.Runtime
                 entry.Heat = p.Heat; entry.HandsBar = p.Hands; entry.Clarity = p.Clarity;
                 entry.Strength = strength.TryGetValue(id, out var left) ? left : 1f;
                 entry.Roubles = profile.Roubles;
+                entry.Reg = RescueOf(id);
                 entry.Pack.Clear();
                 var pack = packs.Worn(token);
                 if (pack != null) foreach (var s in pack.Contents) entry.Pack.Add(s);
@@ -331,6 +355,18 @@ namespace Height1079.Runtime
             if (loaded != null)
                 foreach (var old in loaded.Climbers)
                     if (save.Find(old.Key) == null) save.Climbers.Add(old);
+
+            // a night that was actually slept moves the mountain on to the next day, which is what makes the board's
+            // «завтра» worth reading. A second night in the same place credits nothing and moves nothing, so the date
+            // cannot be walked forward by pressing the key twice.
+            if (slept && Climb.On)
+            {
+                WeatherDay.Value += 1;
+                save.Date = Forecast.DateOf(WeatherDay.Value);
+                freshSnowCm = 0f;
+                weatherDt = WeatherTick;
+                run.Record($"Утро {save.Date:dd.MM}. {MountainDay.Verdict}");
+            }
 
             string path = Saves.Write(save);
             loaded = save;
@@ -383,6 +419,8 @@ namespace Height1079.Runtime
             c.Hands = saved.Hands; c.Feet = saved.Feet; c.Face = saved.Face;
             c.Dehydration = saved.Dry; c.Drowsiness = saved.Sleep; c.Blindness = saved.Blind; c.Pulse = saved.Pulse;
             c.ThermosSips = saved.Sips;
+            // the slip left at the ЭВПСО counter is a piece of paper: it outlives the run that filed it
+            RescueRestore(id, saved.Reg);
             // the kit itself is counted off the rucksack on the next tick (Rental.Carried), and the crampons come off
             // the boots there too if the rucksack turns out not to have any
             c.CramponsOn = saved.Crampons;
@@ -402,7 +440,11 @@ namespace Height1079.Runtime
             RestoredRpc(saved.Acclim, saved.Highest, saved.Roubles, RpcTarget.Single(id, RpcTargetUse.Temp));
         }
 
-        void CampsClientLeft(ulong clientId) => profiles.Remove(clientId);
+        void CampsClientLeft(ulong clientId)
+        {
+            profiles.Remove(clientId);
+            RescueClientLeft(clientId);
+        }
 
         // ── back to the client ────────────────────────────────────────────────────────────────────────────
 

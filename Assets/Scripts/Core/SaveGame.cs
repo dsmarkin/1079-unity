@@ -30,6 +30,11 @@ namespace Height1079.Core
         /// <summary>Roubles left in the purse — what was not spent at the hire counter and the cafés.</summary>
         public int Roubles = Wallet.StartRoubles;
 
+        /// <summary>The slip this one left at the ЭВПСО counter, or <see cref="Rescue.NotFiled"/>. It is a piece of
+        /// paper and it outlives a run: a party that registered on Monday is still registered on Tuesday, and a party
+        /// that walked past the counter is still nobody's problem.</summary>
+        public Registration Reg = Rescue.NotFiled;
+
         /// <summary>The rucksack, in order. Hired gear is nothing but objects in here, so "what was taken at the hire
         /// counter" needs no field of its own (<see cref="Rental.GearOf"/>).</summary>
         public readonly List<ItemStack> Pack = new List<ItemStack>();
@@ -65,10 +70,22 @@ namespace Height1079.Core
         public bool Storm;
         public float FreshSnowCm;
 
-        /// <summary>Where the tent stands. Everybody who loads this save wakes up beside it.</summary>
+        /// <summary>One seed for the whole save, and the day it is being played on. The weather is not rolled hour by
+        /// hour any more: <see cref="Forecast.Day"/> draws the whole day out of these two, the board at the hut tries
+        /// to predict the same day out of the same two, and a save that comes back on Thursday gets the Thursday it
+        /// was promised. 0 means a save written before there were seeds — the runtime draws a fresh one.</summary>
+        public int Seed;
+        /// <summary>The date on the mountain. A night moves it on by one, which is what makes the board's «завтра»
+        /// worth reading.</summary>
+        public DateTime Date = DateTime.UtcNow.Date;
+
+        /// <summary>Where the party slept. Everybody who loads this save wakes up beside it.</summary>
         public float CampX, CampY, CampZ, CampYaw, CampEle;
         /// <summary>Whether the camp has a burner in it — the night reads it (<see cref="Camp.Sleep"/>).</summary>
         public bool Burner;
+        /// <summary>True when what stands there is an actual двойка; false for a night taken in a hut, where the spot
+        /// is a bunk under somebody else's roof and putting a tent back on load would stand it inside the wall.</summary>
+        public bool Tent = true;
         /// <summary>«косая полка, 5290 м» — written at save time so the menu can show it without loading the mountain.</summary>
         public string Where = "";
 
@@ -112,11 +129,14 @@ namespace Height1079.Core
                 .Set("elapsed", Round(Elapsed, 2))
                 .Set("hour", Round(Hour, 3))
                 .Set("storm", Storm)
-                .Set("freshSnowCm", Round(FreshSnowCm, 2));
+                .Set("freshSnowCm", Round(FreshSnowCm, 2))
+                .Set("seed", Seed)
+                .Set("date", Date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture));
 
             root.Set("camp", JsonValue.Object()
                 .Set("x", Round(CampX, 2)).Set("y", Round(CampY, 2)).Set("z", Round(CampZ, 2))
-                .Set("yaw", Round(CampYaw, 1)).Set("ele", Round(CampEle, 2)).Set("burner", Burner));
+                .Set("yaw", Round(CampYaw, 1)).Set("ele", Round(CampEle, 2)).Set("burner", Burner)
+                .Set("tent", Tent));
 
             var list = JsonValue.Array();
             foreach (var c in Climbers) list.Add(ClimberJson(c));
@@ -140,6 +160,13 @@ namespace Height1079.Core
                 .Set("heat", Round(c.Heat, 2)).Set("handsBar", Round(c.HandsBar, 2)).Set("clarity", Round(c.Clarity, 2))
                 .Set("strength", Round(c.Strength, 4))
                 .Set("roubles", c.Roubles);
+            if (c.Reg.Filed)
+                o.Set("rescue", JsonValue.Object()
+                    .Set("party", c.Reg.Party)
+                    .Set("people", c.Reg.People)
+                    .Set("route", c.Reg.Route)
+                    .Set("control", Round(c.Reg.ControlHour, 3))
+                    .Set("back", Round(c.Reg.BackHour, 3)));
             var pack = JsonValue.Array();
             foreach (var s in c.Pack) if (!s.IsEmpty) pack.Add(StackJson(s));
             o.Set("pack", pack);
@@ -184,8 +211,10 @@ namespace Height1079.Core
                 Storm = root.Flag("storm"),
                 FreshSnowCm = Math.Max(0f, root.Float("freshSnowCm")),
                 Where = root.Str("where"),
+                Seed = root.Int("seed", 0),
             };
             save.SavedUtc = ParseStamp(root.Str("saved"));
+            save.Date = ParseDate(root.Str("date"), save.SavedUtc.Date);
 
             var camp = root["camp"];
             save.CampX = camp.Float("x");
@@ -194,6 +223,8 @@ namespace Height1079.Core
             save.CampYaw = camp.Float("yaw");
             save.CampEle = camp.Float("ele", camp.Float("y"));
             save.Burner = camp.Flag("burner");
+            // a save from before huts could be slept in has no flag and always meant a tent
+            save.Tent = camp.Flag("tent", true);
 
             var list = root["climbers"];
             for (int i = 0; i < list.Count; i++)
@@ -224,6 +255,11 @@ namespace Height1079.Core
                     Strength = Ascent.Clamp01(v.Float("strength", 1f)),
                     Roubles = Math.Max(0, v.Int("roubles", Wallet.StartRoubles)),
                 };
+                var slip = v["rescue"];
+                if (slip.Kind == JsonKind.Object && slip.Str("party").Length > 0)
+                    c.Reg = Rescue.File(slip.Str("party"), slip.Int("people", 1),
+                        slip.Str("route", Rescue.DefaultRoute),
+                        slip.Float("control", Rescue.ControlHour), slip.Float("back", Rescue.BackHour));
                 var pack = v["pack"];
                 for (int k = 0; k < pack.Count; k++)
                 {
@@ -235,6 +271,10 @@ namespace Height1079.Core
             }
             return save;
         }
+
+        static DateTime ParseDate(string text, DateTime fallback)
+            => DateTime.TryParseExact(text, "yyyy-MM-dd", CultureInfo.InvariantCulture,
+                DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal, out var d) ? d.Date : fallback;
 
         static DateTime ParseStamp(string text)
         {

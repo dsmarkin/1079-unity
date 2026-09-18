@@ -47,7 +47,8 @@ namespace Height1079.Runtime
         public RoutePoint Where => here;
         /// <summary>The air at him: temperature of his height, wind after the funnel, how far he can see.</summary>
         public MountainAir Air => air;
-        /// <summary>Surface × air × sickness × drowsiness, straight out of <see cref="Ascent.SpeedFactor"/>.</summary>
+        /// <summary>Surface × air × sickness × drowsiness × direction × soft snow, straight out of
+        /// <see cref="Ascent.SpeedFactor"/>.</summary>
         public float SpeedFactor => speedFactor;
         /// <summary>False above <see cref="Ascent.RunCeiling"/>: not "running costs more" — the move is gone.</summary>
         public bool MayRun => mayRun;
@@ -132,7 +133,12 @@ namespace Height1079.Runtime
             var s = NightSession.Instance;
             air = Climb.Air(here.Ele, transform.position.x, transform.position.z, Weather.Storm, 0f);
             float thin = Mathf.InverseLerp(ThinFromEle, ThinToEle, here.Ele);
-            speedFactor = Mathf.Lerp(1f, Mathf.Clamp(Ascent.SpeedFactor(mirror, here), .05f, 1f), thin);
+            // the second half of the day is not the first half run backwards: going down the air gives some of itself
+            // back and the legs carry themselves (Ascent.DescentSpeed), and after ten in the morning the lane below
+            // the «зеркало» has turned to porridge and takes a third of it away again (Ascent.Slush). The host
+            // publishes the direction it decided (ClimbNet.Mark2.Down) and the clock is a NetworkVariable, so the two
+            // sides work the same number out of the same inputs, as they do for everything else here.
+            speedFactor = Mathf.Lerp(1f, Mathf.Clamp(Ascent.SpeedFactor(mirror, here, net.Way, Climb.Hour()), .05f, 2f), thin);
             // and what is left in the legs, the way the лыжня does it: under a third of the bar costs half the pace
             speedFactor *= Mathf.Lerp(.5f, 1f, Mathf.Clamp01(hiker.Strength.Value / 255f / .35f));
             if (net.Has(ClimbNet.Mark.MustStop)) speedFactor = 0f;
@@ -154,17 +160,40 @@ namespace Height1079.Runtime
             return up <= 0f ? wish : wish - uphill * up;
         }
 
-        /// <summary>The push the wind and the ataxia give, across the way he is going.</summary>
+        /// <summary>The push the wind and the ataxia give, across the way he is going — and, on a descent nobody can
+        /// navigate, the slow walk off the line of the route.
+        ///
+        /// Two different things land in the same place because they are applied the same way. The wind of the funnel
+        /// blows down the fall line, and so does the ataxia, because that is the way the ground already leans. The
+        /// wandering is not down the fall line at all: it is a steady error <em>across the direction of travel</em>,
+        /// a few centimetres for every metre walked (<see cref="AscentRoute.WanderPerMetre"/>), on the side the host
+        /// picked and is holding. Going down off the saddle that is what loses the corridor between the lava ridges,
+        /// and losing it is what kills seven parties in ten on this side of the mountain.</summary>
         public Vector3 Drift(Vector3 forward)
         {
+            if (!Climb.On || Bootstrap.Dem == null) return Vector3.zero;
+            var push = Vector3.zero;
             float ms = DriftMs;
-            if (!Climb.On || ms <= 0f) return Vector3.zero;
-            // the wind of the funnel blows across the shelf and down the fall line, which is where it kills; the
-            // ataxia pulls the same way, because that is the way the ground already leans
-            if (Bootstrap.Dem == null) return Vector3.zero;
-            var (dx, dz, slope) = Bootstrap.Dem.Fall(transform.position.x, transform.position.z, 10f);
-            if (slope < 1f) return Vector3.zero;
-            return new Vector3(dx, 0f, dz).normalized * ms;
+            if (ms > 0f)
+            {
+                var (dx, dz, slope) = Bootstrap.Dem.Fall(transform.position.x, transform.position.z, 10f);
+                if (slope >= 1f) push += new Vector3(dx, 0f, dz).normalized * ms;
+            }
+            float perMetre = State.WanderPerMetre;
+            if (perMetre != 0f && hiker != null)
+            {
+                var f = new Vector3(forward.x, 0f, forward.z);
+                if (f.sqrMagnitude < 1e-4f) f = new Vector3(transform.forward.x, 0f, transform.forward.z);
+                if (f.sqrMagnitude > 1e-4f)
+                {
+                    f.Normalize();
+                    // right of a heading is (fz, −fx), the same hand the whole map is laid out by
+                    var right = new Vector3(f.z, 0f, -f.x);
+                    // metres per metre walked × metres per second walked = metres per second sideways
+                    push += right * (perMetre * Mathf.Max(0f, hiker.Speed));
+                }
+            }
+            return push;
         }
 
         // ── the slide ─────────────────────────────────────────────────────────────────────────────────────

@@ -166,7 +166,11 @@ namespace Height1079.Runtime
                 var right = Vector3.Cross(Vector3.up, dir).normalized;
                 float side = c.Up ? 1f : -1f;
                 cars[i].position = new Vector3(p.x, p.y - Ropeway.Hang(Spec.Kind), p.z) + right * (gauge / 2 * side);
-                cars[i].rotation = Quaternion.LookRotation(dir * side, Vector3.up);
+                // A car hangs from a grip and is held by gravity, not by the rope's angle: on a 30 degree span the
+                // body still stands plumb and its floor stays level. Taking the yaw from the rope and nothing else is
+                // what makes it look like a cabin rather than a crate glued to the cable.
+                var look = new Vector3(dir.x, 0f, dir.z) * side;
+                if (look.sqrMagnitude > 1e-6f) cars[i].rotation = Quaternion.LookRotation(look.normalized, Vector3.up);
             }
         }
 
