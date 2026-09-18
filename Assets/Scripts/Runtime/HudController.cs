@@ -179,6 +179,12 @@ namespace Height1079.Runtime
                 ButtonUi("SteamHost", card, new Vector2(32, -540), new Vector2(180, 40), "НОЧЬ ЧЕРЕЗ STEAM", new Color(.11f, .2f, .29f), Ink, () => Bootstrap.Lobby.Host(nameField.text, SetStatus));
                 ButtonUi("SteamInvite", card, new Vector2(228, -540), new Vector2(180, 40), "ПРИГЛАСИТЬ ДРУЗЕЙ", new Color(.11f, .2f, .29f), Ink, () => Bootstrap.Lobby.Invite());
             }
+            else
+            {
+                // films the demo reel: eight shots over both places, straight out of the running world
+                ButtonUi("Demo", card, new Vector2(32, -540), new Vector2(376, 36), "СНЯТЬ ДЕМО-РОЛИК", new Color(.13f, .23f, .27f), Ink,
+                    () => { if (!DemoReel.Running) DemoReel.Shoot(); });
+            }
             SetPlace(World.Current);
             status = Label("Status", card, new Vector2(32, -594), new Vector2(380, 40), 12, new Color(.69f, .76f, .78f));
             status.text = Bootstrap.Lobby != null && Bootstrap.Lobby.Available ? "Steam подключён. Друзья заходят через приглашение или список друзей." : "Хост открывает порт 7777. Steam-лобби включается сборкой со Steam (см. README).";

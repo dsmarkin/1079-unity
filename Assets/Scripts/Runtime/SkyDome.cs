@@ -99,8 +99,11 @@ namespace Height1079.Runtime
             if (cam == null) return;
             var s = NightSession.Instance;
             float elapsed = s != null ? s.Elapsed.Value : 0f;
+            bool running = s != null;
+            // the demo reel walks the night itself, with no session behind it
+            if (DemoReel.NightSeconds >= 0f) { elapsed = DemoReel.NightSeconds; running = true; }
             // the menu shows the valley at 16:40, the sun on the ridge
-            Minutes = s != null ? Sky.ClockMinutes(elapsed) : 16 * 60 + 40;
+            Minutes = running ? Sky.ClockMinutes(elapsed) : 16 * 60 + 40;
             double jd = Sky.JulianDay(Minutes);
             var (sa, sz) = Sky.Sun(jd);
             var (ma, mz, lit) = Sky.Moon(jd);
@@ -108,8 +111,8 @@ namespace Height1079.Runtime
             MoonAlt = (float)ma; MoonDir = V(ma, mz); MoonLit = (float)lit;
 
             float storm = Weather.Storm;
-            CloudCover = Mathf.Lerp(s != null ? CoverAt(elapsed) : .45f, 1f, storm);
-            Aurora = s != null ? AuroraAt(elapsed) * (1f - storm) : 0f;
+            CloudCover = Mathf.Lerp(running ? CoverAt(elapsed) : .45f, 1f, storm);
+            Aurora = running ? AuroraAt(elapsed) * (1f - storm) : 0f;
 
             var z = Palette(Zeniths, SunAlt); var h = Palette(Horizons, SunAlt); var g = Palette(Glows, SunAlt);
             // an aurora tints the northern sky and the snow a little green

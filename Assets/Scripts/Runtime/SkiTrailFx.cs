@@ -227,6 +227,17 @@ namespace Height1079.Runtime
             Track.Weather(wind, fall);
         }
 
+        /// <summary>Lays a stretch of лыжня by hand, as if someone had skied it: the demo reel needs the track in shot
+        /// with nobody on skis in the world.</summary>
+        public void Lay(Vector3 pos, Vector3 dir, float dist, double now)
+        {
+            const ulong reel = 9000001;
+            if (!lanes.TryGetValue(reel, out var lane)) lanes[reel] = lane = new Lane { Was = Travel.Skis, Started = true, Last = pos };
+            Track.Stamp(pos.x, pos.z, now, Travel.Skis);
+            if (dir.sqrMagnitude > 1e-6f) Draw(lane, pos, dir.normalized, dist);
+            lane.Last = pos;
+        }
+
         void Follow(double now)
         {
             foreach (var h in HikerController.All)

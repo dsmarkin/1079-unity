@@ -116,14 +116,19 @@ namespace Height1079.Runtime
             var me = Bootstrap.LocalHiker;
             bool storming = s != null && s.Storm.Value;
             // the front takes ~25 s to arrive and ~40 s to die down
-            Storm = Mathf.MoveTowards(Storm, storming ? 1f : 0f, Time.deltaTime / (storming ? 25f : 40f));
+            float want = storming ? 1f : 0f, rate = Time.deltaTime / (storming ? 25f : 40f);
+            // the demo reel has seconds, not minutes, to show the weather turn
+            if (DemoReel.StormWanted >= 0f) { want = DemoReel.StormWanted; rate = Time.deltaTime / 1.3f; }
+            Storm = Mathf.MoveTowards(Storm, want, rate);
 
             // gusts: Perlin swells, sharper and more often in a storm
             gustPhase += Time.deltaTime * Mathf.Lerp(.08f, .22f, Storm);
             float g = Mathf.PerlinNoise(seed, gustPhase);
             g = Mathf.Clamp01((g - Mathf.Lerp(.35f, .2f, Storm)) * Mathf.Lerp(1.6f, 2.2f, Storm));
             Gust = g * g * (3f - 2f * g);
-            Wind = s == null ? .15f : Mathf.Clamp01(Mathf.Lerp(.22f, .75f, Storm) + Gust * Mathf.Lerp(.25f, .3f, Storm));
+            // the demo reel has no session behind it, but its blizzard still has to blow
+            bool live = s != null || DemoReel.StormWanted >= 0f;
+            Wind = !live ? .15f : Mathf.Clamp01(Mathf.Lerp(.22f, .75f, Storm) + Gust * Mathf.Lerp(.25f, .3f, Storm));
 
             float wander = (Mathf.PerlinNoise(seed + 7f, Time.time * .02f) - .5f) * 50f;
             var dir = Quaternion.Euler(0, wander, 0) * new Vector3(.7071f, 0, -.7071f);
@@ -144,14 +149,14 @@ namespace Height1079.Runtime
             float speed = Mathf.Lerp(3f, 16f, Wind) * (1f + .35f * Gust);
             var p = cam.transform.position;
 
-            float drive = s == null || inside ? 0f : Storm * (.55f + .45f * Gust);
+            float drive = !live || inside ? 0f : Storm * (.55f + .45f * Gust);
             var em = driving.emission; em.rateOverTime = 9000f * drive;
             driving.transform.position = p - new Vector3(Direction.x, 0, Direction.y) * speed * 1.1f + Vector3.up * 2f;
             var v = driving.velocityOverLifetime;
             v.x = new ParticleSystem.MinMaxCurve(Direction.x * speed * .8f, Direction.x * speed * 1.2f);
             v.z = new ParticleSystem.MinMaxCurve(Direction.y * speed * .8f, Direction.y * speed * 1.2f);
 
-            float drifting = s == null || inside ? 0f : Mathf.Clamp01(Wind * 1.4f - .3f) * (.5f + .5f * Gust);
+            float drifting = !live || inside ? 0f : Mathf.Clamp01(Wind * 1.4f - .3f) * (.5f + .5f * Gust);
             var de = drift.emission; de.rateOverTime = 420f * drifting;
             float ground = me != null ? me.transform.position.y : p.y - 1.6f;
             drift.transform.position = new Vector3(p.x, ground + .4f, p.z) - new Vector3(Direction.x, 0, Direction.y) * speed;

@@ -80,7 +80,7 @@ namespace Height1079.Runtime
             Shader.SetGlobalFloat(StarVisId, 0f);
             Shader.SetGlobalFloat(AuroraId, 0f);
             Shader.SetGlobalFloat(MoonLitId, 0f);
-            Shader.SetGlobalFloat(CoverId, .34f);
+            Shader.SetGlobalFloat(CoverId, .2f);
             cloudTime += Time.deltaTime * .01f;
             Shader.SetGlobalFloat(CloudTimeId, cloudTime);
             Shader.SetGlobalVector(WindId, new Vector4(.9f, .35f, 0, 0));
