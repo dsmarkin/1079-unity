@@ -3,6 +3,7 @@ using UnityEngine.SceneManagement;
 #if ENABLE_INPUT_SYSTEM
 using UnityEngine.InputSystem;
 #endif
+using Height1079.Core;
 using Height1079.Puppet;
 using Height1079.Snow;
 
@@ -22,6 +23,12 @@ namespace Height1079.Sandbox
         public Camera Cam { get; private set; }
         /// <summary>Hunger, cold and sleep, biting the one bar (<see cref="SandboxVitals"/>).</summary>
         public SandboxVitals Vitals { get; private set; }
+        /// <summary>The three slots, the rucksack and the flashlight (<see cref="SandboxGear"/>).</summary>
+        public SandboxGear Gear { get; private set; }
+        /// <summary>The day is over: the bar was eaten to nothing and the body is down for good — see <see cref="Die"/>.</summary>
+        public bool Dead { get; private set; }
+        /// <summary>The rucksack window is open (Tab): the cursor is the player's and the look stands still.</summary>
+        public bool PackOpen { get; private set; }
 
         SandboxCameraRig rig;
         bool cursorFree;
@@ -107,10 +114,11 @@ namespace Height1079.Sandbox
             rig.Setup(Cam);
             rig.Bind(Body);
             Vitals = gameObject.AddComponent<SandboxVitals>();
+            Gear = gameObject.AddComponent<SandboxGear>();
             gameObject.AddComponent<SandboxHud>();
-            // the keys are not written on the screen any more; say the two worth knowing once
-            SandboxHud.Say("F1 — настройки тела · E — съесть шоколадку · V — вид · Tab — следующий стенд · F9 — в меню");
-            Cursor.lockState = CursorLockMode.Locked; Cursor.visible = false;
+            // the keys are not written on the screen any more; say the few worth knowing once
+            SandboxHud.Say("Tab — рюкзак · 1 2 3 — слоты · F — фонарик · E — шоколадка · V — вид · F1 — настройки тела · F11 — следующий стенд · F9 — в меню");
+            ApplyCursor();
             // `-selftest` drives the body by script and quits: the only way to check physics in a batch build
             if (SandboxSelfTest.Requested) gameObject.AddComponent<SandboxSelfTest>();
             else if (SandboxShots.Requested) gameObject.AddComponent<SandboxShots>();
@@ -184,6 +192,45 @@ namespace Height1079.Sandbox
 
         public string StandName => stand >= 0 && stand < SandboxRange.Stands.Count ? SandboxRange.Stands[stand].Name : "—";
 
+        /// <summary>The bar has been eaten to nothing (<see cref="SandboxVitals"/>): the body goes down where it
+        /// stands and the day is over. The screen says so and offers a new one (<see cref="SandboxHud"/>).</summary>
+        public void Die()
+        {
+            if (Dead || Body == null) return;
+            Dead = true;
+            PackOpen = false;
+            Body.Die();
+            ApplyCursor();
+        }
+
+        /// <summary>A new day at the same stand: a whole bar, a fresh body, the kit packed again.</summary>
+        public void Restart()
+        {
+            Dead = false;
+            Vitals?.Restart();
+            Gear?.Refill();
+            Spawn();
+            ApplyCursor();
+            SandboxHud.Say("новый день: полоска целая, рюкзак собран");
+        }
+
+        /// <summary>Tab, or a click on the rucksack.</summary>
+        public void TogglePack()
+        {
+            if (Dead) return;
+            PackOpen = !PackOpen;
+            ApplyCursor();
+        }
+
+        /// <summary>The cursor is the player's while something wants clicking — the rucksack, the end of the day —
+        /// or while Esc has let it go; the rest of the time it is the look.</summary>
+        void ApplyCursor()
+        {
+            bool free = cursorFree || PackOpen || Dead;
+            Cursor.lockState = free ? CursorLockMode.None : CursorLockMode.Locked;
+            Cursor.visible = free;
+        }
+
 #if ENABLE_INPUT_SYSTEM
         static bool Held(Key k) => Keyboard.current != null && Keyboard.current[k].isPressed;
         static bool Down(Key k) => Keyboard.current != null && Keyboard.current[k].wasPressedThisFrame;
@@ -202,9 +249,21 @@ namespace Height1079.Sandbox
             // orbit spring fighting them is how a photograph ends up framed on the back of somebody's head
             if (Scripted) return;
 #if ENABLE_INPUT_SYSTEM
-            if (Down(Key.Escape)) { cursorFree = !cursorFree; Cursor.lockState = cursorFree ? CursorLockMode.None : CursorLockMode.Locked; Cursor.visible = cursorFree; }
+            if (Down(Key.F9)) { LeaveToGame(); return; }
+            if (Dead)
+            {
+                // the day is over: only the way to a new one is left on the keys (and the button on the screen)
+                if (Down(Key.Enter) || Down(Key.NumpadEnter) || Down(Key.Space) || Down(Key.F2)) Restart();
+                Body.Drive(new PuppetInput { Look = rig.LookRotation });
+                return;
+            }
+            if (Down(Key.Tab)) TogglePack();
+            if (Down(Key.Escape))
+            {
+                if (PackOpen) TogglePack();
+                else { cursorFree = !cursorFree; ApplyCursor(); }
+            }
             if (Down(Key.F1)) SandboxHud.Panel = !SandboxHud.Panel;
-            if (Down(Key.E)) Vitals.Eat();
             if (Down(Key.F2)) Spawn();
             // the game's key for this is V, read by physical position (a Russian layout has no V where V is), with F7
             // as the spare that reaches the game under automation. F3 was the sandbox's own and stays.
@@ -219,18 +278,24 @@ namespace Height1079.Sandbox
                 SandboxHud.Say(rig.Bob ? "голова покачивается при ходьбе (F10)" : "голова неподвижна — так виднее работу ног (F10)");
             }
             if (Down(Key.F4)) { TimeScale = TimeScale > .9f ? .25f : 1f; Time.timeScale = TimeScale; }
-            if (Down(Key.F9)) { LeaveToGame(); return; }
             if (Down(Key.F8)) { HandsOn = !HandsOn; Body.HandsEnabled = HandsOn; SandboxHud.Say(HandsOn ? "руки включены (черновик)" : "руки выключены — работаем над ногами"); }
             if (Down(Key.F5)) { Tuning.Save("sandbox"); SandboxHud.Say("сохранено: " + PuppetTuning.PathFor("sandbox")); }
             if (Down(Key.F6)) { Tuning = PuppetTuning.Load("sandbox"); ApplySolver(); Spawn(); SandboxHud.Say("загружено"); }
-            for (int i = 0; i < SandboxRange.Stands.Count && i < 9; i++)
-                if (Down(Key.Digit1 + i)) GoTo(i);
-            // the range outgrew the nine digits when the snow went in: 0 jumps straight to the drifts, and Tab walks
-            // round every stand there is. Both reach the game under automation, which letters do not.
-            if (Down(Key.Digit0) && SandboxRange.DriftStand >= 0) GoTo(SandboxRange.DriftStand);
-            if (Down(Key.Tab) && SandboxRange.Stands.Count > 0) GoTo((stand + 1) % SandboxRange.Stands.Count);
+            // the kit, on the game's own keys: 1, 2, 3 are the slots (the game's compass, torch and map sit on the
+            // same three), 0 or Q empties the hands, F is the light, E the chocolate
+            for (int i = 0; i < Kit.Slots; i++) if (Down(Key.Digit1 + i)) Gear.Select(i);
+            if (Down(Key.Digit0) || Down(Key.Q)) Gear.PutAway();
+            if (Down(Key.F)) Gear.ToggleTorch();
+            if (Down(Key.E)) Gear.Eat();
+            // the stands came off the digits to make room for the slots: F11 walks round them, F12 walks back, and
+            // the F1 panel lists every one. Both reach the game under automation, which letters do not.
+            if (Down(Key.F11) && SandboxRange.Stands.Count > 0) GoTo((stand + 1) % SandboxRange.Stands.Count);
+            if (Down(Key.F12) && SandboxRange.Stands.Count > 0) GoTo((stand + SandboxRange.Stands.Count - 1) % SandboxRange.Stands.Count);
 
-            if (!cursorFree && Mouse.current != null)
+            // the look and the mouse buttons are the body's only while the cursor is: with the rucksack open, or
+            // Esc pressed, a click is a click on the screen
+            bool eyesFree = !cursorFree && !PackOpen;
+            if (eyesFree && Mouse.current != null)
             {
                 rig.Look(Mouse.current.delta.ReadValue());
                 rig.Zoom(Mouse.current.scroll.ReadValue().y);
@@ -242,8 +307,10 @@ namespace Height1079.Sandbox
             if (move.sqrMagnitude < .01f)
                 move = new Vector2((Held(Key.RightArrow) ? 1f : 0f) - (Held(Key.LeftArrow) ? 1f : 0f),
                                    (Held(Key.UpArrow) ? 1f : 0f) - (Held(Key.DownArrow) ? 1f : 0f));
-            bool grabL = HandsOn && Mouse.current != null && Mouse.current.leftButton.isPressed && !cursorFree;
-            bool grabR = HandsOn && Mouse.current != null && Mouse.current.rightButton.isPressed && !cursorFree;
+            bool grabL = HandsOn && eyesFree && Mouse.current != null && Mouse.current.leftButton.isPressed;
+            bool grabR = HandsOn && eyesFree && Mouse.current != null && Mouse.current.rightButton.isPressed;
+            // with the hands off, a click uses what is in them — eats, lights — the PEAK way
+            if (!HandsOn && eyesFree && Mouse.current != null && Mouse.current.leftButton.wasPressedThisFrame) Gear.Use();
             Body.Drive(new PuppetInput
             {
                 Move = Vector2.ClampMagnitude(move, 1f),

@@ -70,6 +70,22 @@ namespace Height1079.Puppet
         /// <summary>Where each hand actually is in front of the eye, chasing where it is wanted.</summary>
         readonly Vector3[] eyeHand = new Vector3[2];
         bool eyePosed;
+        /// <summary>Where each hand was last drawn, and the frame it was drawn in — for whatever is carried in it.
+        /// The eye's pose and the body's write the same two entries, so a thing hung on the hand follows it into
+        /// and out of the first person without knowing which of the two put it there.</summary>
+        readonly Vector3[] handAt = new Vector3[2];
+        readonly Quaternion[] handGrip = { Quaternion.identity, Quaternion.identity };
+        bool handsKnown;
+
+        /// <summary>The hand as drawn this frame: 0 left, 1 right. <paramref name="grip"/> is the palm's frame —
+        /// its up runs back along the forearm, its right is the thin axis of the palm. False until the figure has
+        /// been posed once.</summary>
+        public bool Hand(int side, out Vector3 at, out Quaternion grip)
+        {
+            side = Mathf.Clamp(side, 0, 1);
+            at = handAt[side]; grip = handGrip[side];
+            return handsKnown;
+        }
 
         // ─── the figure, in metres ──────────────────────────────────────────────────────────────────────────────────
 
@@ -568,7 +584,12 @@ namespace Height1079.Puppet
                 var elbow = Joint(shoulder, wrist, upperArm, forearm, pose * Vector3.back);
                 // seen from inside the head the arms hang off the eye instead (PoseFromEye), and a tube built here
                 // as well would flash at the body's sides on whichever frames it was built last
-                if (!eyeArms) arm[s].Pose(shoulder, elbow, wrist, Wrist(elbow, wrist, pose), scale);
+                if (!eyeArms)
+                {
+                    var grip = Wrist(elbow, wrist, pose);
+                    arm[s].Pose(shoulder, elbow, wrist, grip, scale);
+                    handAt[s] = wrist; handGrip[s] = grip; handsKnown = true;
+                }
                 // the upper arm as a bone, for the sleeve skinned to it: same line as the tube, rolled to the body
                 Bone(armUp[s], shoulder, elbow, UpperArm, pose * Vector3.forward, scale);
                 // the sleeve sits on the shoulder and runs down the upper arm — same line, its own length
@@ -640,7 +661,9 @@ namespace Height1079.Puppet
                 var hand = eyeHand[s];
                 // the elbow goes down and out, below the bottom of the picture
                 var elbow = Joint(shoulder, hand, upperArm, forearm, look * new Vector3(sign * .6f, -1f, -.3f));
-                arm[s].Pose(shoulder, elbow, hand, EyeGrip(elbow, hand, look, sign), k, PuppetSkin.EyeDigits);
+                var grip = EyeGrip(elbow, hand, look, sign);
+                arm[s].Pose(shoulder, elbow, hand, grip, k, PuppetSkin.EyeDigits);
+                handAt[s] = hand; handGrip[s] = grip; handsKnown = true;
                 Bone(armUp[s], shoulder, elbow, UpperArm, look * Vector3.forward, k);
             }
             eyePosed = true;

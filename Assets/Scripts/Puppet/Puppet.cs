@@ -61,6 +61,10 @@ namespace Height1079.Puppet
         /// <summary>Thrown, torn off or spent: the body is a sack until the feet find the ground again. Nothing holds
         /// it upright, nothing holds it off the ground, and it has been thrown over — see <see cref="Tip"/>.</summary>
         public bool Limp { get; private set; }
+        /// <summary>Gone for good: a sack that never gets up, until <see cref="Place"/> makes a new start of it. Set
+        /// by <see cref="Die"/> — whoever runs the body decides when the bar has been eaten to nothing; the body only
+        /// knows how to lie down and stay down.</summary>
+        public bool Dead { get; private set; }
         /// <summary>A stagger: a fraction of a second of the legs being somewhere else, off a landing that was not
         /// quite bad enough to put the body down. Control is not gone, only cut to <see cref="PuppetTuning.TripHold"/>.</summary>
         public bool Stumbling => stumbleUntil > Time.time;
@@ -175,6 +179,8 @@ namespace Height1079.Puppet
         /// happened. So the press is latched here as a time, and the next step that can use it takes it.</summary>
         public void Drive(PuppetInput next)
         {
+            // a dead body takes no orders: the look may still be read off it, the rest is dropped on the floor
+            if (Dead) { input = PuppetInput.Idle; input.Look = next.Look; return; }
             input = next;
             if (next.Jump) jumpAsked = Time.time;
         }
@@ -189,7 +195,7 @@ namespace Height1079.Puppet
             Torso.position = position; transform.position = position;
             Torso.linearVelocity = Vector3.zero; Torso.angularVelocity = Vector3.zero;
             Torso.rotation = Quaternion.identity;
-            Limp = false; limpUntil = 0f; exhaustUntil = 0f; fallSpeed = 0f; legs = 0f;
+            Limp = false; Dead = false; limpUntil = 0f; exhaustUntil = 0f; fallSpeed = 0f; legs = 0f;
             // a body put down by hand has not fallen: the knees, the stand and the lean all start clean, and the
             // remembered velocity is zeroed too or the teleport itself reads as an acceleration and tips the torso
             stumbleUntil = 0f; squash = 0f; rise = 1f; Tilt = 0f;
@@ -203,6 +209,18 @@ namespace Height1079.Puppet
             Stamina = Tuning.Stamina;
             if (left != null) left.transform.position = position;
             if (right != null) right.transform.position = position;
+        }
+
+        /// <summary>The end: the body goes down where it stands and stays down. It is thrown over like a fall so it
+        /// does not lie down politely, and nothing — not the legs, not rest — picks it up again until it is placed anew.</summary>
+        public void Die()
+        {
+            if (Dead) return;
+            Dead = true;
+            GoLimp(1e9f);
+            Tip(Mathf.Max(Tuning.FallSpin, 60f) * .6f);
+            input = PuppetInput.Idle;
+            jumpAsked = -99f;
         }
 
         public void GoLimp(float seconds)
@@ -251,7 +269,7 @@ namespace Height1079.Puppet
             else if (Hanging) { left.Release(); right.Release(); }
 
             // a quarter of what the bar may hold now, not of the whole bar: a man whose bar is mostly bitten off still gets up
-            if (Limp && Grounded && Time.time > limpUntil && Stamina >= StaminaCap * .25f) { Limp = false; Rough(false); }
+            if (Limp && !Dead && Grounded && Time.time > limpUntil && Stamina >= StaminaCap * .25f) { Limp = false; Rough(false); }
 
             // the legs come back up to strength over LegRise seconds after they find the ground; off the ground, or
             // while the body is a sack, they have nothing to push against at all. A launch counts as off the ground
@@ -269,7 +287,11 @@ namespace Height1079.Puppet
                 // taken from the latch and not from this step's orders, so a press cannot fall between two frames.
                 // Nothing else here is allowed to swallow it quietly: the legs' own ramp does not gate it (a man
                 // jumps off legs that are still coming back), and the launch window is what stops it firing twice.
-                if (JumpWanted && Grounded && !Hanging && !launching && Strength >= t.JumpCost) Launch(t);
+                // Nor does the bar gate it the way it used to. A jump cost eight and a run may be kept up down to
+                // one, so fifteen seconds of sprinting left a body that could still run and could not jump — a
+                // space bar that does nothing, and the player cannot see why. Now any strength at all is enough:
+                // what the body cannot pay for it does not get, and a tired man jumps lower (see Launch).
+                if (JumpWanted && Grounded && !Hanging && !launching && Strength > 0f) Launch(t);
             }
 
             Spend(drain, dt);
@@ -289,14 +311,20 @@ namespace Height1079.Puppet
         /// which from the outside is a space bar that does nothing.</summary>
         void Launch(PuppetTuning t)
         {
-            float v = Mathf.Sqrt(2f * Mathf.Max(Mathf.Abs(Physics.gravity.y), .01f) * Mathf.Max(t.JumpHeight, 0f));
+            // pay what there is. A jump paid in full is the full height; short of that the height comes down with
+            // the payment — never below about half, or an almost-empty bar gives a hop that reads as the key failing
+            float cost = Mathf.Max(t.JumpCost, 0f);
+            float paid = Mathf.Min(cost, Strength);
+            float share = cost > 0f ? paid / cost : 1f;
+            float height = Mathf.Max(t.JumpHeight, 0f) * Mathf.Lerp(.5f, 1f, share);
+            float v = Mathf.Sqrt(2f * Mathf.Max(Mathf.Abs(Physics.gravity.y), .01f) * height);
             var now = Torso.linearVelocity;
             Torso.linearVelocity = new Vector3(now.x, v, now.z);
             jumpClearUntil = Time.time + Mathf.Max(t.JumpClear, .02f);
             jumpAsked = -99f;               // one press, one jump: the latch is spent here
             legs = 0f;
             squash = 0f;                    // pushing off is not a moment to be sitting in the last landing's knees
-            Pay(t.JumpCost);
+            Pay(paid);
             restTimer = 0f;
             Jumped?.Invoke(v);
         }

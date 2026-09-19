@@ -1,14 +1,7 @@
 {
-  "name": "Height1079.Sandbox",
-  "rootNamespace": "Height1079.Sandbox",
-  "references": [
-    "Height1079.Puppet",
-    "Height1079.Core",
-    "Height1079.Snow",
-    "Unity.InputSystem",
-    "UnityEngine.UI",
-    "Height1079.Torchlight"
-  ],
+  "name": "Height1079.Torchlight",
+  "rootNamespace": "Height1079.Torchlight",
+  "references": [],
   "includePlatforms": [],
   "excludePlatforms": [],
   "allowUnsafeCode": false,

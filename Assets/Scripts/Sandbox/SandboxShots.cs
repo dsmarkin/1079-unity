@@ -134,6 +134,26 @@ namespace Height1079.Sandbox
             yield return new WaitForSeconds(1f);
             yield return ShootHere(boot, body, "11-полоска-и-слоты");
 
+            // the flashlight — the game's own — in the hand and lit, from inside the head and from outside, where
+            // the tube has to sit in the drawn fist rather than float beside it
+            boot.Gear.Select(0);
+            boot.Gear.ToggleTorch();
+            yield return new WaitForSeconds(.6f);
+            yield return ShootHere(boot, body, "12-фонарик-в-руке");
+            boot.FirstPerson = false;
+            yield return new WaitForSeconds(.5f);
+            yield return Shoot(boot, body, "12a-фонарик-со-стороны", new Vector3(1.4f, .3f, 2.2f));
+            boot.FirstPerson = true;
+            // the rucksack window over the slots
+            boot.TogglePack();
+            yield return new WaitForSeconds(.5f);
+            yield return ShootHere(boot, body, "13-рюкзак");
+            boot.TogglePack();
+            // the end of the day: the body down, the screen dark, the words and the button up
+            boot.Die();
+            yield return new WaitForSeconds(3.4f);
+            yield return ShootHere(boot, body, "14-конец-дня");
+
             Debug.Log("shots: папка " + Folder);
             yield return new WaitForSeconds(.4f);
             Application.Quit(0);
