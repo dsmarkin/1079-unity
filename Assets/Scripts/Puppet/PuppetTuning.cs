@@ -117,13 +117,14 @@ namespace Height1079.Puppet
         /// <summary>Distance between the two feet, m — the width of the track the figure stands and walks on. The
         /// first figure walked at 0.20, feet very nearly in one line, and read as a doll on a rail: legs stuck
         /// together and a march instead of a walk. A person on rough ground stands broad. Physics reads it nowhere;
-        /// it is here so it can be found by hand in the sandbox with the rest of the body. Wide for a man, right
-        /// for this one: the figure is a caricature with a half-metre pelvis and trouser legs a quarter-metre
-        /// thick, and at anything under 0.4 those legs still read as one.</summary>
-        public float StanceWidth = .42f;
+        /// it is here so it can be found by hand in the sandbox with the rest of the body. It went out to 0.42 to
+        /// get the trouser legs apart and that was a cowboy; the legs were made thinner instead, and with the hips
+        /// 0.26 apart (<see cref="PuppetFigure.HipOut"/>) they hang very nearly straight at 0.28.</summary>
+        public float StanceWidth = .28f;
         /// <summary>Degrees the boots are turned out, and the knees with them. Zero is the parallel-feet stance of a
-        /// soldier at attention; a person standing easy is around ten to fifteen.</summary>
-        public float ToeOut = 13f;
+        /// soldier at attention; a person standing easy is around ten. Any more, on a stance this broad, and the
+        /// feet read as splayed.</summary>
+        public float ToeOut = 8f;
         /// <summary>How far a footfall may land off its own line, m, in and out and short and long, drawn fresh for
         /// every step. Zero puts every foot exactly on the track and the walk reads as a machine; a few centimetres
         /// is the untidiness of a real gait.</summary>

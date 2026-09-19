@@ -1,5 +1,6 @@
 using UnityEngine;
 using Height1079.Puppet;
+using Height1079.Snow;
 
 namespace Height1079.Sandbox
 {
@@ -11,8 +12,9 @@ namespace Height1079.Sandbox
     ///
     /// The numbers here are copied out of the game's own camera rather than shared with it — the sandbox assembly
     /// cannot see the game, and that separation is the point of the sandbox. Head heave, roll and cadence are the
-    /// same figures the hiker walks with; what is new is that the depth of the snow comes from the sandbox's own
-    /// field (<see cref="SandboxTerrainSnow.SinkAt"/>) instead of from the trail the game leaves.
+    /// same figures the hiker walks with. The depth of the snow comes from the sandbox's own ground
+    /// (<see cref="SandboxTerrainSnow.SinkAt"/>); what the boots leave in it, and how a trodden path is shallower
+    /// than virgin snow, is the game's own <see cref="SnowPrints"/>, the same module the hiker's trail uses.
     ///
     /// The ear rides in the head (the listener is on the camera) but the boots do not: the footfalls come out of
     /// <see cref="SandboxSoundSnow"/>, which sits at the feet and follows them. This class decides <em>when</em> a
@@ -46,6 +48,8 @@ namespace Height1079.Sandbox
         /// steps at all. Together they are what stops the snow stuttering: see <see cref="Step"/>.</summary>
         float lastFall = -99f;
         bool striding;
+        /// <summary>How far the trodden path under the body stands above the collider, eased. See <see cref="Aim"/>.</summary>
+        float lift;
 
         /// <summary>Two footfalls closer together than this are never two steps. They are the stride phase jumping —
         /// a frame lost to a hitch, the body picked up and put down somewhere else, the time scale changed — and the
@@ -74,7 +78,7 @@ namespace Height1079.Sandbox
             body = p;
             figure = p != null ? p.GetComponent<PuppetFigure>() : null;
             if (body != null) body.Landed += OnLanded;
-            stepPhase = 0f; impact = 0f; limpBlend = 0f; lastHalf = int.MinValue;
+            stepPhase = 0f; impact = 0f; limpBlend = 0f; lastHalf = int.MinValue; lift = 0f;
             striding = false; lastFall = -99f;
             snap = true;
             ShowFigure();
@@ -93,11 +97,10 @@ namespace Height1079.Sandbox
             if (boots == null || body == null || body.Torso == null) return;
             if (speed < 2.2f || Time.unscaledTime - lastFall < MinGap) return;
             lastFall = Time.unscaledTime;
-            var at = body.Torso.position;
-            bool hard = Physics.Raycast(at, Vector3.down, out var hit, 3f, ~0, QueryTriggerInteraction.Ignore)
-                        && HardGround(hit.collider);
+            bool found = Physics.Raycast(body.Torso.position, Vector3.down, out var hit, 3f, ~0, QueryTriggerInteraction.Ignore);
+            bool hard = found && HardGround(hit.collider);
             // both feet arrive at once: neither of the two boot voices, so it is given the one that did not just step
-            boots.Footfall(Mathf.Min(speed, 4f), SandboxTerrainSnow.SinkAt(at), hard, 1 - foot,
+            boots.Footfall(Mathf.Min(speed, 4f), found && !hard ? Packed(hit.point, out _) : 0f, hard, 1 - foot,
                            Mathf.Clamp(speed / 3f, 1f, 2f));
         }
 
@@ -115,12 +118,14 @@ namespace Height1079.Sandbox
         /// to catch up with it.</summary>
         public void Snap() { snap = true; lastHalf = int.MinValue; }
 
-        /// <summary>Your own figure must not be in your own eye. <c>PuppetFigure.SetVisible</c> turns the drawn body
-        /// off and leaves the physics alone, the way the game hides its "Visual" child in first person.</summary>
+        /// <summary>Your own figure must not be in your own eye — but your own hands should be. <c>PuppetFigure.SetVisible</c>
+        /// turns the drawn body off and leaves the physics alone, the way the game hides its "Visual" child in first
+        /// person; <c>ShowEyeArms</c> keeps the two arms and hangs them off the eye (see <see cref="Aim"/>).</summary>
         void ShowFigure()
         {
             if (figure == null && body != null) figure = body.GetComponent<PuppetFigure>();
             figure?.SetVisible(!FirstPerson);
+            figure?.ShowEyeArms(FirstPerson);
         }
 
         public void Look(Vector2 delta)
@@ -146,7 +151,16 @@ namespace Height1079.Sandbox
             float speed = new Vector2(v.x, v.z).magnitude;
             stepPhase += Time.deltaTime * Mathf.Clamp(speed / .85f, 0f, 2.6f) * Mathf.PI;
             if (stepPhase > 2048f) stepPhase -= 2048f;
-            float deep = SandboxTerrainSnow.SinkAt(torso.position);
+            // How deep the snow is under the body, and how much of it is still there to sink into. The trail map —
+            // the same one the game's hiker reads — says how many boots have been through this cell, and a path
+            // walked three times keeps only a third of the depth. The rest is given to the physics (Puppet.GroundLift)
+            // and not to the picture: the legs then hold the body that much higher off the collider, so the feet,
+            // the hands and the eye all stand on the path together. Eased, the way the game eases its sink.
+            var ground = torso.position + Vector3.down * (float.IsInfinity(body.GroundDistance) ? body.Tuning.HoverHeight : body.GroundDistance + Mathf.Max(0f, body.GroundLift));
+            float sunk = Packed(ground, out float virgin);
+            lift = Mathf.Lerp(lift, virgin - sunk, 1f - Mathf.Exp(-6f * dt));
+            body.GroundLift = lift;
+            float deep = virgin - lift;
             // the boots go where the boots are, in both views: the ear is in the head and the sound is a metre below
             // it, and that metre is the only thing saying the noise is yours and is underneath you
             boots?.Follow(torso.position + Vector3.down * body.Tuning.HoverHeight);
@@ -185,6 +199,9 @@ namespace Height1079.Sandbox
             var eye = torso.position + Vector3.up * EyeUp
                     + Vector3.ProjectOnPlane(rot * Vector3.forward, Vector3.up).normalized * EyeForward;
             Cam.transform.SetPositionAndRotation(eye + Vector3.up * heave + drift, rot);
+            // the hands, off the eye as it is drawn this frame: hung off it in the figure's own LateUpdate they would
+            // be a frame behind and shiver
+            figure?.PoseFromEye(Cam.transform.position, rot, dt);
             snap = false;
         }
 
@@ -252,12 +269,25 @@ namespace Height1079.Sandbox
             // the ray is the better answer — it knows which of the two boots is where, and what that boot is standing
             // on — but a step that finds nothing under it is still a step, so the gait's own reading of the snow
             // stands in for it rather than the sound dropping out
-            float sink = found ? SandboxTerrainSnow.SinkAt(hit.point) : snow;
-            boots?.Footfall(speed, sink, found && HardGround(hit.collider), foot);
+            bool hard = found && HardGround(hit.collider);
+            float virgin = 0f;
+            float sink = !found ? snow : hard ? 0f : Packed(hit.point, out virgin);
+            boots?.Footfall(speed, sink, hard, foot);
 
-            if (!found) return;
-            // the mark belongs on the snow you can see, not on the lower surface the legs actually stand on
-            SandboxTerrainSnow.Footprint(hit.point + Vector3.up * sink, hit.normal, ahead);
+            if (!found || hard) return;
+            // The mark belongs on the snow you can see, not on the collider the legs actually found under it — the
+            // print is the picture of the hole. Same call the hiker's trail makes, so it is the same print: a boot
+            // every step, a trodden patch every other one, a puff of snow, and one more pass on the trail map.
+            SnowPrints.Instance?.Step(hit.point + Vector3.up * virgin, ahead, hit.normal, virgin, foot == 0);
+        }
+
+        /// <summary>How deep a boot goes at a point found on a collider: the snow lying over that collider
+        /// (<paramref name="virgin"/>, the whole of it), less what has already been trodden there.</summary>
+        static float Packed(Vector3 on, out float virgin)
+        {
+            virgin = SandboxTerrainSnow.SinkAt(on);
+            var prints = SnowPrints.Instance;
+            return prints != null ? prints.Sink(on.x, on.z, virgin) : virgin;
         }
 
         /// <summary>Stone, ice or a ledge under the boot instead of snow — drier and shorter, and no squeak, because

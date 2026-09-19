@@ -32,6 +32,11 @@ namespace Height1079.Puppet
         public Vector3 GroundNormal { get; private set; } = Vector3.up;
         /// <summary>Metres from the feet to whatever is under them, or +∞ over a drop.</summary>
         public float GroundDistance { get; private set; } = float.PositiveInfinity;
+        /// <summary>How far above the collider the ground the legs stand on really is, metres. Snow: the collider is
+        /// the bottom of the snow, where a boot in virgin powder ends up, and a trodden path is that much higher. Set
+        /// by whoever knows the snow (the sandbox reads it off the trail map); the probe reaches further by it and
+        /// the legs hold the body that much higher, so the feet, the hands and the eye all stand on the path.</summary>
+        public float GroundLift;
         public bool Hanging => HandsEnabled
                             && ((left != null && left.Now == PuppetHand.State.Gripping)
                              || (right != null && right.Now == PuppetHand.State.Gripping));
@@ -302,12 +307,13 @@ namespace Height1079.Puppet
             float toFeet = t.HoverHeight;
             var origin = Torso.position;
             float radius = Mathf.Max(.05f, t.TorsoRadius * .9f);
-            float reach = toFeet - radius + t.LegProbe;
+            float lift = Mathf.Max(0f, GroundLift);
+            float reach = toFeet - radius + t.LegProbe + lift;
             bool hit = Physics.SphereCast(origin, radius, Vector3.down, out var info, reach, GrabMask, QueryTriggerInteraction.Ignore)
                        && info.collider.attachedRigidbody != Torso && !IsOwnHand(info.collider);
             if (hit)
             {
-                GroundDistance = info.distance + radius;
+                GroundDistance = Mathf.Max(0f, info.distance + radius - lift);
                 // a sweep that starts already touching reports a zero normal, and a zero normal turns the gravity
                 // cancellation below into NaN and the body into confetti. A body lying on its side after a fall is
                 // exactly that case, so it is worth the two lines.

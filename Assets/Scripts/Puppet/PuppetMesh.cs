@@ -43,6 +43,11 @@ namespace Height1079.Puppet
             public float Radius;
             /// <summary>Squashes the ring into an ellipse: x across, y along the ring's own "forward".</summary>
             public Vector2 Squash;
+            /// <summary>Metres of rounding on the corners of a rectangular ring. Zero — the default — keeps the ring
+            /// an ellipse; anything above turns it into a rounded rectangle with half-sides Radius·Squash and corners
+            /// of this radius (capped at the shorter half-side, so a small ring near a pole is simply round). It is
+            /// what a pack is made of: a lathe only ever turns things that are round, and a rucksack is a box.</summary>
+            public float Corner;
             public BoneWeight Weight;
         }
 
@@ -127,12 +132,18 @@ namespace Height1079.Puppet
 
         /// <summary>Writes the lists into a mesh that already exists — the way a part rebuilt every frame (an arm)
         /// gets to the screen without a new Mesh object each time. Only cleared first when the vertex count changed:
-        /// the old index list would point past the new vertices for the moment between the two calls.</summary>
+        /// the old index list would point past the new vertices for the moment between the two calls.
+        ///
+        /// The bounds are recalculated by hand at the end. Neither SetVertices nor SetTriangles was found to do it
+        /// on a mesh refilled this way, and a stale box only goes unnoticed while the part keeps roughly its shape
+        /// about its node — an arm hanging at the side. The same arm held up in front of the eye kept the box of
+        /// the hanging one, below the bottom of the picture, and was culled whole.</summary>
         public void Fill(Mesh m)
         {
             if (m.vertexCount != pos.Count) m.Clear(false);
             m.SetVertices(pos); m.SetNormals(nrm); m.SetUVs(0, uv); m.SetUVs(1, uv1);
-            m.SetTriangles(tri, 0, true);
+            m.SetTriangles(tri, 0, false);
+            m.RecalculateBounds();
         }
 
         /// <summary>One cross-section of a hand-placed sweep (<see cref="Sweep(List{Section}, Quaternion, int, Rect)"/>):
@@ -161,15 +172,26 @@ namespace Height1079.Puppet
         /// same reason: there the outline climbs +y, here it descends.
         ///
         /// A ring of radius 0 is a pole: put one at the end and the tube closes in a dome, the normal computed from
-        /// the outline exactly as on a lathe.</summary>
-        public void Sweep(List<Section> rings, Quaternion frame, int sides, Rect uvRect)
+        /// the outline exactly as on a lathe.
+        ///
+        /// v normally runs 0…1 from the first ring to the last. With <paramref name="fromEnd"/> set it is laid out
+        /// in metres instead, counted back from the END of the tube: v = 1 at the last ring and one tile of
+        /// <paramref name="fromEnd"/> metres reaching back from it. That is for a part whose far end is the fixed one
+        /// — a hand on an arm whose elbow bends and whose shoulder is buried: measured from the fingertips, a cuff
+        /// painted at the wrist stays on the wrist whatever the arm is doing. The weave's coordinate (UV1) is laid
+        /// out in metres as on the lathe, so the cloth of a sleeve matches the cloth of the jacket it comes out of.</summary>
+        public void Sweep(List<Section> rings, Quaternion frame, int sides, Rect uvRect, float fromEnd = 0f)
         {
             int n = rings == null ? 0 : rings.Count;
             if (n < 2 || sides < 3) return;
 
             var along = new float[n];
-            float total = 0f;
+            float total = 0f, rMean = 0f;
             for (int i = 1; i < n; i++) { total += (rings[i].Centre - rings[i - 1].Centre).magnitude; along[i] = total; }
+            for (int i = 0; i < n; i++) rMean += rings[i].Radius * (rings[i].Squash.x + rings[i].Squash.y) * .5f;
+            rMean /= n;
+            int reps = Mathf.Max(1, Mathf.RoundToInt(2f * Mathf.PI * rMean / DetailTile));
+            var metres = (float[])along.Clone();
             var flat = new Vector2[n];
             for (int i = 0; i < n; i++)
             {
@@ -178,7 +200,8 @@ namespace Height1079.Puppet
                 if (tan.sqrMagnitude < 1e-12f) tan = Vector2.up;
                 flat[i] = new Vector2(tan.y, -tan.x).normalized;
             }
-            if (total > 1e-6f) for (int i = 0; i < n; i++) along[i] /= total;
+            if (fromEnd > 1e-6f) for (int i = 0; i < n; i++) along[i] = Mathf.Clamp01(1f - (total - along[i]) / fromEnd);
+            else if (total > 1e-6f) for (int i = 0; i < n; i++) along[i] /= total;
 
             var travel = frame * Vector3.down;
             int start = pos.Count, ring = sides + 1;
@@ -197,7 +220,8 @@ namespace Height1079.Puppet
                     var p = r.Centre + x * (r.Radius * c * sx) + z * (r.Radius * s * sz);
                     var nv = x * (flat[i].x * c / sx) + z * (flat[i].x * s / sz) + t * flat[i].y;
                     Vert(p, nv.sqrMagnitude > 1e-12f ? nv.normalized : t,
-                         new Vector2(Mathf.Lerp(uvRect.xMin, uvRect.xMax, u), Mathf.Lerp(uvRect.yMin, uvRect.yMax, along[i])));
+                         new Vector2(Mathf.Lerp(uvRect.xMin, uvRect.xMax, u), Mathf.Lerp(uvRect.yMin, uvRect.yMax, along[i])),
+                         new Vector2(u * reps, metres[i] / DetailTile), Rigid(0));
                 }
             }
             for (int i = 0; i + 1 < n; i++)
@@ -314,27 +338,36 @@ namespace Height1079.Puppet
                 float sx = Mathf.Max(Mathf.Abs(st[i].Squash.x), 1e-3f), sz = Mathf.Max(Mathf.Abs(st[i].Squash.y), 1e-3f);
                 for (int j = 0; j <= sides; j++)
                 {
-                    float a = (j / (float)sides - .5f) * Mathf.PI * 2f + Mathf.PI * .5f;
-                    p[i * ring + j] = st[i].Centre + st[i].Radius * (Mathf.Cos(a) * sx * side + Mathf.Sin(a) * sz * fwd);
+                    float u = j / (float)sides;
+                    Vector2 q;
+                    if (st[i].Corner > 0f) q = RoundedRect(u, st[i].Radius * sx, st[i].Radius * sz, st[i].Corner);
+                    else
+                    {
+                        float a = (u - .5f) * Mathf.PI * 2f + Mathf.PI * .5f;
+                        q = new Vector2(Mathf.Cos(a) * sx, Mathf.Sin(a) * sz) * st[i].Radius;
+                    }
+                    p[i * ring + j] = st[i].Centre + q.x * side + q.y * fwd;
                 }
             }
 
-            // Which way round the surface is: the first ring with any width says whether "along × around" points
-            // out of the tube or into it, and the winding follows. An outline run top to bottom or a tube swept
-            // downwards therefore comes out the same as one run upwards.
-            float sign = 1f;
+            // Which way round the surface is: summed over every ring, "along × around" says whether the surface
+            // faces out of the tube or into it, and the winding follows. An outline run top to bottom or a tube
+            // swept downwards therefore comes out the same as one run upwards. The whole surface is asked and not
+            // the first ring, because a piece may well START on its own underside — the knitted hat begins inside
+            // the head and runs out under its fold before it turns up — and on that first patch alone the two
+            // faces are indistinguishable from the axis; over the whole piece the outside always wins.
+            float sign = 1f, dot = 0f;
             for (int i = 0; i < n; i++)
             {
                 if (st[i].Radius < 1e-4f) continue;
-                float dot = 0f;
                 for (int j = 0; j < sides; j++)
                 {
                     var alongV = p[Mathf.Min(i + 1, n - 1) * ring + j] - p[Mathf.Max(i - 1, 0) * ring + j];
                     var around = p[i * ring + (j + 1) % sides] - p[i * ring + (j + sides - 1) % sides];
                     dot += Vector3.Dot(Vector3.Cross(alongV, around), p[i * ring + j] - st[i].Centre);
                 }
-                if (Mathf.Abs(dot) > 1e-9f) { sign = dot < 0f ? -1f : 1f; break; }
             }
+            if (dot < 0f) sign = -1f;
 
             int start = pos.Count;
             for (int i = 0; i < n; i++)
@@ -371,6 +404,40 @@ namespace Height1079.Puppet
                     else Quad(a0, a0 + 1, a0 + ring + 1, a0 + ring);
                 }
         }
+
+        /// <summary>A point on a rounded rectangle, walked by arc length: <paramref name="u"/> = 0.5 is the middle of
+        /// the +Z side (where the ellipse has its u = 0.5 too), and the walk goes the same way round as the ellipse,
+        /// so a rectangular ring can be sewn to a round one. Even in arc length rather than in angle, so a strap
+        /// painted three centimetres wide is three centimetres wide on a side and on a corner alike.</summary>
+        public static Vector2 RoundedRect(float u, float hx, float hz, float rc)
+        {
+            hx = Mathf.Max(hx, 1e-4f); hz = Mathf.Max(hz, 1e-4f);
+            rc = Mathf.Clamp(rc, 0f, Mathf.Min(hx, hz));
+            float ex = hx - rc, ez = hz - rc, qc = Mathf.PI * .5f * rc;
+            float per = 4f * (ex + ez) + 4f * qc;
+            float s = (u - .5f) - Mathf.Floor(u - .5f);                 // 0 at the front, ½ at the back seam
+            s *= per;
+            // the walk: half the front side toward −x, then round the four corners and back
+            if (s < ex) return new Vector2(-s, hz);
+            s -= ex;
+            if (s < qc) return Turn(-ex, ez, rc, Mathf.PI * .5f + s / rc);
+            s -= qc;
+            if (s < 2f * ez) return new Vector2(-hx, ez - s);
+            s -= 2f * ez;
+            if (s < qc) return Turn(-ex, -ez, rc, Mathf.PI + s / rc);
+            s -= qc;
+            if (s < 2f * ex) return new Vector2(-ex + s, -hz);
+            s -= 2f * ex;
+            if (s < qc) return Turn(ex, -ez, rc, Mathf.PI * 1.5f + s / rc);
+            s -= qc;
+            if (s < 2f * ez) return new Vector2(hx, -ez + s);
+            s -= 2f * ez;
+            if (s < qc) return Turn(ex, ez, rc, s / rc);
+            s -= qc;
+            return new Vector2(Mathf.Max(ex - s, 0f), hz);
+        }
+
+        static Vector2 Turn(float cx, float cz, float r, float a) => new Vector2(cx + r * Mathf.Cos(a), cz + r * Mathf.Sin(a));
 
         /// <summary>Metres of tube along a chain of stations, the same measure <see cref="Sweep"/> lays v out by.</summary>
         public static float Arc(Station[] st, int upTo = int.MaxValue)

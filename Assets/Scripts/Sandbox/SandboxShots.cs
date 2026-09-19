@@ -9,8 +9,9 @@ namespace Height1079.Sandbox
     /// and quits. The point is to be able to look at the figure without anybody having to sit at the machine:
     /// a build, six pictures, done.
     ///
-    /// The last two are the ones worth sending to somebody who asked what the sandbox looks like now: the view out of
-    /// the body's own eyes, and what the drifts do to a man walking through them.</summary>
+    /// The drift frames are the ones worth sending to somebody who asked what the sandbox looks like now: the view out
+    /// of the body's own eyes — standing, with the hands at rest, and mid-stride — and what the drifts do to a man
+    /// walking through them.</summary>
     public sealed class SandboxShots : MonoBehaviour
     {
         public static bool Requested
@@ -60,6 +61,8 @@ namespace Height1079.Sandbox
             yield return new WaitForSeconds(1.2f);
             yield return Shoot(boot, body, "8-стоит-спереди", new Vector3(0f, .1f, 3.0f));
             Debug.Log($"shots: стопы {Stance(body):0.00} м врозь стоя");
+            // and from behind: the pack is the one thing on the body no other frame shows
+            yield return Shoot(boot, body, "10-стоит-сзади", new Vector3(.6f, .3f, -2.8f));
             // walking back south, toward the camera: north of here is the ramp stand, and a camera three metres
             // ahead of a body walking north ends up inside it
             var south = Quaternion.Euler(0f, 180f, 0f);
@@ -92,6 +95,8 @@ namespace Height1079.Sandbox
             boot.FirstPerson = true;
             boot.Eye.Yaw = 0f; boot.Eye.Pitch = 4f;
             yield return new WaitForSeconds(1f);
+            // standing first: the hands at rest, without the swing, is where their pose and symmetry can be read
+            yield return ShootHere(boot, body, "5a-от-первого-лица-стоя");
             yield return Walk(boot, body, 4.2f);
             yield return ShootHere(boot, body, "5-от-первого-лица", keepDriving: true);
 
@@ -127,7 +132,7 @@ namespace Height1079.Sandbox
             v.Add(Height1079.Core.Bite.Hunger, 22f); v.Add(Height1079.Core.Bite.Cold, 14f); v.Add(Height1079.Core.Bite.Sleep, 6f);
             body.Extra = 25f;
             yield return new WaitForSeconds(1f);
-            yield return ShootHere(boot, body, "10-полоска-и-слоты");
+            yield return ShootHere(boot, body, "11-полоска-и-слоты");
 
             Debug.Log("shots: папка " + Folder);
             yield return new WaitForSeconds(.4f);
