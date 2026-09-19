@@ -62,7 +62,7 @@ namespace Height1079.Puppet
             Head = MakeHead();
             // the arms themselves are PuppetArm's, rebuilt every frame; only their fingers are turned here
             Digits = MakeDigits(1f, 1f);
-            EyeDigits = MakeDigits(1.9f, .78f);
+            EyeDigits = MakeDigits(1.6f, 1f);
             Boot = MakeBoot();
             Clothes = MakeClothes();
         }
@@ -455,18 +455,33 @@ namespace Height1079.Puppet
         static PuppetMesh MakeDigits(float curl, float thin)
         {
             var m = new PuppetMesh();
-            const float root = -(PuppetArm.PalmHalf + .005f);   // half a centimetre past the end of the palm proper
+            // The fingers start a centimetre inside the palm and leave it straight along the forearm's line, dead
+            // square to its end, as thick at the root as the palm is deep (PalmThin × PalmR) and touching each
+            // other: the palm divides into fingers instead of having four thinner tubes pushed into its dome at an
+            // angle, which is what showed as a seam round every root. The curl only begins past the knuckle.
+            const float root = -(PuppetArm.PalmHalf - .010f);
             float bend = curl - 1f;
+            float rRoot = PuppetArm.PalmR * PuppetArm.PalmThin * .82f * thin, rTip = rRoot * .80f;
+            const float pitch = .048f;
             for (int i = 0; i < 3; i++)
             {
-                float z = (i - 1) * .044f;
-                m.Digit(new Vector3(0f, root, z), new Vector3(-.005f - .012f * bend, root - .045f + .006f * bend, z * 1.12f),
-                        new Vector3(-.030f - .032f * bend, root - .068f + .034f * bend, z * 1.22f),
-                        .029f * thin, .025f * thin, 6, 10, PuppetSkinTexture.Hand);
+                float z = (i - 1) * pitch;
+                // the middle finger is the long one; the outer two a little shorter and turned a touch outward
+                float len = .092f - .008f * Mathf.Abs(i - 1);
+                float splay = (i - 1) * .006f;
+                m.Digit(new Vector3(0f, root, z),
+                        new Vector3(-.004f * bend, root - len * .55f, z + splay * .5f),
+                        new Vector3(-.026f - .030f * bend, root - len * (1f - .22f * bend), z + splay),
+                        rRoot, rTip, 8, 10, PuppetSkinTexture.Hand);
             }
-            m.Digit(new Vector3(0f, -.020f, .030f), new Vector3(-.010f - .010f * bend, -.045f, .075f - .008f * bend),
-                    new Vector3(-.032f - .022f * bend, -.060f + .012f * bend, .095f - .020f * bend),
-                    .027f * thin, .023f * thin, 6, 10, PuppetSkinTexture.Hand);
+            // The thumb leaves the wide edge of the palm from its middle, not from the corner by the fingers, and
+            // starts well inside it: one long easy arc forward and down toward the fingertips, thick at the root
+            // and never bent sharper than a finger — a thumb that came out of the top corner as a short hook read
+            // as a broken one.
+            m.Digit(new Vector3(0f, .010f, .045f),
+                    new Vector3(-.006f - .006f * bend, -.040f, .100f),
+                    new Vector3(-.030f - .022f * bend, -.078f + .010f * bend, .112f - .012f * bend),
+                    rRoot * 1.05f, rTip, 8, 10, PuppetSkinTexture.Hand);
             return m;
         }
 
