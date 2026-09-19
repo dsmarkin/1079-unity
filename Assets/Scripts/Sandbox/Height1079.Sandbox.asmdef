@@ -1,0 +1,14 @@
+{
+  "name": "Height1079.Sandbox",
+  "rootNamespace": "Height1079.Sandbox",
+  "references": ["Height1079.Puppet", "Unity.InputSystem"],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": true,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}

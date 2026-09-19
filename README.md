@@ -26,8 +26,11 @@
 | Сборка | `Tools/mac/build.command` → `Builds/mac/1079.app` | `Tools\win\build.ps1` → `Builds\windows\1079.exe` |
 | Запуск сборки в окне | `Tools/mac/run.command` | `Tools\win\run.ps1` |
 | Тесты ядра без Unity | `cd Tools/CoreTests && dotnet run` | то же (нужен .NET 8 SDK) |
+| Песочница физики тела | `Tools/mac/sandbox.command` → `Builds/sandbox/mac` | `Tools\win\sandbox.ps1` |
 
-Логи пишутся в корень проекта: `unity-check.log`, `unity-tests.xml`, `build.log`, `build-editor.log`, `player.log`. В git они не попадают.
+Логи пишутся в корень проекта: `unity-check.log`, `unity-tests.xml`, `build.log`, `build-editor.log`, `player.log`, `sandbox-*.log`. В git они не попадают.
+
+Песочница — отдельная сцена без мира, сети и ночи: только тело, полигон из ступеней, склонов, стены и обрывов и панель со всеми числами физики. Нужна, чтобы возиться с телом, не пересобирая гору. См. [docs/PHYSICS.md](docs/PHYSICS.md).
 
 ## Управление
 
@@ -99,6 +102,7 @@
 | [docs/ITEMS.md](docs/ITEMS.md) | предметы в руках: карта, компас, фонари |
 | [docs/PROLOGUE.md](docs/PROLOGUE.md) | сюжет и миссии пролога |
 | [docs/SCRIPT.md](docs/SCRIPT.md) | посценный сценарий |
+| [docs/PHYSICS.md](docs/PHYSICS.md) | физика тела: песочница, разбор механики PEAK, что повторимо |
 | [docs/BACKLOG.md](docs/BACKLOG.md) | бэклог механик |
 | `Assets/Art/ThirdParty/PolyHaven/SOURCES.json` | происхождение и лицензии сторонних ассетов (Poly Haven, CC0) |
 

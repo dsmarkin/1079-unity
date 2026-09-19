@@ -64,10 +64,36 @@ namespace Height1079.Runtime
         static ParticleSystem fireSmoke, flames;
         static NetworkManager network;
 
+        /// <summary>Name of the physics sandbox scene. It has no world, no network and no night: the body is the only
+        /// thing in it, so the game must keep its hands off (Assets/Scripts/Sandbox).</summary>
+        public const string SandboxScene = "Sandbox";
+
+        /// <summary>Loads the physics sandbox. Everything the game put in DontDestroyOnLoad is taken down by the
+        /// sandbox itself; coming back, <see cref="Boot"/> runs again (see <see cref="OnSceneLoaded"/>).</summary>
+        public static void OpenSandbox() => SceneManager.LoadScene(SandboxScene);
+
+        /// <summary>`1079 -sandbox` opens the physics sandbox straight away, without the menu — the short way in
+        /// while the body is being worked on.</summary>
+        static bool SandboxAsked
+        {
+            get
+            {
+                foreach (var a in System.Environment.GetCommandLineArgs()) if (a == "-sandbox") return true;
+                return false;
+            }
+        }
+
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         static void Boot()
         {
+            if (SceneManager.GetActiveScene().name == SandboxScene) return;
             if (Object.FindFirstObjectByType<NetworkManager>() != null) return;
+            // a second Boot (back from the sandbox) starts from nothing: the old roots died with the scene, and the
+            // lists still holding their corpses would stop SetPlace from ever rebuilding the mountain
+            placeObjects.Clear(); placeExtras.Clear();
+            SceneManager.sceneLoaded -= OnSceneLoaded;
+            SceneManager.sceneLoaded += OnSceneLoaded;
+            if (SandboxAsked) { OpenSandbox(); return; }
             // every knob that trades looks for frames, remembered between runs (Quality). It used to be two lines of
             // Mathf.Max here, which meant the game could raise the machine's quality level but never lower it.
             Quality.Apply();
@@ -81,6 +107,14 @@ namespace Height1079.Runtime
             var driver = new GameObject("Atmosphere", typeof(Atmosphere));
             Object.DontDestroyOnLoad(driver);
             atmosphere = driver.GetComponent<Atmosphere>();
+        }
+
+        /// <summary>Back from the sandbox the whole game has to be built again — the sandbox destroys what Boot put
+        /// in DontDestroyOnLoad, including the network manager Boot checks for.</summary>
+        static void OnSceneLoaded(Scene scene, LoadSceneMode mode)
+        {
+            if (scene.name == SandboxScene || Object.FindFirstObjectByType<NetworkManager>() != null) return;
+            Boot();
         }
 
         /// <summary>Root objects the world build created, so switching places can take them down again.</summary>

@@ -35,6 +35,7 @@ namespace Height1079.EditorTools
             EnsureHikerPrefab(force);
             EnsureSessionPrefab(force);
             EnsureScene(force);
+            SandboxSetup.Ensure();
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
         }
@@ -216,17 +217,21 @@ namespace Height1079.EditorTools
             EnsureBuildScene();
         }
 
+        /// <summary>Both scenes go into the build list: the game, and the physics sandbox the menu button loads.
+        /// Main must stay first — it is the one that opens.</summary>
         static void EnsureBuildScene()
         {
-            if (EditorBuildSettings.scenes.Any(s => s.path == ScenePath)) return;
-            EditorBuildSettings.scenes = new[] { new EditorBuildSettingsScene(ScenePath, true) };
+            var want = new[] { ScenePath, SandboxSetup.ScenePath };
+            if (EditorBuildSettings.scenes.Length == want.Length
+                && EditorBuildSettings.scenes.Select(s => s.path).SequenceEqual(want)) return;
+            EditorBuildSettings.scenes = want.Select(p => new EditorBuildSettingsScene(p, true)).ToArray();
         }
     }
 
     /// <summary>Batch-mode builds: `Unity -batchmode -quit -projectPath . -executeMethod Height1079.EditorTools.Builds.Mac` (or Windows).</summary>
     public static class Builds
     {
-        static string[] Scenes => new[] { "Assets/Scenes/Main.unity" };
+        static string[] Scenes => new[] { "Assets/Scenes/Main.unity", SandboxSetup.ScenePath };
 
         public static void Mac() => Build(BuildTarget.StandaloneOSX, "Builds/mac/1079.app");
         public static void Windows() => Build(BuildTarget.StandaloneWindows64, "Builds/windows/1079.exe");

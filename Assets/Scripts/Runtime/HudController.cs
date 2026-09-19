@@ -194,7 +194,7 @@ namespace Height1079.Runtime
         {
             menu = Rect("Menu", canvas.transform, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero).gameObject;
             PanelImage(menu.GetComponent<RectTransform>(), new Color(.07f, .14f, .18f, .92f));
-            var card = Centered("Card", menu.transform, new Vector2(440, 700));
+            var card = Centered("Card", menu.transform, new Vector2(440, 752));
             PanelImage(card, new Color(.05f, .1f, .14f, .85f));
             kicker = Label("Kicker", card, new Vector2(32, -30), new Vector2(256, 20), 12, new Color(.71f, .79f, .81f));
             // the quality knobs, reachable before a night starts as well as inside one (F10)
@@ -229,8 +229,12 @@ namespace Height1079.Runtime
                 ButtonUi("Demo", card, new Vector2(32, -586), new Vector2(376, 36), "СНЯТЬ ДЕМО-РОЛИК", new Color(.13f, .23f, .27f), Ink,
                     () => { if (!DemoReel.Running) DemoReel.Shoot(); });
             }
+            // the physics sandbox: the body, a test range and every number it is made of, with no world, no night and
+            // no network in the way (docs/PHYSICS.md). Coming back from it rebuilds the game from scratch.
+            ButtonUi("Sandbox", card, new Vector2(32, -630), new Vector2(376, 36), "ПЕСОЧНИЦА · ФИЗИКА ТЕЛА",
+                new Color(.24f, .2f, .3f), Ink, Bootstrap.OpenSandbox).GetComponentInChildren<Text>().fontSize = 13;
             SetPlace(World.Current);
-            status = Label("Status", card, new Vector2(32, -640), new Vector2(380, 40), 12, new Color(.69f, .76f, .78f));
+            status = Label("Status", card, new Vector2(32, -674), new Vector2(380, 40), 12, new Color(.69f, .76f, .78f));
             status.text = Bootstrap.Lobby != null && Bootstrap.Lobby.Available ? "Steam подключён. Друзья заходят через приглашение или список друзей." : "Хост открывает порт 7777. Steam-лобби включается сборкой со Steam (см. README).";
         }
 

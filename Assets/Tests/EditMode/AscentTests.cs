@@ -523,8 +523,10 @@ namespace Height1079.Tests
         public void TheDescentIsTheDangerousHalfOfTheSameSlope()
         {
             // one point, one climber, one difference: which way he is walking
+            // NUnit widens both floats to double, so a product of floats misses an exact float by about 2e-9:
+            // the tolerance is about float arithmetic, not about the rule
             Assert.AreEqual(Ascent.SlipPerMetre(Mirror, true) * Ascent.DescentSlip,
-                Ascent.SlipPerMetre(Mirror, true, Going.Down), 1e-9);
+                Ascent.SlipPerMetre(Mirror, true, Going.Down), 1e-6);
             Assert.Greater(Ascent.SlipPerMetre(Mirror, true, Going.Down), Ascent.SlipPerMetre(Mirror, true, Going.Up),
                 "на спуске срываются чаще: идёшь спиной к склону, ноги устали");
             Assert.Greater(Ascent.SlipPerMetre(Shelf, false, Going.Down), Ascent.SlipPerMetre(Shelf, false, Going.Up));
