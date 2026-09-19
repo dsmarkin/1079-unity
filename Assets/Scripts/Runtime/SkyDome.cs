@@ -1,6 +1,7 @@
 using UnityEngine;
 using UnityEngine.Rendering;
 using Height1079.Core;
+using Height1079.Night;
 
 namespace Height1079.Runtime
 {

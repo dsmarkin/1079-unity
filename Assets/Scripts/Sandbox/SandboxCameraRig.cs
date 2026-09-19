@@ -196,7 +196,9 @@ namespace Height1079.Sandbox
             if (limpBlend > .001f)
                 rot = Quaternion.Slerp(Quaternion.identity, Quaternion.FromToRotation(Vector3.up, torso.up), limpBlend) * rot;
 
-            var eye = torso.position + Vector3.up * EyeUp
+            // the capsule is already lower in a crouch; the eye comes down a little further, because a man on his
+            // haunches or flat in the snow carries his head lower than the middle of his chest would say
+            var eye = torso.position + Vector3.up * (EyeUp - body.Stance * .6f)
                     + Vector3.ProjectOnPlane(rot * Vector3.forward, Vector3.up).normalized * EyeForward;
             Cam.transform.SetPositionAndRotation(eye + Vector3.up * heave + drift, rot);
             // the hands, off the eye as it is drawn this frame: hung off it in the figure's own LateUpdate they would

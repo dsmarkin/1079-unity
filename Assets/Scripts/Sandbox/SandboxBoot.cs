@@ -29,6 +29,11 @@ namespace Height1079.Sandbox
         public bool Dead { get; private set; }
         /// <summary>The rucksack window is open (Tab): the cursor is the player's and the look stands still.</summary>
         public bool PackOpen { get; private set; }
+        /// <summary>The night run of the yard (docs/SANDBOX.md): N starts and abandons it.</summary>
+        public SandboxHunt Hunt { get; private set; }
+        /// <summary>What the end-of-day screen says. The bar's own words unless a death had another cause.</summary>
+        public string DeathTitle { get; private set; } = "СИЛ НЕ ОСТАЛОСЬ";
+        public string DeathLine { get; private set; } = "Голод, холод и сон съели всю полоску. Тело легло в снег.";
 
         SandboxCameraRig rig;
         bool cursorFree;
@@ -116,8 +121,9 @@ namespace Height1079.Sandbox
             Vitals = gameObject.AddComponent<SandboxVitals>();
             Gear = gameObject.AddComponent<SandboxGear>();
             gameObject.AddComponent<SandboxHud>();
+            Hunt = SandboxHunt.Create(this);
             // the keys are not written on the screen any more; say the few worth knowing once
-            SandboxHud.Say("Tab — рюкзак · 1 2 3 — слоты · F — фонарик · E — шоколадка · V — вид · F1 — настройки тела · F11 — следующий стенд · F9 — в меню");
+            SandboxHud.Say("Tab — рюкзак · 1 2 3 — слоты · F — фонарик · E — шоколадка · V — вид · F1 — настройки тела · F11 — следующий стенд · N — ночь на площадке · F9 — в меню");
             ApplyCursor();
             // `-selftest` drives the body by script and quits: the only way to check physics in a batch build
             if (SandboxSelfTest.Requested) gameObject.AddComponent<SandboxSelfTest>();
@@ -194,24 +200,43 @@ namespace Height1079.Sandbox
 
         /// <summary>The bar has been eaten to nothing (<see cref="SandboxVitals"/>): the body goes down where it
         /// stands and the day is over. The screen says so and offers a new one (<see cref="SandboxHud"/>).</summary>
-        public void Die()
+        public void Die(string title = null, string line = null)
         {
             if (Dead || Body == null) return;
             Dead = true;
             PackOpen = false;
+            DeathTitle = title ?? "СИЛ НЕ ОСТАЛОСЬ";
+            DeathLine = line ?? "Голод, холод и сон съели всю полоску. Тело легло в снег.";
             Body.Die();
             ApplyCursor();
         }
 
-        /// <summary>A new day at the same stand: a whole bar, a fresh body, the kit packed again.</summary>
+        /// <summary>A new day at the same stand: a whole bar, a fresh body, the kit packed again. A night run that
+        /// ended with this death ends with it.</summary>
         public void Restart()
+        {
+            Hunt?.End();
+            Revive(stand >= 0 && stand < SandboxRange.Stands.Count ? SandboxRange.Stands[stand].Spawn : new Vector3(0f, 1.2f, -10f));
+            SandboxHud.Say("новый день: полоска целая, рюкзак собран");
+        }
+
+        /// <summary>A fresh body here with a whole bar and the kit packed — the start of a run, or the morning
+        /// after a death. Leaves the night run alone: the run itself calls this to put its player at the fire.</summary>
+        public void Revive(Vector3 at)
         {
             Dead = false;
             Vitals?.Restart();
             Gear?.Refill();
             Spawn();
+            PlaceAt(at);
             ApplyCursor();
-            SandboxHud.Say("новый день: полоска целая, рюкзак собран");
+        }
+
+        /// <summary>Put the body down here, the eye with it.</summary>
+        public void PlaceAt(Vector3 at)
+        {
+            Body?.Place(at);
+            rig?.Snap();
         }
 
         /// <summary>Tab, or a click on the rucksack.</summary>
@@ -291,6 +316,21 @@ namespace Height1079.Sandbox
             // the F1 panel lists every one. Both reach the game under automation, which letters do not.
             if (Down(Key.F11) && SandboxRange.Stands.Count > 0) GoTo((stand + 1) % SandboxRange.Stands.Count);
             if (Down(Key.F12) && SandboxRange.Stands.Count > 0) GoTo((stand + SandboxRange.Stands.Count - 1) % SandboxRange.Stands.Count);
+            // the night run of the yard (docs/SANDBOX.md): N brings the night down and puts the body at the fire;
+            // N again gives the day back. Its verbs are the game's own keys — F is the light above, R takes and
+            // puts down, X throws — and C and Z are the two things a hunted body does that a walking one does not.
+            if (Down(Key.N))
+            {
+                if (Hunt.Active) { Hunt.End(); SandboxHud.Say("забег прерван — день (N — снова ночь)"); }
+                else Hunt.Begin();
+            }
+            if (Hunt.Run != null)
+            {
+                if (Down(Key.C)) Hunt.ToggleCrouch();
+                if (Down(Key.Z)) Hunt.ToggleProne();
+                if (Down(Key.R)) Hunt.TakeOrPutDown();
+                if (Down(Key.X)) Hunt.Throw();
+            }
 
             // the look and the mouse buttons are the body's only while the cursor is: with the rucksack open, or
             // Esc pressed, a click is a click on the screen
@@ -311,6 +351,9 @@ namespace Height1079.Sandbox
             bool grabR = HandsOn && eyesFree && Mouse.current != null && Mouse.current.rightButton.isPressed;
             // with the hands off, a click uses what is in them — eats, lights — the PEAK way
             if (!HandsOn && eyesFree && Mouse.current != null && Mouse.current.leftButton.wasPressedThisFrame) Gear.Use();
+            // a heavy thing from the tent is carried at a walk (Errand.MayRun)
+            var carried = Hunt.Held;
+            bool mayRun = carried == null || Errand.MayRun(carried.Carry);
             Body.Drive(new PuppetInput
             {
                 Move = Vector2.ClampMagnitude(move, 1f),
@@ -318,8 +361,10 @@ namespace Height1079.Sandbox
                 // from outside, the camera goes round a standing body without turning it; from inside the head the
                 // eye is the body and turns it standing still, the way the game's own first person does
                 FreeLook = !rig.FirstPerson,
-                Run = Held(Key.LeftShift) || Held(Key.RightShift),
+                Run = (Held(Key.LeftShift) || Held(Key.RightShift)) && mayRun,
                 Jump = Down(Key.Space),
+                Crouch = Hunt.Crouch || Held(Key.LeftCtrl),
+                Prone = Hunt.Prone,
                 GrabLeft = grabL,
                 GrabRight = grabR,
                 PullUp = (grabL || grabR) && move.y > .3f,

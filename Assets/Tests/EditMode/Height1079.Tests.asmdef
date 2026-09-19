@@ -1,14 +1,28 @@
 {
   "name": "Height1079.Tests",
   "rootNamespace": "Height1079.Tests",
-  "references": ["Height1079.Core", "Height1079.Runtime", "Height1079.Puppet", "UnityEngine.TestRunner", "UnityEditor.TestRunner", "Height1079.Snow"],
-  "includePlatforms": ["Editor"],
+  "references": [
+    "Height1079.Core",
+    "Height1079.Runtime",
+    "Height1079.Puppet",
+    "UnityEngine.TestRunner",
+    "UnityEditor.TestRunner",
+    "Height1079.Snow",
+    "Height1079.Night"
+  ],
+  "includePlatforms": [
+    "Editor"
+  ],
   "excludePlatforms": [],
   "allowUnsafeCode": false,
   "overrideReferences": true,
-  "precompiledReferences": ["nunit.framework.dll"],
+  "precompiledReferences": [
+    "nunit.framework.dll"
+  ],
   "autoReferenced": false,
-  "defineConstraints": ["UNITY_INCLUDE_TESTS"],
+  "defineConstraints": [
+    "UNITY_INCLUDE_TESTS"
+  ],
   "versionDefines": [],
   "noEngineReferences": false
 }
