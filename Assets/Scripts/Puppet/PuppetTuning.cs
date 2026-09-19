@@ -23,17 +23,17 @@ namespace Height1079.Puppet
         ///
         /// 1.62 m and not the 1.78 this started at: a tall thin doll reads as stilts from behind, and PEAK's own
         /// proportions are short and wide. Only the height came down — the capsule is as broad as it was.</summary>
-        public float StandHeight = 1.45f;
+        public float StandHeight = 1.55f;
         /// <summary>Half-height and radius of the torso capsule, m. The radius is the body's width and is deliberately
         /// not cut with the height: a narrow capsule slips between things a man's shoulders would not.</summary>
-        public float TorsoHeight = .94f, TorsoRadius = .28f;
+        public float TorsoHeight = .90f, TorsoRadius = .28f;
         /// <summary>Shoulder height above the torso centre and the sideways offset of each shoulder, m.</summary>
         public float ShoulderUp = .34f, ShoulderOut = .22f;
 
         // ─── legs: a capsule floating over the ground on a spring, so steps and ledges cost nothing ─────────────────
         /// <summary>Where the torso centre rides above whatever is under the feet, m. This is the one number the
         /// figure's legs are cut to (pelvis to sole), so it moves with <see cref="StandHeight"/> and nothing else.</summary>
-        public float HoverHeight = .85f;
+        public float HoverHeight = .82f;
         /// <summary>How far below the feet the leg probe looks, m — this is the height of a step the legs absorb.
         /// Half of it is also how far the body may rise and still count as standing on something, which is why a jump
         /// has to let the legs go for a moment (<see cref="JumpClear"/>).</summary>

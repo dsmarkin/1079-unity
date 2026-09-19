@@ -71,6 +71,10 @@ namespace Height1079.Sandbox
         {
             var g = Box("Ground", new Vector3(0f, -1f, 0f), new Vector3(200f, 2f, 60f), snow);
             g.AddComponent<Grip>().Hold = 1f;
+            // Lying snow: a skin 14 cm above the surface the boots actually stand on, with no collider of its own.
+            // Without it the yard is a floor — you walk ON snow instead of IN it, which is the first thing that says
+            // this is not the mountain. The self-test measures support height off the collider below, untouched.
+            Cap("GroundSnow", new Vector3(0f, .055f, 0f), new Vector3(200f, .1f, 60f));
             Stands.Add(new Stand { Name = "1 · ровное место", Spawn = new Vector3(0f, 1.2f, -10f) });
         }
 
@@ -262,12 +266,30 @@ namespace Height1079.Sandbox
             post.transform.SetParent(go.transform, true);
         }
 
+        /// <summary>The scanned material the editor wrote into Resources for us (Sandbox/Snow, /Crust, /Rock), or a
+        /// flat colour when it is missing. The sandbox lives in its own assembly and cannot reach the world library
+        /// directly, so this is the bridge: the ground here is the same snow the mountain is covered in, not a
+        /// lookalike, and a fresh clone that has not generated anything yet still gets a usable range.</summary>
         static Material Mat(string name, Color c, float gloss)
         {
+            var scanned = Resources.Load<Material>("Sandbox/" + Scan(name));
+            if (scanned != null) return scanned;
             var m = new Material(Shader.Find("Standard")) { name = name, color = c };
             m.SetFloat("_Glossiness", gloss);
             m.SetFloat("_Metallic", 0f);
             return m;
+        }
+
+        static string Scan(string name)
+        {
+            switch (name)
+            {
+                case "snow": return "Snow";
+                case "ice": return "Crust";
+                case "rock": return "Rock";
+                case "ledge": return "Rock";
+                default: return name;
+            }
         }
 
         /// <summary>Snow lying on top of something, as a skin with no collider. A real slab on a step would raise that

@@ -45,7 +45,7 @@ namespace Height1079.Puppet
         Transform shorts;
         /// <summary>0…1 of "in the air with the legs tucked and the arms up". See where it is updated.</summary>
         float airPose;
-        readonly Transform[] sleeve = new Transform[2], sock = new Transform[2];
+        readonly Transform[] sleeve = new Transform[2], trouserUp = new Transform[2], trouserLow = new Transform[2];
         readonly Transform[] armUp = new Transform[2], armLow = new Transform[2], hand = new Transform[2];
         readonly Transform[] thigh = new Transform[2], shin = new Transform[2], boot = new Transform[2];
         Renderer[] parts = System.Array.Empty<Renderer>();
@@ -61,7 +61,7 @@ namespace Height1079.Puppet
         /// up with the head's own half-height (0.20) to 1.62 m of climber — <see cref="PuppetTuning.StandHeight"/>.
         /// The old figure was 1.79 and read as a man on stilts; the 17 cm came almost entirely out of the legs, which
         /// is why the pelvis dropped 13 cm and the trunk only 4.</summary>
-        const float PelvisRide = .78f, HeadRise = .64f;
+        const float PelvisRide = .78f, HeadRise = .70f;
         /// <summary>Bone lengths, metres — and they must match the meshes turned in <see cref="PuppetSkin"/>, because
         /// a bone is drawn at its built length and only stretches under protest. The two legs add up to 0.73 against a
         /// hip that stands 0.711 above the sole: a standing climber therefore carries about 9 cm of knee, and that
@@ -99,10 +99,12 @@ namespace Height1079.Puppet
         const float DutyMin = .28f, DutyMax = .62f;
         /// <summary>How far the pelvis dips at a footfall, as a share of the step it is taking. The dip is not
         /// decoration: it is what lets a straight-ish leg reach a foot placed a quarter of a metre away.</summary>
-        /// <summary>Metres the pelvis drops into each footfall. It used to be a SHARE of the stride, which was
-        /// harmless at the old scurrying cycle and became a 23 cm pogo once the stride grew to two metres — the
-        /// shaking the playtest called judder. A person's pelvis moves a few centimetres however long the step is.</summary>
-        const float BobShare = .045f;
+        /// <summary>Metres the pelvis drops into each footfall — ZERO, deliberately. A real pelvis does dip into
+        /// every step, and drawing that was what made the walk look like it had the shakes: on a screen, with a camera
+        /// riding the same body, any vertical motion of the whole figure reads as judder rather than as gait. The
+        /// legs alone carry the walk now and the body travels level. Left as a number because it is one line to try
+        /// again if a shallow version ever looks right.</summary>
+        const float BobShare = 0f;
         /// <summary>How high the swinging foot is carried, metres: a walking foot clears the ground by a couple of
         /// centimetres and a running one is picked right up. It goes with the pace and not with the length of the
         /// step — see <c>pace</c> in <see cref="LateUpdate"/> — or a brisk walk comes out as a march.</summary>
@@ -174,7 +176,8 @@ namespace Height1079.Puppet
             for (int s = 0; s < 2; s++)
             {
                 sleeve[s] = Piece(PuppetSkin.Sleeve, "Sleeve" + s, PuppetSkin.ShirtCloth);
-                sock[s] = Piece(PuppetSkin.Sock, "Sock" + s, PuppetSkin.SockCloth);
+                trouserUp[s] = Piece(PuppetSkin.ThighLeg, "TrouserUp" + s, PuppetSkin.ShortsCloth);
+                trouserLow[s] = Piece(PuppetSkin.ShinLeg, "TrouserLow" + s, PuppetSkin.ShortsCloth);
             }
             parts = root.GetComponentsInChildren<Renderer>(true);
             Show();     // SetVisible may have been called before the body existed
@@ -282,8 +285,11 @@ namespace Height1079.Puppet
             // The airborne pose is held, not sampled: taken straight off the climb rate it vanishes at the top of
             // the arc, exactly where a jump is worth looking at. It rises with the launch and decays over a third of
             // a second, so the tuck and the raised arms carry through the apex and ease out on the way down.
-            float wantAir = owner.Limp || owner.Grounded ? 0f : Mathf.Clamp01(rb.GetComponent<Rigidbody>() != null ? owner.Torso.linearVelocity.y / 2.6f : 0f);
-            airPose = wantAir > airPose ? wantAir : Mathf.MoveTowards(airPose, owner.Grounded || owner.Limp ? 0f : wantAir, dt / .34f);
+            float wantAir = owner.Limp || owner.Grounded ? 0f : Mathf.Clamp01(owner.Torso.linearVelocity.y / 2.6f);
+            // eased in as well as out, and not at the same rate: arms that snap up the frame the feet leave the
+            // ground look like a twitch, and spamming the jump key turned the figure into a flicker. Up over a fifth
+            // of a second, down over a third.
+            airPose = Mathf.MoveTowards(airPose, wantAir, dt / (wantAir > airPose ? .21f : .34f));
 
             var hipPoint = rb.position + Vector3.down * (hipDrop + bob);
 
@@ -422,10 +428,13 @@ namespace Height1079.Puppet
                 if (reach.sqrMagnitude > legMax * legMax) foot = hipJoint + reach.normalized * legMax;
 
                 var knee = Limb(thigh[s], shin[s], hipJoint, foot, thighLen, shinLen, pose * Vector3.forward, ThighLen, ShinLen);
-                // the sock stands on the boot and points at the knee, so it stays on the shin at any bend
-                var up = knee - foot;
-                sock[s].SetPositionAndRotation(foot + Vector3.up * (.055f * scale),
-                    up.sqrMagnitude > 1e-6f ? Quaternion.FromToRotation(Vector3.up, up.normalized) : pose);
+                // the trouser legs ride the two bones they cover, so the cloth bends with the knee
+                // same line AND same stretch as the bone inside: a trouser leg that keeps its built length while the
+                // bone is scaled hangs past the boot, and the figure measures a head taller than it is
+                trouserUp[s].SetPositionAndRotation(thigh[s].position, thigh[s].rotation);
+                trouserUp[s].localScale = thigh[s].localScale;
+                trouserLow[s].SetPositionAndRotation(shin[s].position, shin[s].rotation);
+                trouserLow[s].localScale = shin[s].localScale;
 
                 // The boot turns out into a side-step — hard on the leading foot, barely on the trailing one — and
                 // rolls heel to toe through the stance. It is pitched about the part of the sole that is on the
@@ -464,7 +473,7 @@ namespace Height1079.Puppet
                     float lift = afoot ? 0f : airPose;
                     if (lift > 0f)
                         wrist = Vector3.Lerp(wrist, shoulder + pose * new Vector3(
-                            sign * .30f * scale, (upperArm + forearm) * .72f, .02f * scale), lift);
+                            sign * .26f * scale, (upperArm + forearm) * .28f, .06f * scale), lift);
                 }
                 var elbow = Limb(armUp[s], armLow[s], shoulder, wrist, upperArm, forearm, pose * Vector3.back, UpperArm, Forearm);
                 hand[s].SetPositionAndRotation(wrist, Wrist(elbow, wrist, pose));

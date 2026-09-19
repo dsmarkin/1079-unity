@@ -23,7 +23,7 @@ namespace Height1079.Puppet
         /// its own turned piece, a little wider than the limb inside it, with its own flat colour.</summary>
         public static Material ShirtCloth, ShortsCloth, SockCloth;
         public static Mesh Body, Head, Thigh, Shin, UpperArm, Forearm, HandL, HandR, Boot;
-        public static Mesh Sleeve, Shorts, Sock;
+        public static Mesh Sleeve, Shorts, ThighLeg, ShinLeg;
 
         /// <summary>Segments around a piece. The head and torso are what the eye reads, a finger is four pixels.</summary>
         const int Round = 22, Slim = 14;
@@ -45,7 +45,7 @@ namespace Height1079.Puppet
         {
             if (Skin != null && Body != null && Head != null && Thigh != null && Shin != null
              && UpperArm != null && Forearm != null && HandL != null && HandR != null && Boot != null
-             && Sleeve != null && Shorts != null && Sock != null) return;
+             && Sleeve != null && Shorts != null && ThighLeg != null && ShinLeg != null) return;
             Discard();
 
             Skin = PuppetSkinTexture.Build();
@@ -65,7 +65,10 @@ namespace Height1079.Puppet
             // of a 9.4 cm arm and flares at the cuff, so the arm visibly comes OUT of it.
             Sleeve = Turn("PuppetSleeve", PuppetMesh.Bone(.165f, .140f, .152f, .004f, 5, 3), Round, new Vector2(1f, .92f), PuppetSkinTexture.UpperArm);
             Shorts = MakeShorts();
-            Sock = Turn("PuppetSock", PuppetMesh.Bone(.205f, .124f, .116f, .010f, 5, 3), Slim + 2, Vector2.one, PuppetSkinTexture.Shin);
+            // Trouser legs, not shorts and socks: loose tubes over the thigh and the shin that reach the boot, each
+            // flaring slightly downward so the cloth hangs rather than grips.
+            ThighLeg = Turn("PuppetThighLeg", PuppetMesh.Bone(.352f, .150f, .142f, .004f, 5, 3), Round, new Vector2(1f, .94f), PuppetSkinTexture.Thigh);
+            ShinLeg = Turn("PuppetShinLeg", PuppetMesh.Bone(.334f, .138f, .128f, .004f, 5, 3), Round, new Vector2(1f, .94f), PuppetSkinTexture.Shin);
             HandR = MakeHand(false);
             HandL = MakeHand(true);
             Boot = MakeBoot();
@@ -78,10 +81,10 @@ namespace Height1079.Puppet
             if (Skin != null) PuppetRig.Kill(Skin.mainTexture);
             PuppetRig.Kill(Skin); PuppetRig.Kill(Body); PuppetRig.Kill(Head); PuppetRig.Kill(Thigh); PuppetRig.Kill(Shin);
             PuppetRig.Kill(UpperArm); PuppetRig.Kill(Forearm); PuppetRig.Kill(HandL); PuppetRig.Kill(HandR); PuppetRig.Kill(Boot);
-            PuppetRig.Kill(Sleeve); PuppetRig.Kill(Shorts); PuppetRig.Kill(Sock);
+            PuppetRig.Kill(Sleeve); PuppetRig.Kill(Shorts); PuppetRig.Kill(ThighLeg); PuppetRig.Kill(ShinLeg);
             PuppetRig.Kill(ShirtCloth); PuppetRig.Kill(ShortsCloth); PuppetRig.Kill(SockCloth);
             Skin = null; Body = Head = Thigh = Shin = UpperArm = Forearm = HandL = HandR = Boot = null;
-            Sleeve = Shorts = Sock = null; ShirtCloth = ShortsCloth = SockCloth = null;
+            Sleeve = Shorts = ThighLeg = ShinLeg = null; ShirtCloth = ShortsCloth = SockCloth = null;
         }
 
         /// <summary>A plain matte colour. Clothing does not need the atlas — it is one flat tone each — and its own
@@ -102,11 +105,11 @@ namespace Height1079.Puppet
             m.Revolve(PuppetMesh.Spline(new[]
             {
                 new Vector2(.205f, .12f),      // waistband, just under the shirt
-                new Vector2(.238f, .04f),
-                new Vector2(.262f, -.045f),
-                new Vector2(.268f, -.115f),    // the hem itself, well clear of a 12.8 cm thigh
-                new Vector2(.243f, -.130f),    // and its underside, so the edge has thickness
-                new Vector2(.224f, -.120f),
+                new Vector2(.234f, .05f),
+                new Vector2(.248f, -.02f),
+                new Vector2(.250f, -.062f),    // the seat, where the trouser legs take over
+                new Vector2(.228f, -.076f),
+                new Vector2(.205f, -.066f),
             }, 4), Round, new Vector2(1f, .74f), PuppetSkinTexture.Torso);
             return m.ToMesh("PuppetShorts");
         }

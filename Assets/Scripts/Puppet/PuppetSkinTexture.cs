@@ -46,8 +46,8 @@ namespace Height1079.Puppet
         public static readonly Rect Hat = Tile(Col * 6, 0, Col, Size / 2);
         public static readonly Rect Pack = Tile(Col * 7, 0, Col, Size / 2);
 
-        static readonly Color Skin = new Color(.44f, .72f, .37f);
-        static readonly Color Cheek = new Color(.53f, .79f, .41f);
+        static readonly Color Skin = new Color(.93f, .75f, .58f);
+        static readonly Color Cheek = new Color(.95f, .68f, .58f);
         static readonly Color Shirt = new Color(.94f, .47f, .19f);
         /// <summary>The three clothing tones, public because the worn pieces (sleeve, shorts, sock) are their own
         /// flat-coloured geometry and must match what the atlas paints on the body underneath them.</summary>
