@@ -149,9 +149,10 @@ namespace Height1079.Puppet
             };
         }
 
-        /// <summary>The hem stops this far above the ankle, so the trouser never hangs past the boot. The boot's
-        /// ankle lump reaches 11 cm above the sole and goes up inside the hem.</summary>
-        const float HemUp = .05f;
+        /// <summary>The hem stops this far above the ankle, so the trouser never hangs past the boot and the boot's
+        /// shaft and collar show under it. The shaft reaches 13.6 cm above the ankle (<see cref="UpperStations"/>)
+        /// and is 6 cm across at the collar; the hem's turned-in lip is 6.6, so the collar goes up inside it.</summary>
+        const float HemUp = .10f;
 
         /// <summary>The seat of the trousers: a bowl hanging off the hips, from a waistband under the jacket's hem to
         /// a rounded bottom the two legs come out of. Wide enough at the hips to hold both leg tops (0.13 m out and
@@ -485,23 +486,88 @@ namespace Height1079.Puppet
             return m;
         }
 
-        /// <summary>A boot: an ankle lump and a long foot lump that overlap into one shape. Local origin is the point
-        /// the leg's IK calls the sole, so the foot's underside sits exactly on the ground the probe found.</summary>
+        // ─── the boot ───────────────────────────────────────────────────────────────────────────────────────────
+
+        /// <summary>A mountain boot, not a lump: a thick sole with a lip, an upper that rises over the instep into
+        /// a round shaft up the shin, a padded collar at the top, and the inside of the collar turned down so the
+        /// mouth is dark. Two sweeps up the same axis — the sole a slab of rounded rectangles, the upper a chain of
+        /// rounded rectangles that shorten and pull back as they rise (that is the instep) and then go round for the
+        /// shaft. Local origin is the point the leg's IK calls the sole, so the sole's underside sits a centimetre
+        /// into the ground the probe found (<see cref="PuppetFigure.SoleUp"/>); +z is the toe. Each sweep paints
+        /// from its own share of the boot's tile (<see cref="BootSoleTile"/>, <see cref="BootUpperTile"/>), where the
+        /// laces, the eyelets, the toe cap and the collar are drawn.</summary>
         static Mesh MakeBoot()
         {
             var m = new PuppetMesh();
-            var ankle = new PuppetMesh();
-            ankle.Revolve(PuppetMesh.Blob(.17f, .072f, 10), Slim, new Vector2(1f, 1.05f), PuppetSkinTexture.Boot);
-            m.Append(ankle, Matrix4x4.Translate(new Vector3(0f, .03f, -.012f)));
-
-            var foot = new PuppetMesh();
-            foot.Revolve(PuppetMesh.Spline(new[]
-            {
-                new Vector2(0f, -.055f), new Vector2(.055f, -.05f), new Vector2(.078f, -.02f),
-                new Vector2(.08f, .015f), new Vector2(.055f, .04f), new Vector2(0f, .05f)
-            }, 4), Slim, new Vector2(.95f, 1.5f), PuppetSkinTexture.Boot);
-            m.Append(foot, Matrix4x4.Translate(new Vector3(0f, -.005f, .05f)));
+            var tile = PuppetSkinTexture.Boot;
+            var soleRect = new Rect(tile.x, tile.y, tile.width, tile.height * BootSoleTile);
+            var upperRect = new Rect(tile.x, tile.y + tile.height * BootUpperTile, tile.width, tile.height * (1f - BootUpperTile));
+            m.Sweep(SoleStations(), BootSides, soleRect);
+            m.Sweep(UpperStations(), BootSides, upperRect);
             return m.ToMesh("PuppetBoot");
         }
+
+        /// <summary>The boot's tile is shared: the sole is painted in its lower part and the upper above that.</summary>
+        public const float BootSoleTile = .16f, BootUpperTile = .18f;
+        const int BootSides = 28;
+        /// <summary>The sole's underside, m below the boot's origin.</summary>
+        public const float BootBottom = -.062f;
+
+        /// <summary>One ring of a boot: a rounded rectangle at height <paramref name="y"/> running from
+        /// <paramref name="back"/> (the heel) to <paramref name="front"/> (the toe), <paramref name="hw"/> wide to
+        /// each side, with corners of <paramref name="corner"/>. Radius is the half-width and the squash carries the
+        /// length, so a change of ring size costs the texture's metre count next to nothing.</summary>
+        static PuppetMesh.Station Slab(float y, float back, float front, float hw, float corner) => new PuppetMesh.Station
+        {
+            Centre = new Vector3(0f, y, (front + back) * .5f), Axis = Vector3.up, Radius = hw,
+            Squash = new Vector2(1f, (front - back) * .5f / hw), Corner = corner, Weight = PuppetMesh.Rigid(0),
+        };
+        /// <summary>A round ring of the shaft, a shade longer than wide the way a shin is.</summary>
+        static PuppetMesh.Station Shaft(float y, float r) => new PuppetMesh.Station
+        {
+            Centre = new Vector3(0f, y, 0f), Axis = Vector3.up, Radius = r, Squash = new Vector2(1f, 1.04f), Weight = PuppetMesh.Rigid(0),
+        };
+        static PuppetMesh.Station Pole(float y, float z) => new PuppetMesh.Station
+        {
+            Centre = new Vector3(0f, y, z), Axis = Vector3.up, Radius = 0f, Squash = Vector2.one, Weight = PuppetMesh.Rigid(0),
+        };
+
+        /// <summary>The sole: 27 cm long, 10 wide, 2.8 thick, with a lip at the top that stands a few millimetres
+        /// proud of the upper — the welt. Closed top and bottom, so it is a solid slab from any angle.</summary>
+        static PuppetMesh.Station[] SoleStations() => new[]
+        {
+            Pole(BootBottom, .055f),
+            Slab(BootBottom, -.080f, .190f, .050f, .040f),
+            Slab(-.040f, -.082f, .192f, .052f, .040f),
+            Slab(-.034f, -.076f, .184f, .047f, .040f),
+            Pole(-.034f, .054f),
+        };
+
+        /// <summary>The upper: starts inside the sole's lip, keeps the sole's footprint for the first few centimetres,
+        /// then the front pulls back over the instep while the heel stays where it is, and by 7 cm up it is a round
+        /// shaft on the shin. The shaft swells into the collar at the top, turns in and goes down inside itself
+        /// to a dark floor. The indices are what <see cref="BootV"/> counts by.</summary>
+        static PuppetMesh.Station[] UpperStations() => new[]
+        {
+            Slab(-.036f, -.076f, .183f, .046f, .040f),    // 0 inside the sole's lip
+            Slab(-.012f, -.075f, .180f, .046f, .044f),    // 1
+            Slab( .012f, -.070f, .160f, .045f, .045f),    // 2 the toe begins to round off
+            Slab( .030f, -.065f, .120f, .043f, .043f),    // 3 the instep: the laces start here
+            Slab( .048f, -.061f, .082f, .042f, .042f),    // 4
+            Slab( .066f, -.058f, .060f, .043f, .043f),    // 5
+            Shaft(.085f, .052f),                          // 6 the shaft
+            Shaft(.100f, .053f),                          // 7
+            Shaft(.112f, .058f),                          // 8 the collar swells
+            Shaft(.124f, .060f),                          // 9 the laces end under the collar's roll
+            Shaft(.134f, .055f),                          // 10
+            Shaft(.136f, .046f),                          // 11 turned in
+            Shaft(.110f, .045f),                          // 12 down the inside
+            Pole(.110f, 0f),                              // 13 the dark floor of the mouth
+        };
+
+        /// <summary>Where along the upper's texture the ring <paramref name="i"/> of <see cref="UpperStations"/>
+        /// falls, 0 at the sole and 1 at the bottom of the inside. The atlas asks for these so the laces run from the
+        /// instep to the collar whatever the numbers above are moved to.</summary>
+        public static float BootV(int i) { var st = UpperStations(); return PuppetMesh.Arc(st, i) / PuppetMesh.Arc(st); }
     }
 }
