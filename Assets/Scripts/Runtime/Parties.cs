@@ -67,8 +67,18 @@ namespace Height1079.Runtime
             if (!MountainDay.Known) return;
             int day = Forecast.DayIndex(MountainDay.Date);
             if (MountainDay.Seed != builtSeed || day != builtDay) Build(MountainDay.Seed, day);
+            // These are other people on the mountain — scenery, and slow scenery at that: a party covers a couple of
+            // centimetres between frames. Walking them five times a second instead of sixty takes about two thousand
+            // square roots a frame off the budget (every body is a fresh walk along the 49-segment route polyline,
+            // Elbrus.PointAt), and nobody can see the difference.
+            if (Time.time < walkNext) return;
+            walkNext = Time.time + WalkStep;
             Walk(Climb.Hour());
         }
+
+        /// <summary>Seconds between one placement of the parties and the next.</summary>
+        const float WalkStep = .2f;
+        float walkNext;
 
         // ── who is out today ─────────────────────────────────────────────────────────────────────────────
 

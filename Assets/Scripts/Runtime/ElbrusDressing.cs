@@ -30,6 +30,18 @@ namespace Height1079.Runtime
             Roofs();
             PowerLine();
             Pastures();
+
+            // lamps, benches, bins, chains, turnstiles, drums, cars: nothing here is worth a draw call from four
+            // hundred metres, and the camera can drop the whole layer by itself (Scenery.Props). The power line's
+            // wires are LineRenderers rather than meshes and are excluded, because a cable that stops at 260 m
+            // reads as a broken cable.
+            for (int i = 0; i < props.childCount; i++)
+            {
+                var child = props.GetChild(i);
+                if (child.name.StartsWith("Wire")) continue;
+                Scenery.Layer(child, Scenery.Props);
+            }
+            Scenery.Batch(props);
         }
 
         static float Jit(float m) => (float)(rng.NextDouble() - .5) * 2f * m;

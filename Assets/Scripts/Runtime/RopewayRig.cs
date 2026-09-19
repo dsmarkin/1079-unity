@@ -150,7 +150,50 @@ namespace Height1079.Runtime
             Move();
         }
 
-        void Update() => Move();
+        /// <summary>Beyond this the whole line stops being moved and drawn: a cabin at three kilometres is a speck,
+        /// and six lines of thirty to sixty-five cars each were writing a transform apiece every frame from the
+        /// saddle, ten kilometres away from any of them.</summary>
+        const float LiveM = 900f, LiveHysteresisM = 60f;
+        /// <summary>A line further than that is still moved, but rarely — so that a cabin is where it should be by
+        /// the time anybody comes back into sight of it, and never jumps.</summary>
+        const float FarStep = .2f;
+        bool live = true;
+        float farNext;
+
+        void Update()
+        {
+            if (cars == null) return;
+            var me = Bootstrap.LocalHiker;
+            // the line somebody is riding is always live, whatever the distance says
+            bool riding = me != null && me.Ride != null && me.Ride.IsChildOf(transform);
+            bool near = riding || Near(me);
+            if (near != live)
+            {
+                live = near;
+                foreach (var t in cars) if (t != null) t.gameObject.SetActive(live);
+            }
+            if (live) { Move(); return; }
+            if (Time.time < farNext) return;
+            farNext = Time.time + FarStep;
+            Move();
+        }
+
+        /// <summary>Is anybody close enough to this line for its cars to be worth a frame? Measured to the two ends
+        /// and the middle, because a line is kilometres long and its nearest point is rarely a terminal.</summary>
+        bool Near(HikerController me)
+        {
+            if (me == null) return true;   // no hiker yet: the menu camera may be looking at anything
+            var p = me.transform.position;
+            float limit = live ? LiveM + LiveHysteresisM : LiveM;
+            float limitSq = limit * limit;
+            for (int i = 0; i <= 2; i++)
+            {
+                var q = Line.PointAt(Line.Length * .5f * i);
+                float dx = q.x - p.x, dz = q.z - p.z;
+                if (dx * dx + dz * dz < limitSq) return true;
+            }
+            return false;
+        }
 
         void Move()
         {

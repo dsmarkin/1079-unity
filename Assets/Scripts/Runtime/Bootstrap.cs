@@ -143,6 +143,7 @@ namespace Height1079.Runtime
         static void PlaceMenuCamera()
         {
             var cam = Camera.main; if (cam == null) return;
+            Scenery.Cull(cam);
             if (World.IsElbrus)
             {
                 var a = Elbrus.Azau; var top = Elbrus.WestSummit;

@@ -83,7 +83,18 @@ namespace Height1079.Runtime
             }
         }
 
-        static string Token(ulong clientId) => "c" + clientId;
+        /// <summary>The key a participant is filed under. It is asked for six to eight times per player per frame —
+        /// the ascent tick asks twice, the work tick, the weather on the items and the pack sync ask once each — and
+        /// «"c" + id» is a boxed ulong and a fresh string every time, hashed immediately afterwards. One string per
+        /// client, made once.</summary>
+        static string Token(ulong clientId)
+        {
+            if (tokens.TryGetValue(clientId, out var t)) return t;
+            t = "c" + clientId;
+            tokens[clientId] = t;
+            return t;
+        }
+        static readonly Dictionary<ulong, string> tokens = new Dictionary<ulong, string>();
 
         void OnClientConnected(ulong clientId)
         {

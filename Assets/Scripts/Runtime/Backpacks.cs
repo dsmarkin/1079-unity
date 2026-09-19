@@ -183,13 +183,34 @@ namespace Height1079.Runtime
         /// <summary>The trunk the hiker is facing (terrain trees, straight out of the data: see <see cref="Forest"/>).</summary>
         public static bool TreeInFront(Vector3 pos, float yaw, out Vector3 point) => Forest.InFront(pos, yaw, out point, Woodwork.Reach);
 
-        /// <summary>What E would do here (the host decides for real; this is for the prompt and the HUD button).</summary>
+        /// <summary>What E would do here (the host decides for real; this is for the prompt and the HUD button).
+        ///
+        /// Three callers ask this every frame — the hiker, the HUD's work button and the line under the crosshair —
+        /// and the answer is not cheap: it walks every loose object on the ground and scans the nine forest cells
+        /// around the player with an angle test per trunk. It is the same answer all three times within one frame,
+        /// so it is worked out once and kept until the frame changes.</summary>
         public static WorkKind WorkHere(HikerController me)
         {
             var s = Session;
             if (s == null || me == null) return WorkKind.None;
-            return s.ChooseWork("c" + me.OwnerClientId, me.transform.position, me.Yaw, out _, out _);
+            if (workFrame == Time.frameCount && ReferenceEquals(workWho, me)) return workWas;
+            workFrame = Time.frameCount;
+            workWho = me;
+            workWas = s.ChooseWork(Token(me), me.transform.position, me.Yaw, out _, out _);
+            return workWas;
         }
+        static int workFrame = -1;
+        static HikerController workWho;
+        static WorkKind workWas;
+
+        /// <summary>The player's own key, made once instead of on every call.</summary>
+        static string Token(HikerController me)
+        {
+            if (myToken == null || myId != me.OwnerClientId) { myId = me.OwnerClientId; myToken = "c" + myId; }
+            return myToken;
+        }
+        static string myToken;
+        static ulong myId;
 
         /// <summary>Owner: hold E (or the HUD button) to work; the host is told when it starts and when it is let go.</summary>
         public static void HandleWork(HikerController me, bool wants)

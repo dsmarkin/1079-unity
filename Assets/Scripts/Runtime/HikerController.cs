@@ -140,6 +140,8 @@ namespace Height1079.Runtime
             head = new GameObject("Head").transform; head.SetParent(transform, false); head.localPosition = new Vector3(0, 1.72f, 0);
             cam = Camera.main != null ? Camera.main : new GameObject("Main Camera", typeof(Camera), typeof(AudioListener)).GetComponent<Camera>();
             cam.tag = "MainCamera"; cam.nearClipPlane = .1f; cam.farClipPlane = 4500f; cam.fieldOfView = 60f;
+            // the small standing dressing stops being drawn at a distance where it is three metres of nothing
+            Scenery.Cull(cam);
             float goalX = Height1079.Core.World.IsElbrus ? Elbrus.WestSummit.X : WorldData.Tent.X;
             float goalZ = Height1079.Core.World.IsElbrus ? Elbrus.WestSummit.Z : WorldData.Tent.Z;
             yaw = Mathf.Atan2(transform.position.x - goalX, transform.position.z - goalZ) * Mathf.Rad2Deg + 180f;
@@ -405,7 +407,12 @@ namespace Height1079.Runtime
             {
                 bool pushing = wish.sqrMagnitude >= .01f;
                 bool wedged = Wedged(pushing);
-                if (pushing && !wedged) StepOver(wish);
+                // three raycasts fifty times a second, and every one of them is tested against the whole world —
+                // fifty thousand tree trunks among other things. A step only matters when something is in the way,
+                // and something being in the way shows up as moving much slower than asked.
+                float want = wish.magnitude * speed;
+                bool blocked = pushing && new Vector2(v.x, v.z).magnitude < want * .7f;
+                if (blocked && !wedged) StepOver(wish);
                 // Boots hold on a slope a man can walk. The capsule is frictionless on purpose — with friction it catches on
                 // walls, doorways and the lip of every step — so nothing in the physics opposes the pull down the fall line:
                 // gravity put a little downhill speed into the body between fixed steps, the damping below took only part of

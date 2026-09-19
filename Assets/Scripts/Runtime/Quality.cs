@@ -57,17 +57,19 @@ namespace Height1079.Runtime
 
         /// <summary>Metres of grass around the player. The Azau meadow is the only place in the game with any, and at
         /// 95 m it was forty to a hundred thousand billboards on a two-pass waving shader — the dip on the meadow.</summary>
-        public static float DetailDistance => Current switch { Level.Low => 30f, Level.Medium => 45f, _ => 65f };
+        public static float DetailDistance => Current switch { Level.Low => 30f, Level.Medium => 45f, _ => 55f };
 
         /// <summary>Fraction of the grass the terrain actually plants (the editor's density is the ceiling).</summary>
         public static float DetailDensity => Current switch { Level.Low => .45f, Level.Medium => .7f, _ => 1f };
 
-        /// <summary>Metres of trees. Kholat is a forest at arm's length; Elbrus looks down a valley of pines.</summary>
+        /// <summary>Metres of trees. Kholat is a forest at arm's length; Elbrus looks down a valley with fifty
+        /// thousand pines in it, and those pines are the one thing left that separates a high frame from a medium
+        /// one there — at half a kilometre they are already specks, so high stops at 520 rather than 700.</summary>
         public static float TreeDistance(bool elbrus) => Current switch
         {
             Level.Low => elbrus ? 350f : 600f,
-            Level.Medium => elbrus ? 500f : 900f,
-            _ => elbrus ? 700f : 1400f,
+            Level.Medium => elbrus ? 450f : 900f,
+            _ => elbrus ? 520f : 1400f,
         };
 
         public static float ShadowDistance(bool elbrus) => Current switch
@@ -77,7 +79,10 @@ namespace Height1079.Runtime
             _ => elbrus ? 140f : 110f,
         };
 
-        static int Cascades => Current switch { Level.Low => 1, Level.Medium => 2, _ => 4 };
+        /// <summary>Every cascade re-renders every shadow caster, and a day lit by one sun over 140 m does not need
+        /// four of them: two cost three or four milliseconds less on the view down the Baksan valley and the join is
+        /// not visible at this distance.</summary>
+        static int Cascades => Current switch { Level.Low => 1, _ => 2 };
 
         /// <summary>The night is lit by torches, a stove and a fire; the day by one sun. Six per-pixel lights are a
         /// night number, and on Elbrus they were being paid for indoor lamps burning in daylight.</summary>
@@ -85,7 +90,7 @@ namespace Height1079.Runtime
         {
             Level.Low => elbrus ? 1 : 3,
             Level.Medium => elbrus ? 2 : 4,
-            _ => elbrus ? 3 : 6,
+            _ => elbrus ? 2 : 6,
         };
 
         // ── reading and writing the player's answer ───────────────────────────────────────────────────────
@@ -167,8 +172,11 @@ namespace Height1079.Runtime
             QualitySettings.shadowCascades = Cascades;
             QualitySettings.shadowProjection = ShadowProjection.CloseFit;
             QualitySettings.pixelLightCount = PixelLights(elbrus);
-            QualitySettings.softVegetation = level == Level.High;
-            QualitySettings.lodBias = level switch { Level.Low => .7f, Level.Medium => 1f, _ => 1.4f };
+            // soft vegetation draws the grass alpha-blended instead of alpha-tested, and grass fills the bottom half
+            // of the screen on the meadow: it was most of the difference between the high preset and the medium one
+            // there, for a softness nobody looks at while walking
+            QualitySettings.softVegetation = false;
+            QualitySettings.lodBias = level switch { Level.Low => .7f, Level.Medium => 1f, _ => 1.15f };
             QualitySettings.shadows = level == Level.Low ? ShadowQuality.HardOnly : ShadowQuality.All;
 
             int w = Mathf.Max(640, Mathf.RoundToInt(nativeW * scale));

@@ -28,7 +28,8 @@ namespace Height1079.Runtime
         float workStarted, workNeeded;
         WorkKind workKind;
         Text debug;
-        float debugNext;
+        float debugNext, panelNext;
+        StringBuilder partyText;
         // navigation
         RectTransform miniRoot, miniMap, miniArrow, bigRoot, bigMark;
         RawImage miniImage, bigImage;
@@ -807,31 +808,40 @@ namespace Height1079.Runtime
                 var c = Camera.main.transform.position;
                 debug.text = $"{fps:0} fps · cam {c.x:0},{c.y:0},{c.z:0} · ground under cam {TerrainBuilder.Height(Bootstrap.Dem, c.x, c.z):0} · me {x:0},{me.transform.position.y:0},{z:0} · ground {TerrainBuilder.Height(Bootstrap.Dem, x, z):0} · fog {RenderSettings.fogDensity:0.0000} · v {me.Speed:0.0} · keys {Controls.Debug} · {(me.FirstPerson ? "1st" : "3rd")} · grounded {me.Grounded}";
             }
-            clock.text = World.IsElbrus ? $"{me.transform.position.y:0} м" : SurvivalRules.NightTime(s.Elapsed.Value);
             float gx = World.IsElbrus ? Elbrus.WestSummit.X : WorldData.Tent.X, gz = World.IsElbrus ? Elbrus.WestSummit.Z : WorldData.Tent.Z;
             float dist = WorldData.Distance(x, z, gx, gz);
-            float bearing = Mathf.DeltaAngle(me.Yaw, Mathf.Atan2(gx - x, gz - z) * Mathf.Rad2Deg);
-            string goal = World.IsElbrus ? "Западная вершина" : "Верхнее укрытие";
-            direction.text = $"{(Mathf.Abs(bearing) < 17f ? "↑" : bearing > 0 ? "→" : "←")} {goal} · {(dist > 1500f ? $"{dist / 1000f:0.0} км" : $"{Mathf.RoundToInt(dist)} м")}";
-            var sb = new StringBuilder();
-            foreach (var p in s.Party) if (!p.you) sb.Append(sb.Length > 0 ? " · " : "").Append($"{p.name}: {(p.outcome != Outcome.None ? SurvivalRules.Describe(p.outcome).Title.ToLowerInvariant() : p.online ? "на склоне" : "без связи")}");
-            party.text = sb.ToString();
             bool nearFire = !World.IsElbrus && WorldData.NearCamp(x, z);
             float fire = s.FireRemaining.Value;
             fireButton.gameObject.SetActive(nearFire && fire <= 0f);
-            fireButton.GetComponentInChildren<Text>().text = Bootstrap.AutoKindle ? "Прекратить розжиг" : "Разжечь костёр";
             UpdateWorkButton(me, s);
-            string kindle = s.KindleNeeded > 0 ? $" {Mathf.Min(99, Mathf.RoundToInt(s.KindleProgress / s.KindleNeeded * 100f))}%" : "";
-            UpdateTravel(me);
-            UpdateClimb(me, s);
-            hint.text = !NetworkManager.Singleton.IsConnectedClient && !NetworkManager.Singleton.IsHost ? "Связь потеряна · ночь идёт на сервере"
-                : me.Paused ? "Пауза · ночь продолжается, нажмите на сцену"
-                : me.Skis != null && me.Skis.Busy ? me.Skis.BusyNote()
-                : me.Crawling ? "Палатка · внутри только ползком"
-                : nearFire ? (fire > 0 ? $"У огня · ещё {Mathf.CeilToInt(fire)} с" : s.KindleNeeded > 0 ? $"Разжигаете… держите E{kindle}" : "Кострище · стойте и удерживайте E")
-                : World.IsElbrus ? ClimbHint(me)
-                : s.Heat < 30 ? "Холод мешает думать. Вернитесь к огню." : s.Storm.Value ? "Метель. Держитесь рядом." : "Свет уходит. Выбирайте путь.";
-            heat.value = s.Heat; hands.value = s.Hands; clarity.value = s.Clarity;
+
+            // The written part of the HUD — the clock, the bearing, the party, the amber line, the three meters and
+            // the whole ascent block — is about twenty interpolated strings and two StringBuilders. Writing to a
+            // uGUI Text marks the canvas dirty and rebuilds its batch, so doing all of it every frame cost a canvas
+            // rebuild every frame for numbers that a person reads ten times a second at most.
+            if (Time.unscaledTime >= panelNext)
+            {
+                panelNext = Time.unscaledTime + .1f;
+                clock.text = World.IsElbrus ? $"{me.transform.position.y:0} м" : SurvivalRules.NightTime(s.Elapsed.Value);
+                float bearing = Mathf.DeltaAngle(me.Yaw, Mathf.Atan2(gx - x, gz - z) * Mathf.Rad2Deg);
+                string goal = World.IsElbrus ? "Западная вершина" : "Верхнее укрытие";
+                direction.text = $"{(Mathf.Abs(bearing) < 17f ? "↑" : bearing > 0 ? "→" : "←")} {goal} · {(dist > 1500f ? $"{dist / 1000f:0.0} км" : $"{Mathf.RoundToInt(dist)} м")}";
+                if (partyText == null) partyText = new StringBuilder(); else partyText.Clear();
+                foreach (var p in s.Party) if (!p.you) partyText.Append(partyText.Length > 0 ? " · " : "").Append($"{p.name}: {(p.outcome != Outcome.None ? SurvivalRules.Describe(p.outcome).Title.ToLowerInvariant() : p.online ? "на склоне" : "без связи")}");
+                party.text = partyText.ToString();
+                fireButton.GetComponentInChildren<Text>().text = Bootstrap.AutoKindle ? "Прекратить розжиг" : "Разжечь костёр";
+                string kindle = s.KindleNeeded > 0 ? $" {Mathf.Min(99, Mathf.RoundToInt(s.KindleProgress / s.KindleNeeded * 100f))}%" : "";
+                UpdateTravel(me);
+                UpdateClimb(me, s);
+                hint.text = !NetworkManager.Singleton.IsConnectedClient && !NetworkManager.Singleton.IsHost ? "Связь потеряна · ночь идёт на сервере"
+                    : me.Paused ? "Пауза · ночь продолжается, нажмите на сцену"
+                    : me.Skis != null && me.Skis.Busy ? me.Skis.BusyNote()
+                    : me.Crawling ? "Палатка · внутри только ползком"
+                    : nearFire ? (fire > 0 ? $"У огня · ещё {Mathf.CeilToInt(fire)} с" : s.KindleNeeded > 0 ? $"Разжигаете… держите E{kindle}" : "Кострище · стойте и удерживайте E")
+                    : World.IsElbrus ? ClimbHint(me)
+                    : s.Heat < 30 ? "Холод мешает думать. Вернитесь к огню." : s.Storm.Value ? "Метель. Держитесь рядом." : "Свет уходит. Выбирайте путь.";
+                heat.value = s.Heat; hands.value = s.Hands; clarity.value = s.Clarity;
+            }
             UpdateNavigation(me, x, z);
             UpdatePack(me);
             UpdatePlan(me, x, z);

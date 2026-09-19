@@ -79,6 +79,16 @@ namespace Height1079.Runtime
             RouteFurniture(root);
             Valley(root);
             ElbrusDressing.Build(root);
+            // the buildings never move, so their meshes are merged by material: two hundred and fifty prefabs of
+            // thirty-odd renderers each were fifteen hundred draws with a state change on most of them, and facing
+            // the village cost seventy per cent more than facing away from it (Scenery). The ropeways, the
+            // snow-cats and the parties are deliberately left out — they move, and a batched mesh cannot.
+            // «Camp» is not in this list: the snow-cats park in it and they drive away.
+            foreach (var name in new[] { "Azau", "Stations" })
+            {
+                var group = root.Find(name);
+                if (group != null) Scenery.Batch(group);
+            }
             root.gameObject.AddComponent<ElbrusRides>();
             CafeService.Create(root);
             RentalService.Create(root);
