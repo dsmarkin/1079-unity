@@ -73,8 +73,11 @@ namespace Height1079.Puppet
             Shorts = MakeShorts();
             // Trouser legs, not shorts and socks: loose tubes over the thigh and the shin that reach the boot, each
             // flaring slightly downward so the cloth hangs rather than grips.
-            ThighLeg = Turn("PuppetThighLeg", PuppetMesh.Bone(.352f, .150f, .142f, .004f, 5, 3), Round, new Vector2(1f, .94f), PuppetSkinTexture.Thigh);
-            ShinLeg = Turn("PuppetShinLeg", PuppetMesh.Bone(.334f, .138f, .128f, .004f, 5, 3), Round, new Vector2(1f, .94f), PuppetSkinTexture.Shin);
+            // A centimetre or so slimmer than they were (0.150/0.142 and 0.138/0.128): at the old girth two trouser
+            // legs were as thick as the gap between the feet, and no stance told them apart. Still well clear of the
+            // 0.128 thigh and 0.098 knee inside them.
+            ThighLeg = Turn("PuppetThighLeg", PuppetMesh.Bone(.352f, .138f, .128f, .004f, 5, 3), Round, new Vector2(1f, .94f), PuppetSkinTexture.Thigh);
+            ShinLeg = Turn("PuppetShinLeg", PuppetMesh.Bone(.334f, .126f, .116f, .004f, 5, 3), Round, new Vector2(1f, .94f), PuppetSkinTexture.Shin);
             Boot = MakeBoot();
         }
 

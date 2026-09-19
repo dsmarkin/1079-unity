@@ -55,6 +55,21 @@ namespace Height1079.Sandbox
             yield return Shoot(boot, body, "2-шаг", new Vector3(3.2f, .3f, 0f), keepDriving: true);
             body.Drive(PuppetInput.Idle);
 
+            // and both again from dead ahead, low: the width of the stance, the turn-out of the boots and where
+            // each foot actually lands only show from the front. From the side every gait is one line.
+            yield return new WaitForSeconds(1.2f);
+            yield return Shoot(boot, body, "8-стоит-спереди", new Vector3(0f, .1f, 3.0f));
+            Debug.Log($"shots: стопы {Stance(body):0.00} м врозь стоя");
+            // walking back south, toward the camera: north of here is the ramp stand, and a camera three metres
+            // ahead of a body walking north ends up inside it
+            var south = Quaternion.Euler(0f, 180f, 0f);
+            var fromSouth = new Vector3(-.4f, .1f, -3.2f);
+            t = 0f;
+            while (t < 1.9f) { body.Drive(new PuppetInput { Move = new Vector2(0, 1), Look = south }); t += Time.deltaTime; Frame(boot, body, fromSouth); yield return null; }
+            yield return Shoot(boot, body, "9-шаг-спереди", fromSouth, keepDriving: true);
+            Debug.Log($"shots: стопы {Stance(body):0.00} м врозь в шаге");
+            body.Drive(PuppetInput.Idle);
+
             // walking up the thirty-degree ramp
             body.Place(SandboxRange.Ramps[1].Foot);
             yield return new WaitForSeconds(1f);
@@ -121,6 +136,20 @@ namespace Height1079.Sandbox
                 if (offset.HasValue) Frame(boot, body, offset.Value); else boot.AimCamera();
                 yield return null;
             }
+        }
+
+        /// <summary>Sideways distance between the two drawn boots, m — the width of the stance as it actually came
+        /// out, for the log: a frontal photograph shows it, a number lets it be compared between builds.</summary>
+        static float Stance(Puppet.Puppet body)
+        {
+            Transform a = null, b = null;
+            foreach (var tr in body.GetComponentsInChildren<Transform>())
+            {
+                if (tr.name == "Boot0") a = tr; else if (tr.name == "Boot1") b = tr;
+            }
+            if (a == null || b == null) return float.NaN;
+            var d = b.position - a.position;
+            return Vector3.ProjectOnPlane(d, body.Facing * Vector3.forward).magnitude;
         }
 
         static void Frame(SandboxBoot boot, Puppet.Puppet body, Vector3 offset)

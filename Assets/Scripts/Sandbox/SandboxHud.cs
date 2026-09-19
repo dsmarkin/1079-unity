@@ -127,6 +127,9 @@ namespace Height1079.Sandbox
             t.GroundAccel = Row("разгон на ходу", t.GroundAccel, 4f, 80f);
             t.BrakeAccel = Row("торможение", t.BrakeAccel, 1f, 60f);
             t.AirAccel = Row("управление в воздухе", t.AirAccel, 0f, 14f);
+            t.StanceWidth = Row("ноги врозь, м", t.StanceWidth, .10f, .60f);
+            t.ToeOut = Row("носки наружу, °", t.ToeOut, 0f, 35f);
+            t.StepScatter = Row("разброс шага, м", t.StepScatter, 0f, .12f);
 
             GUILayout.Label("прыжок", head);
             t.JumpHeight = Row("высота прыжка, м", t.JumpHeight, 0f, 1.5f);

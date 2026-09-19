@@ -80,9 +80,14 @@ namespace Height1079.Puppet
         /// origin, so the sole ends up a centimetre into the ground — deliberately, because a sole exactly on a probed
         /// plane shows daylight under it on every ridge and stone.</summary>
         const float SoleUp = .05f;
-        /// <summary>Hip joints, the line the feet walk on, and the shoulders. The feet are set narrower than the hips:
-        /// people walk very nearly in one track, and legs dropped straight down off the hips read as a waddle.</summary>
-        const float HipOut = .12f, HipSag = .019f, FootOut = .10f, ShoulderOut = .28f, ShoulderUp = .414f;
+        /// <summary>Hip joints and the shoulders. The line the feet walk on is not here: it is
+        /// <see cref="PuppetTuning.StanceWidth"/>, a tuning, because it was the number that most wanted trying by
+        /// hand. The first figure walked on a 0.20 m track — "people walk very nearly in one line" — and that was
+        /// true and looked wrong: legs stuck together and a march. The hips went out with it, from 0.12 to 0.16:
+        /// the trouser legs are 0.28 m thick and hung 0.22 m apart they overlapped at the crotch into one column,
+        /// which no width of stance below could separate. At 0.16 (0.14 on the built figure) they just touch, and
+        /// still sit under the seat of the shorts, which is 0.25 m to each side.</summary>
+        const float HipOut = .16f, HipSag = .019f, ShoulderOut = .28f, ShoulderUp = .414f;
 
         // ─── the walk ───────────────────────────────────────────────────────────────────────────────────────────────
 
@@ -155,6 +160,10 @@ namespace Height1079.Puppet
         /// not always enter its swing at the beginning of one — setting off puts a foot into the middle of a swing —
         /// and a swing measured from the start would then teleport it.</summary>
         readonly float[] swingFrom = new float[2], swingAt = new float[2];
+        /// <summary>Where this foot's next footfall is off its own line — sideways and along — drawn fresh each time
+        /// the foot leaves the ground (<see cref="PuppetTuning.StepScatter"/>). It is what stops the feet landing on
+        /// two rails. Kept while the foot is down and while the body stands, so a foot rests where it landed.</summary>
+        readonly Vector2[] scatter = new Vector2[2];
 
         public void Bind(Puppet p)
         {
@@ -324,6 +333,9 @@ namespace Height1079.Puppet
             // ── legs ───────────────────────────────────────────────────────────────────────────────────────────────
             var dirWorld = look * new Vector3(step.x, 0f, step.y);        // where the feet are going, in the world
             var soleBase = groundPoint + Vector3.up * (SoleUp * scale);
+            // The track is a real width, not a share of the drawn body: it is the one number of the stance the player
+            // of the sandbox turns by hand, and a slider that read in metres and then got scaled would lie.
+            float footOut = t.StanceWidth * .5f;
 
             // Setting off. The foot that is already in front stays where it is and the other one steps, or the figure
             // lurches into its first stride. The cycle is started with the staying foot at the middle of its stance,
@@ -340,7 +352,8 @@ namespace Height1079.Puppet
             {
                 float sign = s == 0 ? -1f : 1f;
                 var hipJoint = hipPoint + pose * new Vector3(sign * HipOut * scale, -HipSag * scale, 0f);
-                var track = level * new Vector3(sign * FootOut * scale, 0f, 0f);   // this foot's line on the ground
+                // this foot's line on the ground, and this footfall's wander off it
+                var track = level * new Vector3(sign * footOut + scatter[s].x, 0f, scatter[s].y);
                 var home = OnGround(soleBase, track, normal);
                 float q = Frac(phase + (s == 0 ? 0f : .5f));
                 float pitch = 0f;
@@ -396,6 +409,12 @@ namespace Height1079.Puppet
                             swingFrom[s] = Vector3.Dot(last[s] - (soleBase + track), dirWorld);
                             swingAt[s] = u;
                             down[s] = false;
+                            // a new step, a new place for it: a little in or out, a little short or long. Drawn once
+                            // at lift-off and not every frame, so the foot in the air is going somewhere definite.
+                            // Along the step it is worth less than across it — a long step is what the stride is
+                            // for, and it must not be cut into by chance; a foot off its line is the thing missing.
+                            scatter[s] = new Vector2(Random.Range(-1f, 1f), Random.Range(-.6f, .6f)) * t.StepScatter;
+                            track = level * new Vector3(sign * footOut + scatter[s].x, 0f, scatter[s].y);
                         }
                         // one progress for all three — where the foot is, how high it is carried and how the boot is
                         // held — so that a leg joining a swing late starts all of them from where it stands
@@ -434,7 +453,11 @@ namespace Height1079.Puppet
                 var reach = foot - hipJoint;
                 if (reach.sqrMagnitude > legMax * legMax) foot = hipJoint + reach.normalized * legMax;
 
-                var knee = Limb(thigh[s], shin[s], hipJoint, foot, thighLen, shinLen, pose * Vector3.forward, ThighLen, ShinLen);
+                // The knee bends the way the toe points, not dead ahead: turned out with the boot, a standing leg
+                // reads as a leg and not as a piston. Two straight knees pointing forward on a broad track was the
+                // "robot on parade" the wider stance alone did not cure.
+                var kneeWay = pose * (Quaternion.AngleAxis(sign * t.ToeOut, Vector3.up) * Vector3.forward);
+                var knee = Limb(thigh[s], shin[s], hipJoint, foot, thighLen, shinLen, kneeWay, ThighLen, ShinLen);
                 // the trouser legs ride the two bones they cover, so the cloth bends with the knee
                 // same line AND same stretch as the bone inside: a trouser leg that keeps its built length while the
                 // bone is scaled hangs past the boot, and the figure measures a head taller than it is
@@ -443,10 +466,10 @@ namespace Height1079.Puppet
                 trouserLow[s].SetPositionAndRotation(shin[s].position, shin[s].rotation);
                 trouserLow[s].localScale = shin[s].localScale;
 
-                // The boot turns out into a side-step — hard on the leading foot, barely on the trailing one — and
-                // rolls heel to toe through the stance. It is pitched about the part of the sole that is on the
-                // ground, so the toe never goes through it.
-                float yaw = afoot ? gait * lateral * (sign * lateral > 0f ? 26f : 12f) + sign * 5f : 0f;
+                // The boot is turned out by the stance (PuppetTuning.ToeOut), turns further into a side-step — hard
+                // on the leading foot, barely on the trailing one — and rolls heel to toe through the stance. It is
+                // pitched about the part of the sole that is on the ground, so the toe never goes through it.
+                float yaw = sign * t.ToeOut + (afoot ? gait * lateral * (sign * lateral > 0f ? 26f : 12f) : 0f);
                 var flat = afoot ? level * Quaternion.AngleAxis(yaw, Vector3.up) : pose;
                 var pivot = new Vector3(0f, 0f, (pitch > 0f ? ToePivot : -HeelPivot) * scale);
                 var bootRot = flat * Quaternion.Euler(pitch, 0f, 0f);
