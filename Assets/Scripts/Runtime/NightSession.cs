@@ -108,6 +108,9 @@ namespace Height1079.Runtime
             // frame, and a nine-hour ascent has hundreds of lines: that overruns the transport's send queue and the
             // guest is dropped before he has seen the mountain. Nobody reads further back than this anyway.
             PacksClientJoined(clientId);
+            // The roster is sent on change now, so a guest would otherwise wait for the next join or death to learn
+            // who is on the slope. Adding him changes the string anyway — this makes it not depend on that.
+            sentNames = default;
             int from = Mathf.Max(0, sentEvents - ProtocolTail);
             for (int i = from; i < sentEvents; i++) EventRpc(run.Events[i].Time, run.Events[i].Text, RpcTarget.Single(clientId, RpcTargetUse.Temp));
         }
