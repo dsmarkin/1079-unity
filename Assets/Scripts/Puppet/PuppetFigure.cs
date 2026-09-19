@@ -51,8 +51,9 @@ namespace Height1079.Puppet
         /// <summary>0…1 of "in the air with the legs tucked and the arms up". See where it is updated.</summary>
         float airPose;
         readonly PuppetArm[] arm = new PuppetArm[2];
-        /// <summary>The upper arm as a bone: draws nothing itself (the arm is <see cref="PuppetArm"/>'s tube), but
-        /// the sleeve is skinned to it.</summary>
+        /// <summary>The upper arm as a bone. It draws nothing and, since the sleeve became the arm's own tube
+        /// (<see cref="PuppetArm"/>), nothing is skinned to it either; it is kept so the clothes' bone list stays
+        /// as <see cref="PuppetSkin"/> drew it.</summary>
         readonly Transform[] armUp = new Transform[2];
         readonly Transform[] thigh = new Transform[2], shin = new Transform[2], boot = new Transform[2];
         Renderer[] parts = System.Array.Empty<Renderer>();
@@ -86,12 +87,12 @@ namespace Height1079.Puppet
         /// <summary>Hip joints and the shoulders. The line the feet walk on is not here: it is
         /// <see cref="PuppetTuning.StanceWidth"/>, a tuning, because it was the number that most wanted trying by
         /// hand. The first figure walked on a 0.20 m track — "people walk very nearly in one line" — and that was
-        /// true and looked wrong: legs stuck together and a march. The hips went out with it, from 0.12 to 0.16:
-        /// the trouser legs, 0.24 m thick, hung 0.24 m apart overlapped at the crotch into one column, which no
-        /// width of stance below could separate. At 0.16 there is a hand's width between them, and their tops still
-        /// sit under the seat of the trousers, which is 0.27 m to each side.</summary>
+        /// true and looked wrong: legs stuck together and a march. The hips went out with it, from 0.12 to 0.16,
+        /// and the figure became a cowboy: trouser legs 0.24 m thick on hips 0.32 m apart on a 0.42 m stance. They
+        /// are back at 0.13 with the trouser legs cut to 0.20 m, which leaves a few centimetres between the legs
+        /// and keeps their tops under the seat of the trousers, 0.24 m to each side.</summary>
         // Shared with PuppetSkin: these are also where the clothes' bones sit in the rest pose the cloth is drawn in.
-        internal const float HipOut = .16f, HipSag = .019f, ShoulderOut = .28f, ShoulderUp = .414f;
+        internal const float HipOut = .13f, HipSag = .019f, ShoulderOut = .28f, ShoulderUp = .414f;
 
         // ─── the walk ───────────────────────────────────────────────────────────────────────────────────────────────
 

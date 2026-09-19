@@ -2,21 +2,26 @@ using UnityEngine;
 
 namespace Height1079.Puppet
 {
-    /// <summary>The climber's parts, turned once and shared by every body in the scene: the rigid pieces (head, arms,
-    /// hands, boots), the clothes, and the single material they are all painted with. This is where the silhouettes
-    /// actually live — the numbers below are the figure, and moving one of them changes the character.
+    /// <summary>The climber's parts, turned once and shared by every body in the scene: the rigid pieces (head with
+    /// its hat, boots), the clothes, and the single material they are all painted with. This is where the
+    /// silhouettes actually live — the numbers below are the figure, and moving one of them changes the character.
     ///
-    /// The clothes are one skinned mesh, the way every game does them. Torso and pack, two sleeves, the seat of the
-    /// trousers and two trouser legs are one continuous surface whose vertices are bound to the bones
-    /// <see cref="PuppetFigure"/> poses every frame — the body, the thighs, the shins and the upper arms. A sleeve is
-    /// swept out of the inside of the torso, over the shoulder and down the arm; a trouser leg out of the seat and
-    /// down to the boot; at each joint the vertices are shared between the two bones, so the cloth bends at the knee
-    /// and the shoulder instead of showing two tubes with a gap or a bulge between them. Every sleeve and hem is
-    /// turned inwards at the end, so the cloth has an edge with thickness and the arm visibly comes OUT of it.
+    /// The clothes are one skinned mesh, the way every game does them. The jacket with the rucksack on it, the seat
+    /// of the trousers and two trouser legs are one continuous surface whose vertices are bound to the bones
+    /// <see cref="PuppetFigure"/> poses every frame — the body, the thighs and the shins. A trouser leg is swept out
+    /// of the seat and down to the boot; at the knee the vertices are shared between the two bones, so the cloth
+    /// bends instead of showing two tubes with a gap or a bulge between them. Every edge is turned inwards, so the
+    /// cloth has thickness where it ends.
     ///
-    /// The skin parts stay rigid on plain transforms (head, boots); the arms are not here at all, because an arm is
-    /// one tube rebuilt every frame along the line the figure solved (<see cref="PuppetArm"/>) — only its fingers
-    /// are turned here.
+    /// The jacket is a padded winter one: a body wider than the trousers whose hem hangs over their waistband, a
+    /// stand-up collar round the bottom of the head, and no shoulder seam — the sleeves are not here at all. A sleeve
+    /// is the arm: one thick tube rebuilt every frame along the line the figure solved (<see cref="PuppetArm"/>),
+    /// leaving the jacket's shoulder, stepping down onto a knitted cuff at the wrist, with the hand coming out of it.
+    /// Only the fingers are turned here.
+    ///
+    /// The rucksack is the one thing on the body that is not round. The lathe turns a rectangular ring as readily as
+    /// a circle once told to (<see cref="PuppetMesh.Station.Corner"/>), so the pack is three boxes with soft corners —
+    /// the bag, a lid over it and a pocket on its face — swept the same way as everything else.
     ///
     /// The bones the clothes hang on have a rest pose — legs straight down, arms hanging — and the clothes are drawn
     /// in it; <see cref="BindPoses"/> is that pose written down as matrices, and the joint positions it uses are
@@ -32,8 +37,8 @@ namespace Height1079.Puppet
         /// y back up the forearm, x the thin way across the palm, z the wide way. Not a Mesh: <see cref="PuppetArm"/>
         /// copies them into its own tube each frame, mirrored in x for the left hand.</summary>
         public static PuppetMesh Digits;
-        /// <summary>Torso with the pack, both sleeves, seat and both trouser legs: one skinned mesh over
-        /// <see cref="BoneCount"/> bones in the order below.</summary>
+        /// <summary>Jacket with the pack, seat and both trouser legs: one skinned mesh over <see cref="BoneCount"/>
+        /// bones in the order below (the two arm bones carry nothing now that the sleeves are the arms).</summary>
         public static Mesh Clothes;
 
         public const int BoneBody = 0, BoneThighL = 1, BoneShinL = 2, BoneThighR = 3, BoneShinR = 4, BoneArmL = 5, BoneArmR = 6, BoneCount = 7;
@@ -41,7 +46,7 @@ namespace Height1079.Puppet
         /// <summary>Segments around a piece. The head and torso are what the eye reads, a finger is four pixels.</summary>
         public const int Round = 22, Slim = 14;
 
-        /// <summary>How much finer the weave is on the trousers than on the shirt: same pattern, denser cloth.</summary>
+        /// <summary>How much finer the weave is on the trousers than on the jacket: same pattern, denser cloth.</summary>
         const float TrouserWeave = 1.5f;
 
         public static void Ensure()
@@ -107,41 +112,11 @@ namespace Height1079.Puppet
         static PuppetMesh.Station At(Vector3 c, Vector3 axis, float r, Vector2 squash, BoneWeight w)
             => new PuppetMesh.Station { Centre = c, Axis = axis, Radius = r, Squash = squash, Weight = w };
 
-        /// <summary>A short sleeve. It starts as a narrow ring inside the torso, widens as it comes out over the
-        /// shoulder, and runs down the upper arm to a cuff that is turned in and back up, so the edge has thickness.
-        /// The rings inside the body belong to the body; the one on the shoulder joint is shared with the arm; the
-        /// rest are the arm's. Oversized on purpose: a sleeve that follows the arm is a painted-on stripe. This one
-        /// stands well clear of a 9.4 cm arm (<see cref="PuppetArm.ShoulderR"/>) and flares at the cuff, so the arm
-        /// visibly comes OUT of it.</summary>
-        static PuppetMesh.Station[] SleeveStations(float sign)
-        {
-            int arm = sign < 0f ? BoneArmL : BoneArmR;
-            var sh = Shoulder(sign);
-            var sq = new Vector2(1f, .92f);
-            var outward = new Vector3(sign, -.16f, 0f).normalized;          // from inside the chest out to the shoulder
-            var turn = new Vector3(sign * .35f, -1f, 0f).normalized;        // rounding the shoulder into "down"
-            var body = PuppetMesh.Rigid(BoneBody);
-            return new[]
-            {
-                At(new Vector3(sign * .09f, .445f, .01f), outward, .070f, sq, body),
-                // wide enough over the shoulder to clear the arm's own joint ball (radius 0.094 on the shoulder
-                // point): a ring here 1 cm smaller let the skin show through the top of the sleeve
-                At(new Vector3(sign * .19f, .440f, .01f), outward, .118f, sq, body),
-                At(sh, turn, .135f, sq, PuppetMesh.Blend(BoneBody, arm, .5f)),
-                At(sh + Vector3.down * .06f, Vector3.down, .135f, sq, PuppetMesh.Rigid(arm)),
-                At(sh + Vector3.down * SleeveDrop, Vector3.down, .142f, sq, PuppetMesh.Rigid(arm)),     // the cuff
-                At(sh + Vector3.down * SleeveDrop, Vector3.down, .095f, sq, PuppetMesh.Rigid(arm)),     // turned in
-                At(sh + Vector3.down * (SleeveDrop - .03f), Vector3.down, .095f, sq, PuppetMesh.Rigid(arm)),   // and up
-            };
-        }
-
-        /// <summary>How far down the upper arm the sleeve reaches, metres. The arm is 0.26 long.</summary>
-        const float SleeveDrop = .165f;
 
         /// <summary>A trouser leg: a narrow ring inside the seat, out through the hip joint, straight down the thigh,
         /// through the knee where the rings are shared between thigh and shin, and down the shin to a hem just above
-        /// the boot, turned in so the boot goes into it. It hangs loose — a 12 cm tube — and flares slightly downward,
-        /// so the cloth reads as hanging rather than gripping. Narrowest at the hip: the hips stand 0.16 m out
+        /// the boot, turned in so the boot goes into it. It hangs loose — a 20 cm tube — and flares slightly downward,
+        /// so the cloth reads as hanging rather than gripping. Narrowest at the hip: the hips stand 0.13 m out
         /// (<see cref="PuppetFigure.HipOut"/>), and the top of the leg has to fit under the seat there.</summary>
         static PuppetMesh.Station[] LegStations(float sign)
         {
@@ -154,18 +129,18 @@ namespace Height1079.Puppet
             Vector3 P(float y) => new Vector3(x, y, 0f);
             return new[]
             {
-                At(start, outward, .070f, sq, PuppetMesh.Rigid(BoneBody)),
-                At(hip, (outward + Vector3.down).normalized, .102f, sq, PuppetMesh.Blend(BoneBody, thigh, .5f)),
-                At(P(hip.y - .07f), Vector3.down, .112f, sq, PuppetMesh.Rigid(thigh)),
-                At(P(hip.y - .14f), Vector3.down, .118f, sq, PuppetMesh.Rigid(thigh)),
-                At(P(knee + .07f), Vector3.down, .115f, sq, PuppetMesh.Rigid(thigh)),
-                At(P(knee + .035f), Vector3.down, .113f, sq, PuppetMesh.Blend(thigh, shin, .2f)),
-                At(P(knee), Vector3.down, .112f, sq, PuppetMesh.Blend(thigh, shin, .5f)),
-                At(P(knee - .035f), Vector3.down, .111f, sq, PuppetMesh.Blend(thigh, shin, .8f)),
-                At(P(knee - .07f), Vector3.down, .110f, sq, PuppetMesh.Rigid(shin)),
-                At(P(ankle + HemUp), Vector3.down, .106f, sq, PuppetMesh.Rigid(shin)),          // the hem
-                At(P(ankle + HemUp), Vector3.down, .078f, sq, PuppetMesh.Rigid(shin)),          // turned in
-                At(P(ankle + HemUp + .03f), Vector3.down, .078f, sq, PuppetMesh.Rigid(shin)),   // and up
+                At(start, outward, .060f, sq, PuppetMesh.Rigid(BoneBody)),
+                At(hip, (outward + Vector3.down).normalized, .087f, sq, PuppetMesh.Blend(BoneBody, thigh, .5f)),
+                At(P(hip.y - .07f), Vector3.down, .095f, sq, PuppetMesh.Rigid(thigh)),
+                At(P(hip.y - .14f), Vector3.down, .100f, sq, PuppetMesh.Rigid(thigh)),
+                At(P(knee + .07f), Vector3.down, .098f, sq, PuppetMesh.Rigid(thigh)),
+                At(P(knee + .035f), Vector3.down, .096f, sq, PuppetMesh.Blend(thigh, shin, .2f)),
+                At(P(knee), Vector3.down, .095f, sq, PuppetMesh.Blend(thigh, shin, .5f)),
+                At(P(knee - .035f), Vector3.down, .094f, sq, PuppetMesh.Blend(thigh, shin, .8f)),
+                At(P(knee - .07f), Vector3.down, .093f, sq, PuppetMesh.Rigid(shin)),
+                At(P(ankle + HemUp), Vector3.down, .090f, sq, PuppetMesh.Rigid(shin)),          // the hem
+                At(P(ankle + HemUp), Vector3.down, .066f, sq, PuppetMesh.Rigid(shin)),          // turned in
+                At(P(ankle + HemUp + .03f), Vector3.down, .066f, sq, PuppetMesh.Rigid(shin)),   // and up
             };
         }
 
@@ -173,20 +148,19 @@ namespace Height1079.Puppet
         /// ankle lump reaches 11 cm above the sole and goes up inside the hem.</summary>
         const float HemUp = .05f;
 
-        /// <summary>The seat of the trousers: a bowl hanging off the hips, from a waistband just under the shirt to a
-        /// rounded bottom the two legs come out of. Wide enough at the hips to hold both leg tops (0.16 m out and
-        /// 0.10 thick: 0.26 to each side), squashed front to
-        /// back like the trunk it is worn on. Its lower half follows the two thighs equally rather than the body, so
+        /// <summary>The seat of the trousers: a bowl hanging off the hips, from a waistband under the jacket's hem to
+        /// a rounded bottom the two legs come out of. Wide enough at the hips to hold both leg tops (0.13 m out and
+        /// 0.09 thick: 0.22 to each side), squashed front to back like the trunk it is worn on. Its lower half follows the two thighs equally rather than the body, so
         /// that in a crouch the seat goes forward with the legs instead of being left hanging behind them.</summary>
         static Vector2[] SeatOutline() => PuppetMesh.Spline(new[]
         {
-            new Vector2(.205f, .130f),     // waistband, just under the shirt
-            new Vector2(.218f, .060f),
-            new Vector2(.245f, -.010f),
-            new Vector2(.270f, -.070f),    // the hips
-            new Vector2(.268f, -.115f),
-            new Vector2(.230f, -.152f),
-            new Vector2(.135f, -.180f),
+            new Vector2(.185f, .130f),     // waistband, under the jacket's hem
+            new Vector2(.196f, .060f),
+            new Vector2(.218f, -.010f),
+            new Vector2(.238f, -.070f),    // the hips
+            new Vector2(.236f, -.115f),
+            new Vector2(.205f, -.152f),
+            new Vector2(.120f, -.180f),
             new Vector2(0f, -.190f),
         }, 3);
 
@@ -194,14 +168,6 @@ namespace Height1079.Puppet
         {
             float body = Mathf.Clamp01((p.y + .17f) / .16f);   // all body down to the hips, all legs by the bottom
             return PuppetMesh.Blend(BoneBody, body, BoneThighL, (1f - body) * .5f, BoneThighR, (1f - body) * .5f);
-        }
-
-        /// <summary>Where along its own texture column the sleeve's cuff band starts, 0…1 — 2.5 cm of tube above the
-        /// edge, then the turned-in part. The texture painter asks, so the band lands on the edge however the sleeve
-        /// is re-proportioned.</summary>
-        public static float SleeveCuffV
-        {
-            get { var st = SleeveStations(1f); return (PuppetMesh.Arc(st, 4) - .025f) / PuppetMesh.Arc(st); }
         }
 
         public static float TrouserHemV
@@ -224,55 +190,248 @@ namespace Height1079.Puppet
         static Mesh MakeClothes()
         {
             var m = new PuppetMesh();
-            // hips, chest and pack are one surface: they never move relative to each other. Squashed front to back
-            // the way a person is, with the pack the only lump still added on top. The heights below are the old
-            // trunk's shortened by a sixteenth, every radius untouched: the trunk lost 4 cm along with the rest of
-            // the man and not a millimetre across.
-            m.Revolve(PuppetMesh.Spline(new[]
-            {
-                new Vector2(0f, -.179f), new Vector2(.105f, -.165f), new Vector2(.155f, -.127f), new Vector2(.175f, -.056f),
-                new Vector2(.17f, .019f),                                                   // waist
-                new Vector2(.18f, .094f), new Vector2(.205f, .188f), new Vector2(.23f, .292f),
-                new Vector2(.243f, .376f),                                                  // shoulders, where the arms hang
-                new Vector2(.235f, .438f), new Vector2(.18f, .489f), new Vector2(.09f, .519f), new Vector2(0f, .527f)
-            }, 4), Round, new Vector2(1f, .72f), PuppetSkinTexture.Torso);
+            // The jacket and the pack are one surface: they never move relative to each other. Squashed front to
+            // back the way a person is, though less than the trunk inside it — it is padded.
+            m.Revolve(PuppetMesh.Spline(JacketOutline(), JacketSpline), Round, new Vector2(1f, .80f), PuppetSkinTexture.Torso);
 
+            // The pack is turned with its face toward +Z — u = 0.5, the middle of the atlas column, is where the
+            // straps and the pocket are painted — and then spun round to hang on the back, so that face looks away
+            // from the body and the seam of its texture is against the jacket where nothing sees it.
             var pack = new PuppetMesh();
-            pack.Revolve(PuppetMesh.Blob(.40f, .185f, 12), Slim + 4, new Vector2(1.05f, .70f), PuppetSkinTexture.Pack);
-            m.Append(pack, Matrix4x4.Translate(new Vector3(0f, .2635f, -.205f)));
+            pack.Sweep(PackStations(), PackSides, PuppetSkinTexture.Pack);
+            pack.Sweep(LidStations(), PackSides, PuppetSkinTexture.Lid);
+            pack.Sweep(PocketStations(), PackSides, PuppetSkinTexture.Pocket);
+            m.Append(pack, Matrix4x4.TRS(new Vector3(0f, 0f, PackZ), Quaternion.Euler(0f, 180f, 0f), Vector3.one));
 
             for (int s = 0; s < 2; s++)
-            {
-                float sign = s == 0 ? -1f : 1f;
-                m.Sweep(SleeveStations(sign), Round, PuppetSkinTexture.Sleeve);
-                m.Sweep(LegStations(sign), Round, PuppetSkinTexture.TrouserLeg, TrouserWeave);
-            }
+                m.Sweep(LegStations(s == 0 ? -1f : 1f), Round, PuppetSkinTexture.TrouserLeg, TrouserWeave);
             m.Revolve(SeatOutline(), Round, new Vector2(1f, .74f), PuppetSkinTexture.Seat, SeatWeight, TrouserWeave);
             return m.ToMesh("PuppetClothes", BindPoses());
+        }
+
+        // ─── the jacket ─────────────────────────────────────────────────────────────────────────────────────────────
+
+        /// <summary>The jacket's outline (radius, height) in the body's frame, run from inside its hem, out under the
+        /// hem, up the outside and over the shoulders to the collar, and in over the collar's top. It is a padded
+        /// jacket, so it is a barrel: 0.255 at the hem hanging 2 cm over the trousers' waistband (which is 0.185),
+        /// 0.272 at the chest, rounding over the shoulders — the arms hang from 0.28 out, 0.414 up, and the sleeve's
+        /// shoulder is buried in that rounding — into a stand-up collar 0.178 wide that rings the bottom of the head
+        /// (the head is 0.15 wide at the collar's top and comes to its point 3 cm under it).</summary>
+        static Vector2[] JacketOutline() => new[]
+        {
+            new Vector2(.200f, .015f),   // inside the hem, up inside the jacket
+            new Vector2(.200f, -.020f),  // the hem, turned in
+            new Vector2(.255f, -.020f),  // its outer edge
+            new Vector2(.265f, .060f),
+            new Vector2(.270f, .160f),
+            new Vector2(.272f, .260f),
+            new Vector2(.268f, .350f),
+            new Vector2(.255f, .405f),   // the shoulders
+            new Vector2(.225f, .450f),
+            new Vector2(.185f, .475f),   // where the collar rises
+            new Vector2(.178f, .505f),   // the collar's top
+            new Vector2(.150f, .505f),   // turned in
+            new Vector2(.150f, .480f),
+            new Vector2(0f, .478f),
+        };
+        const int JacketSpline = 3;
+        /// <summary>The outer run of the outline — hem edge to collar top — as indices into the splined outline.</summary>
+        const int JacketHemIdx = 2 * JacketSpline, JacketCollarTopIdx = 10 * JacketSpline;
+
+        /// <summary>Where a height on the OUTSIDE of the jacket lands along its texture column, 0…1 of the whole
+        /// outline's arc: the hem is at <c>JacketV(-.02)</c>, the collar's foot at <c>JacketV(.475)</c>. The atlas
+        /// paints the hem, the zip, the pockets and the collar by this.</summary>
+        public static float JacketV(float y)
+        {
+            var o = PuppetMesh.Spline(JacketOutline(), JacketSpline);
+            float total = 0f, at = -1f;
+            for (int i = 1; i < o.Length; i++)
+            {
+                float seg = (o[i] - o[i - 1]).magnitude;
+                if (at < 0f && i > JacketHemIdx && i <= JacketCollarTopIdx && y <= o[i].y)
+                    at = total + seg * Mathf.InverseLerp(o[i - 1].y, o[i].y, y);
+                total += seg;
+            }
+            if (at < 0f) at = y < o[JacketHemIdx].y ? OutlineArc(o, JacketHemIdx) : OutlineArc(o, JacketCollarTopIdx);
+            return total > 1e-6f ? at / total : 0f;
+        }
+
+        static float OutlineArc(Vector2[] o, int upTo)
+        {
+            float t = 0f;
+            for (int i = 1; i < o.Length && i <= upTo; i++) t += (o[i] - o[i - 1]).magnitude;
+            return t;
+        }
+
+        // ─── the pack ───────────────────────────────────────────────────────────────────────────────────────────────
+
+        /// <summary>The rucksack, metres: half-width and half-depth of the bag, how soft its corners are, where its
+        /// bottom and top sit on the body, and its centre line behind the back. The jacket's back is at −0.22, so the
+        /// face of the pack sinks a couple of centimetres into the padding, the way a loaded pack does. It is narrower
+        /// than the shoulders (0.26 to each side) and its lid stops under the back of the head.</summary>
+        const float PackHalfW = .17f, PackHalfD = .10f, PackCorner = .035f, PackBottom = 0f, PackTop = .42f, PackZ = -.30f;
+        const float LidTop = .51f, PocketHalfW = .115f, PocketHalfD = .045f, PocketBottom = .03f, PocketTop = .215f;
+        /// <summary>Strap positions on the face, metres off its centre line, and half a strap's width.</summary>
+        const float StrapOff = .07f, StrapHalf = .015f;
+        /// <summary>Segments round a pack ring: a metre of perimeter with four corners of a few centimetres each
+        /// wants twice what a round part does, or the corners come out as chamfers.</summary>
+        const int PackSides = 44;
+
+        /// <summary>One rectangular ring of a box, on the body's bone. A zero width makes a pole that closes it.</summary>
+        static PuppetMesh.Station Box(float y, float z, float hx, float hz, float corner) => new PuppetMesh.Station
+        {
+            Centre = new Vector3(0f, y, z), Axis = Vector3.up,
+            Radius = hx, Squash = hx > 1e-5f ? new Vector2(1f, hz / hx) : Vector2.one,
+            Corner = hx > 1e-5f ? corner : 0f, Weight = PuppetMesh.Rigid(BoneBody),
+        };
+
+        /// <summary>The bag: a flat-ish bottom rounded over into straight sides, closed under the lid.</summary>
+        static PuppetMesh.Station[] PackStations()
+        {
+            float w = PackHalfW, d = PackHalfD, c = PackCorner, y0 = PackBottom, y1 = PackTop;
+            return new[]
+            {
+                Box(y0, 0f, 0f, 0f, 0f),
+                Box(y0, 0f, w * .80f, d * .70f, c),
+                Box(y0 + .012f, 0f, w * .94f, d * .90f, c),
+                Box(y0 + .03f, 0f, w, d, c),
+                Box(y1 - .03f, 0f, w, d, c),
+                Box(y1 - .01f, 0f, w * .96f, d * .92f, c),
+                Box(y1, 0f, w * .80f, d * .70f, c),
+                Box(y1, 0f, 0f, 0f, 0f),
+            };
+        }
+
+        /// <summary>The lid: starts inside the top of the bag, comes out a centimetre wider than it and rounds over.</summary>
+        static PuppetMesh.Station[] LidStations()
+        {
+            float w = PackHalfW + .012f, d = PackHalfD + .012f, c = PackCorner + .01f;
+            return new[]
+            {
+                Box(PackTop - .035f, 0f, PackHalfW * .94f, PackHalfD * .92f, c),
+                Box(PackTop - .02f, 0f, w, d, c),
+                Box(LidTop - .055f, 0f, w, d, c),
+                Box(LidTop - .03f, 0f, w * .96f, d * .94f, c),
+                Box(LidTop - .01f, 0f, w * .80f, d * .72f, c),
+                Box(LidTop, 0f, w * .45f, d * .40f, c),
+                Box(LidTop + .003f, 0f, 0f, 0f, 0f),
+            };
+        }
+
+        /// <summary>The pocket on the face of the bag, sunk a centimetre and a half into it.</summary>
+        static PuppetMesh.Station[] PocketStations()
+        {
+            float w = PocketHalfW, d = PocketHalfD, c = .03f, z = PackHalfD + PocketHalfD - .015f, y0 = PocketBottom, y1 = PocketTop;
+            return new[]
+            {
+                Box(y0, z, 0f, 0f, 0f),
+                Box(y0, z, w * .75f, d * .60f, c),
+                Box(y0 + .015f, z, w * .96f, d * .90f, c),
+                Box(y0 + .035f, z, w, d, c),
+                Box(y1 - .03f, z, w, d, c),
+                Box(y1 - .012f, z, w * .95f, d * .85f, c),
+                Box(y1, z, w * .70f, d * .50f, c),
+                Box(y1, z, 0f, 0f, 0f),
+            };
+        }
+
+        static float Perimeter(float hx, float hz, float c)
+        {
+            c = Mathf.Min(c, hx, hz);
+            return 4f * (hx - c) + 4f * (hz - c) + 2f * Mathf.PI * c;
+        }
+
+        /// <summary>What the atlas needs to paint the pack: where a height lands along each piece's texture column
+        /// (0…1 of its arc), and how far off u = 0.5 a strap is on each piece. The pieces have different perimeters,
+        /// so the same seven centimetres is a different fraction of u on each.</summary>
+        public static float PackV(float y) => VAt(PackStations(), y);
+        public static float LidV(float y) => VAt(LidStations(), y);
+        public static float PocketV(float y) => VAt(PocketStations(), y);
+        public static float PackStrapU => StrapOff / Perimeter(PackHalfW, PackHalfD, PackCorner);
+        public static float PackStrapHalfU => StrapHalf / Perimeter(PackHalfW, PackHalfD, PackCorner);
+        public static float LidStrapU => StrapOff / Perimeter(PackHalfW + .012f, PackHalfD + .012f, PackCorner + .01f);
+        public static float LidStrapHalfU => StrapHalf / Perimeter(PackHalfW + .012f, PackHalfD + .012f, PackCorner + .01f);
+        public static float PocketStrapU => StrapOff / Perimeter(PocketHalfW, PocketHalfD, .03f);
+        public static float PocketStrapHalfU => StrapHalf / Perimeter(PocketHalfW, PocketHalfD, .03f);
+
+        /// <summary>Where a height lands along a chain of stations, 0…1 of the arc <see cref="PuppetMesh.Sweep"/>
+        /// lays v out by — so the atlas can paint "a strap from the bottom to the lid" without knowing how much of
+        /// the arc the rounding spends. Rings at one height (a pole and the ring it opens into) are stepped over.</summary>
+        static float VAt(PuppetMesh.Station[] st, float y)
+        {
+            float total = PuppetMesh.Arc(st);
+            if (total < 1e-6f || y <= st[0].Centre.y) return 0f;
+            for (int i = 1; i < st.Length; i++)
+            {
+                float a = st[i - 1].Centre.y, b = st[i].Centre.y;
+                if (b <= a || y > b) continue;
+                float lo = PuppetMesh.Arc(st, i - 1), hi = PuppetMesh.Arc(st, i);
+                return (lo + (hi - lo) * (y - a) / (b - a)) / total;
+            }
+            return 1f;
         }
 
         // ─── the rigid pieces ───────────────────────────────────────────────────────────────────────────────────────
 
         /// <summary>The head is a drop, not a ball, and the hat rides with it: both are posed by the same rotation, so
-        /// they are one mesh. The brim is a ring wide enough to read as straw from any side.
+        /// they are one mesh. The hat is a knitted winter one — a cap hugging the head three centimetres out from
+        /// it, a fold turned up round the bottom that stands out a little further, and a pompom on top. The fold's
+        /// lower edge is at 7 cm above the head's centre, a finger above the brows, so the eyes are never covered.
         ///
         /// The head is the one thing that did not shrink when the climber came down to 1.62 m, and that is the whole
         /// point of the exercise: 40 cm of head on 1.62 m of man is the quarter PEAK's figures carry, where the same
-        /// head on the old 1.79 m was barely a fifth. The hat did come down — it used to be a dome hanging in the air
-        /// above the crown, which added 12 cm of nothing to the silhouette; seated on the head where a hat belongs it
-        /// costs 7.</summary>
+        /// head on the old 1.79 m was barely a fifth. The hat adds 8 cm of it, pompom included.</summary>
         static Mesh MakeHead()
         {
             var m = new PuppetMesh();
             m.Revolve(PuppetMesh.Drop(.46f, .243f, .26f, 22), Round, new Vector2(1f, .97f), PuppetSkinTexture.Head);
 
-            var crown = new PuppetMesh();
-            crown.Revolve(PuppetMesh.Blob(.21f, .19f, 12), Round, Vector2.one, PuppetSkinTexture.Hat);
-            m.Append(crown, Matrix4x4.Translate(new Vector3(0f, .19f, 0f)));    // its widest ring sits above the brim,
-            var brim = new PuppetMesh();                                        // so nothing flares out underneath
-            brim.Revolve(PuppetMesh.Ring(.245f, .115f, .19f, 12), Round, Vector2.one, PuppetSkinTexture.Hat);
-            m.Append(brim, Matrix4x4.Translate(new Vector3(0f, .138f, 0f)));    // 14 cm above the eyes: nothing is hidden
+            var hat = new PuppetMesh();
+            hat.Revolve(PuppetMesh.Spline(HatOutline(), HatSpline), Round, new Vector2(1f, .97f), PuppetSkinTexture.Hat, null, HatWeave);
+            m.Append(hat, Matrix4x4.identity);
+            var pom = new PuppetMesh();
+            pom.Revolve(PuppetMesh.Blob(.085f, .042f, 10), Slim, Vector2.one, PuppetSkinTexture.Pompom, null, HatWeave);
+            m.Append(pom, Matrix4x4.Translate(new Vector3(0f, .275f, 0f)));
             return m.ToMesh("PuppetHead");
+        }
+
+        /// <summary>The hat's outline (radius, height) in the head's frame, run from inside the head, down and out
+        /// round the fold, and up over the crown to the pole. The head under it is 0.205 wide at the fold's edge,
+        /// 0.145 at the crown's start and 0.075 at 0.21 up; the hat keeps about three centimetres off it all the way
+        /// and the fold stands two more. Points, not a formula, so the fold has a ridge.</summary>
+        static Vector2[] HatOutline() => new[]
+        {
+            new Vector2(.170f, .085f),   // inside the head
+            new Vector2(.222f, .073f),   // the lower edge of the fold, just above the brows
+            new Vector2(.228f, .100f),
+            new Vector2(.220f, .130f),
+            new Vector2(.205f, .148f),   // the top of the fold
+            new Vector2(.190f, .158f),   // the crown proper
+            new Vector2(.145f, .185f),
+            new Vector2(.105f, .210f),
+            new Vector2(.060f, .232f),
+            new Vector2(0f, .245f),
+        };
+        const int HatSpline = 3;
+        /// <summary>A knit is coarser than the jacket's cloth: the weave tile is stretched by the inverse of this.</summary>
+        const float HatWeave = .7f;
+
+        /// <summary>Where the fold runs along the hat's texture column, 0…1 of its arc — from its lower edge to the
+        /// ridge — so the atlas can rib it.</summary>
+        public static float HatFoldV0 => OutlineV(PuppetMesh.Spline(HatOutline(), HatSpline), 1 * HatSpline);
+        public static float HatFoldV1 => OutlineV(PuppetMesh.Spline(HatOutline(), HatSpline), 4 * HatSpline);
+
+        /// <summary>Arc along an outline up to a point of it, as a share of the whole — the measure the lathe lays
+        /// v out by (a change of radius counts as length too).</summary>
+        static float OutlineV(Vector2[] o, int upTo)
+        {
+            float total = 0f, at = 0f;
+            for (int i = 1; i < o.Length; i++)
+            {
+                total += (o[i] - o[i - 1]).magnitude;
+                if (i <= upTo) at = total;
+            }
+            return total > 1e-6f ? at / total : 0f;
         }
 
         /// <summary>Three fingers and a thumb, for the right hand, curled the way a hand hangs when nothing is asked
