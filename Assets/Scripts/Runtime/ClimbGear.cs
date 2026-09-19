@@ -131,7 +131,14 @@ namespace Height1079.Runtime
             var dir = moving.sqrMagnitude > .01f ? moving : transform.forward;
             here = Climb.Point(Bootstrap.Dem, transform.position, dir);
             var s = NightSession.Instance;
-            air = Climb.Air(here.Ele, transform.position.x, transform.position.z, Weather.Storm, 0f);
+            // The same two numbers the host used, not the client's own weather. The host rolls the mountain's storm
+            // and counts the snow that has fallen since the wands were last readable, and publishes both; the local
+            // Weather.Storm is a smoothed visual value with its own gust phase, and freshSnowCm was simply passed as
+            // zero. The HUD therefore showed a wind and a felt temperature that the dice deciding the falls had
+            // never seen. Both are free — they are already on the wire.
+            float storm = s != null ? Mathf.Max(Weather.Storm, s.MountainStorm.Value ? 1f : 0f) : Weather.Storm;
+            float fresh = s != null ? s.FreshSnow.Value / 4f : 0f;
+            air = Climb.Air(here.Ele, transform.position.x, transform.position.z, storm, fresh);
             float thin = Mathf.InverseLerp(ThinFromEle, ThinToEle, here.Ele);
             // the second half of the day is not the first half run backwards: going down the air gives some of itself
             // back and the legs carry themselves (Ascent.DescentSpeed), and after ten in the morning the lane below

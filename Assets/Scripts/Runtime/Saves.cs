@@ -53,17 +53,25 @@ namespace Height1079.Runtime
         public static SaveSlot Newest(Place place) => SaveStore.Newest(Dir, place);
         public static bool Any(Place place) => !Newest(place).IsEmpty;
 
-        /// <summary>Writes a save and returns its path, or null. Never throws: a full disk must not end a session.</summary>
+        /// <summary>Writes a save and returns its path, or null. A full disk or a read-only folder must not end a
+        /// session, so those are caught and answered with null — but only those. Catching everything here meant that
+        /// a bug in the serialiser looked exactly like a full disk: the player went on playing and quietly stopped
+        /// being saved, and nothing in the log said why.</summary>
         public static string Write(SaveGame save)
         {
             try { return SaveStore.Write(Dir, save); }
-            catch (Exception e) { Debug.LogWarning("1079: сейв не записан — " + e.Message); return null; }
+            catch (IOException e) { Debug.LogWarning("1079: сейв не записан — " + e.Message); return null; }
+            catch (UnauthorizedAccessException e) { Debug.LogWarning("1079: сейв не записан — " + e.Message); return null; }
+            catch (Exception e) { Debug.LogError("1079: сейв не записан, это ошибка кода — " + e); return null; }
         }
 
         public static SaveGame Read(string path)
         {
             try { return SaveStore.Read(path); }
-            catch (Exception e) { Debug.LogWarning("1079: сейв не прочитан — " + e.Message); return null; }
+            catch (IOException e) { Debug.LogWarning("1079: сейв не прочитан — " + e.Message); return null; }
+            catch (UnauthorizedAccessException e) { Debug.LogWarning("1079: сейв не прочитан — " + e.Message); return null; }
+            catch (FormatException e) { Debug.LogWarning("1079: сейв не прочитан — " + e.Message); return null; }
+            catch (Exception e) { Debug.LogError("1079: сейв не прочитан, это ошибка кода — " + e); return null; }
         }
 
         /// <summary>The save the menu chose with «Продолжить». The host's <see cref="NightSession"/> takes it on

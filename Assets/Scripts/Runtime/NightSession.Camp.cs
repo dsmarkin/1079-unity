@@ -68,6 +68,13 @@ namespace Height1079.Runtime
         {
             public string Key = "";
             public int Roubles = Wallet.StartRoubles;
+            /// <summary>Has the owner said who he is yet? The key arrives in its own RPC a frame or two after the
+            /// player object spawns (<see cref="ReportProfile"/>, called from <see cref="ClimbGear"/>), and until it
+            /// does the profile is filed under the client id — «c1» — which is nobody's save key. A night written in
+            /// that window used to go into the file under «c1», and at load the real key found nothing: the
+            /// acclimatisation, the rucksack, the programme, the slip and the purse were all lost, and the orphan
+            /// was copied into every later save.</summary>
+            public bool Reported;
         }
 
         readonly Dictionary<ulong, ClientProfile> profiles = new Dictionary<ulong, ClientProfile>();
@@ -298,20 +305,23 @@ namespace Height1079.Runtime
         void SaveNight(Vector3 at, float yaw, float ele, bool burner, bool tent, string place, string where,
             Action<ulong, Climber> night)
         {
-            var save = new SaveGame
+            // What goes into the file is a Core rule (CampSave) and not a method on a NetworkBehaviour: this gathers
+            // — it is the only thing that knows about connected clients, rucksacks and the terrain — and Core decides.
+            var head = new CampSave.Night
             {
                 Place = Height1079.Core.World.Current,
                 SavedUtc = DateTime.UtcNow,
                 Elapsed = run.Elapsed,
+                Day = WeatherDay.Value,
                 Storm = MountainStorm.Value,
                 FreshSnowCm = freshSnowCm,
                 Seed = WeatherSeed.Value,
-                Date = Forecast.DateOf(WeatherDay.Value),
-                CampX = at.x, CampY = at.y, CampZ = at.z, CampYaw = yaw, CampEle = ele,
+                X = at.x, Y = at.y, Z = at.z, Yaw = yaw, Ele = ele,
                 Burner = burner,
                 Tent = tent,
                 Where = where,
             };
+            var party = new List<CampSave.Sleeper>();
 
             bool slept = false;
             foreach (var kv in NetworkManager.ConnectedClients)
@@ -319,6 +329,12 @@ namespace Height1079.Runtime
                 ulong id = kv.Key;
                 string token = Token(id);
                 if (!run.Players.TryGetValue(token, out var p)) continue;
+                // He has not said which key his saves live under yet — that arrives in its own RPC a frame or two
+                // after his player object spawns. Sleeping him now would file the night under the client id, «c1»,
+                // which no load will ever find again, so the night simply does not happen for him and he can press
+                // the key again in a moment.
+                var profile = ProfileOf(id);
+                if (!profile.Reported) continue;
                 var c = ClimberOf(id);
 
                 bool firstNight = sleptIn.Add(place + ":" + id);
@@ -334,47 +350,40 @@ namespace Height1079.Runtime
                     carriedTo.Remove(id);
                 }
 
-                var profile = ProfileOf(id);
-                var entry = save.Ensure(profile.Key, p.Name);
-                entry.Acclim = c.Acclimatisation;
-                entry.Highest = c.HighestEle;
-                entry.Sickness = c.SicknessLoad;
-                entry.Hands = c.Hands; entry.Feet = c.Feet; entry.Face = c.Face;
-                entry.Dry = c.Dehydration; entry.Sleep = c.Drowsiness; entry.Blind = c.Blindness; entry.Pulse = c.Pulse;
-                entry.Sips = c.ThermosSips;
-                entry.Crampons = c.CramponsOn;
-                entry.Heat = p.Heat; entry.HandsBar = p.Hands; entry.Clarity = p.Clarity;
-                entry.Strength = strength.TryGetValue(id, out var left) ? left : 1f;
-                entry.Roubles = profile.Roubles;
-                entry.Reg = RescueOf(id);
-                entry.Programme = PlanOf(id);
-                entry.Pack.Clear();
+                var sleeper = new CampSave.Sleeper
+                {
+                    Key = profile.Key,
+                    Name = p.Name,
+                    Body = c,
+                    Heat = p.Heat, Hands = p.Hands, Clarity = p.Clarity,
+                    Strength = strength.TryGetValue(id, out var left) ? left : 1f,
+                    Roubles = profile.Roubles,
+                    Reg = RescueOf(id),
+                    Programme = PlanOf(id),
+                    Hand = packs.Hand(token),
+                };
                 var pack = packs.Worn(token);
-                if (pack != null) foreach (var s in pack.Contents) entry.Pack.Add(s);
-                entry.Hand = packs.Hand(token);
+                if (pack != null) foreach (var stack in pack.Contents) sleeper.Pack.Add(stack);
+                party.Add(sleeper);
 
                 if (firstNight) NightRpc(c.Acclimatisation, c.HighestEle, RpcTarget.Single(id, RpcTargetUse.Temp));
             }
 
-            // a friend who played this save yesterday and is not here tonight keeps his line in the file
-            if (loaded != null)
-                foreach (var old in loaded.Climbers)
-                    if (save.Find(old.Key) == null) save.Climbers.Add(old);
+            head.Slept = slept && Climb.On;
+            // the file, the carry-over of absent friends and the new morning are all decided in one place
+            var save = CampSave.Build(head, party, loaded);
 
-            // a night that was actually slept moves the mountain on to the next day, which is what makes the board's
-            // «завтра» worth reading. A second night in the same place credits nothing and moves nothing, so the date
-            // cannot be walked forward by pressing the key twice.
-            if (slept && Climb.On)
+            // and the live state is then moved to match the file, rather than the two being computed separately:
+            // the date, the run clock and the fresh snow now cannot disagree with what was just written.
+            if (head.Slept)
             {
-                WeatherDay.Value += 1;
-                save.Date = Forecast.DateOf(WeatherDay.Value);
-                freshSnowCm = 0f;
+                WeatherDay.Value = Forecast.DayIndex(save.Date);
+                freshSnowCm = save.FreshSnowCm;
                 weatherDt = WeatherTick;
-                // and the day starts in the morning, not at the hour the party went to bed: the run clock is the
-                // only time of day this game has (NightRun.NewMorning), and the save keeps it, so both go back
+                // the day starts in the morning, not at the hour the party went to bed: the run clock is the only
+                // time of day this game has (NightRun.NewMorning), and the save keeps it, so both go back
                 run.NewMorning();
-                save.Elapsed = 0f;
-                Elapsed.Value = 0f;
+                Elapsed.Value = save.Elapsed;
                 run.Record($"Утро {save.Date:dd.MM}, {AscentRoute.Clock(AscentRoute.RunStartHour)}. {MountainDay.Verdict}");
             }
 
@@ -422,6 +431,7 @@ namespace Height1079.Runtime
             var profile = ProfileOf(id);
             profile.Key = k;
             profile.Roubles = roubles;
+            profile.Reported = true;
 
             var saved = loaded != null ? loaded.Find(k) : null;
             if (saved != null && restored.Add(k)) Restore(id, saved);

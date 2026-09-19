@@ -21,6 +21,16 @@ namespace Height1079.Runtime
         RopewayRig queued;
         bool queuedAtBottom;
 
+        /// <summary>The prompt while riding or queueing is the one line in the game that is rebuilt from numbers that
+        /// keep moving — metres left, metres of altitude, seconds to the next cabin — so it was being interpolated
+        /// sixty times a second for the twenty minutes of a ride. It only ever changes about five times a second (the
+        /// cabin does five metres in that time), so ten is generous and costs a comparison instead of a string.
+        /// Clearing the prompt is never delayed: an empty line is a state change the player must see at once.</summary>
+        const float PromptStep = .1f;
+        float promptNext;
+        bool Say => Time.unscaledTime >= promptNext;
+        void Said() => promptNext = Time.unscaledTime + PromptStep;
+
         void Update()
         {
             RopewayRig.Clock += Time.deltaTime * (fast ? Warp : 1f);
@@ -39,8 +49,11 @@ namespace Height1079.Runtime
         {
             if (ratrak != null)
             {
-                string where = ratrak.Standing ? "E — выйти" : "едем";
-                hud?.SetPrompt($"Ратрак · {ratrak.Altitude:0} м · {where}");
+                if (hud != null && Say)
+                {
+                    Said();
+                    hud.SetPrompt($"Ратрак · {ratrak.Altitude:0} м · {(ratrak.Standing ? "E — выйти" : "едем")}");
+                }
                 if (ratrak.Standing && Controls.Board)
                 {
                     var p = ratrak.transform.position + ratrak.transform.right * 3.2f;
@@ -54,8 +67,13 @@ namespace Height1079.Runtime
             var state = rig.Line.CarAt(car, RopewayRig.Clock);
             bool arrived = state.Boardable && (boardedAtBottom ? state.S > rig.Line.Length - Ropeway.SlowZone : state.S < Ropeway.SlowZone);
             float left = Mathf.Abs(boardedAtBottom ? rig.Line.Length - state.S : state.S);
-            var pos = rig.Car(car).position;
-            hud?.SetPrompt($"{rig.Spec.Name} · {pos.y:0} м · ещё {left:0} м" + (fast ? " · ×8 (0 — обычный ход)" : " · 0 — быстрее") + (state.Boardable ? " · E — выйти" : ""));
+            if (hud != null && Say)
+            {
+                Said();
+                var pos = rig.Car(car).position;
+                hud.SetPrompt($"{rig.Spec.Name} · {pos.y:0} м · ещё {left:0} м"
+                    + (fast ? " · ×8 (0 — обычный ход)" : " · 0 — быстрее") + (state.Boardable ? " · E — выйти" : ""));
+            }
             if (arrived || (state.Boardable && Controls.Board))
             {
                 me.LeaveRide(rig.ExitPoint(car));
@@ -107,16 +125,20 @@ namespace Height1079.Runtime
             if (bestCar < 0)
             {
                 // no car in the loading zone yet: E puts the hiker in the queue and the next one takes them
-                float wait = bestRig.Line.SecondsToBoard(RopewayRig.Clock, bestBottom);
-                string when = wait < 0 ? "" : $" · кабина через {Mathf.CeilToInt(wait / (fast ? Warp : 1f))} с";
-                hud?.SetPrompt(waiting
-                    ? $"{bestRig.Spec.Name} · {dirText} · ждём кабину{when}" + (fast ? " · ×8 (0 — обычный ход)" : " · 0 — быстрее")
-                    : $"{bestRig.Spec.Name} · {dirText} · E — встать на посадку{when}");
+                if (hud != null && Say)
+                {
+                    Said();
+                    float wait = bestRig.Line.SecondsToBoard(RopewayRig.Clock, bestBottom);
+                    string when = wait < 0 ? "" : $" · кабина через {Mathf.CeilToInt(wait / (fast ? Warp : 1f))} с";
+                    hud.SetPrompt(waiting
+                        ? $"{bestRig.Spec.Name} · {dirText} · ждём кабину{when}" + (fast ? " · ×8 (0 — обычный ход)" : " · 0 — быстрее")
+                        : $"{bestRig.Spec.Name} · {dirText} · E — встать на посадку{when}");
+                }
                 if (Controls.Board) queued = queued == bestRig ? null : bestRig;
                 queuedAtBottom = bestBottom;
                 return;
             }
-            hud?.SetPrompt($"{bestRig.Spec.Name} · {dirText} · " + (waiting ? "садимся" : "E — сесть"));
+            if (hud != null && Say) { Said(); hud.SetPrompt($"{bestRig.Spec.Name} · {dirText} · " + (waiting ? "садимся" : "E — сесть")); }
             if (!waiting && !Controls.Board) return;
             if (bestRig.Seat(bestCar) == null) return;
             me.BoardRide(bestRig.Seat(bestCar));

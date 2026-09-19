@@ -306,12 +306,32 @@ namespace Height1079.Core
             return true;
         }
 
+        /// <summary>How many objects may lie about the world at once. Every branch cut, every log split and every
+        /// thing dropped used to stay for ever, and the whole list travels over the network on any change to any
+        /// rucksack: a night of woodcutting is hundreds of entries nobody will ever pick up. The oldest go first,
+        /// which on a night that walks forward is also the furthest away.</summary>
+        public const int MaxLoose = 200;
+
         public LooseItem AddLoose(ItemStack stack, float x, float y, float z, float yaw = 0f)
         {
             var l = new LooseItem { Id = nextLoose++, Stack = stack, X = x, Y = y, Z = z, Yaw = yaw };
             Loose[l.Id] = l;
+            Forget();
             Changed();
             return l;
+        }
+
+        /// <summary>Drops the oldest entries until the list is within <see cref="MaxLoose"/>. Ids only ever grow, so
+        /// the smallest id is the oldest thing lying there.</summary>
+        void Forget()
+        {
+            while (Loose.Count > MaxLoose)
+            {
+                int oldest = int.MaxValue;
+                foreach (int id in Loose.Keys) if (id < oldest) oldest = id;
+                if (oldest == int.MaxValue) return;
+                Loose.Remove(oldest);
+            }
         }
 
         static float Dist(float ax, float az, float bx, float bz) => (float)Math.Sqrt((ax - bx) * (ax - bx) + (az - bz) * (az - bz));

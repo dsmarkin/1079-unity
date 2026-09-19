@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Linq;
 using NUnit.Framework;
 using Height1079.Core;
@@ -14,6 +15,20 @@ namespace Height1079.Tests
             return w;
         }
 
+
+        [Test]
+        public void TheGroundForgetsTheOldestThingsOnceItIsFull()
+        {
+            var packs = new PackWorld();
+            for (int i = 0; i < PackWorld.MaxLoose + 40; i++)
+                packs.AddLoose(new ItemStack(ItemId.Branch), i, 0f, 0f);
+            Assert.AreEqual(PackWorld.MaxLoose, packs.Loose.Count, "лежащее на земле не растёт без предела");
+            // the ones that went are the ones dropped first, and every id is still unique
+            var ids = new List<int>(packs.Loose.Keys);
+            ids.Sort();
+            Assert.AreEqual(41, ids[0], "уходят самые старые");
+            Assert.AreEqual(PackWorld.MaxLoose + 40, ids[ids.Count - 1]);
+        }
         [Test]
         public void StarterPackFitsAndWeighsAboutElevenKilos()
         {
