@@ -40,6 +40,8 @@ namespace Height1079.Sandbox
         public static int DriftStand { get; private set; } = -1;
         public static int FlankStand { get; private set; } = -1;
         public static int DitchStand { get; private set; } = -1;
+        /// <summary>The night yard's stand: the fire, with the tent fifty metres north (N starts the run).</summary>
+        public static int YardStand { get; private set; } = -1;
 
         public static void Build()
         {
@@ -67,6 +69,16 @@ namespace Height1079.Sandbox
             Drops(new Vector3(52f, 0f, 0f));
             Movables(new Vector3(66f, 0f, 0f));
             Snow();
+            Yard();
+        }
+
+        /// <summary>The yard of the brief (docs/SANDBOX.md), south of the range: fire, tent, shelters. Built with
+        /// the range so it can be walked in daylight; the run itself is N.</summary>
+        static void Yard()
+        {
+            SandboxHuntYard.Build(snow, rock);
+            YardStand = Stands.Count;
+            Stands.Add(new Stand { Name = "13 · костёр и палатка (N — ночь)", Spawn = SandboxHuntYard.Spawn });
         }
 
         static void Ground()

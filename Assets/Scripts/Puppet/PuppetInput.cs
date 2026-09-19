@@ -12,6 +12,9 @@ namespace Height1079.Puppet
         /// <summary>Where the player is looking: the hands reach along it and the body turns to it.</summary>
         public Quaternion Look;
         public bool Run, Jump;
+        /// <summary>Down on the haunches, and flat in the snow. The ride height comes down, the pace with it, nobody
+        /// runs or jumps from either, and a body this low is what a hunter's eye passes over behind a drift.</summary>
+        public bool Crouch, Prone;
         /// <summary>Holding a hand out (and closing it on whatever it touches).</summary>
         public bool GrabLeft, GrabRight;
         /// <summary>Pulling up on whatever is held.</summary>

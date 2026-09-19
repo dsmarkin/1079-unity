@@ -334,6 +334,84 @@ namespace Height1079.Sandbox
                     $"низ фигуры на {drawn.Value.min.y - floorY:0.00} м от опоры");
             }
 
+            // ── 13. the night yard: the loop of docs/SANDBOX.md, end to end ───────────────────────────────────────
+            // Everything the Menk decides is tested in dotnet (HuntTests); what is checked here is the engine side
+            // of it: that the night comes, that the body in the scene is read the way the rules expect, that a
+            // thing can be taken to the fire and counted, and that a blow in the scene ends the run.
+            boot.FirstPerson = true;
+            var hunt = boot.Hunt;
+            hunt.Begin(180f);
+            yield return new WaitForSeconds(5f);
+            body = boot.Body;
+            var run = hunt.Run; var menk = hunt.Menk;
+            Check(RenderSettings.ambientSkyColor.r < .12f, "ночь опустилась", $"ambient r={RenderSettings.ambientSkyColor.r:0.000}, туман {RenderSettings.fogDensity:0.000}");
+            Check(hunt.Active && menk != null, "забег идёт, Менк на площадке", $"режим {menk?.Mode}");
+            float mx = menk.X, mz = menk.Z;
+            yield return new WaitForSeconds(4f);
+            float ring = Height1079.Core.HuntRules.Dist(menk.X, menk.Z, SandboxHuntYard.Tent.x, SandboxHuntYard.Tent.z);
+            Check(Height1079.Core.HuntRules.Dist(mx, mz, menk.X, menk.Z) > 2f || menk.Mode == Height1079.Core.HunterBrain.State.Listen,
+                "Менк ходит по кольцу вокруг палатки", $"прошёл {Height1079.Core.HuntRules.Dist(mx, mz, menk.X, menk.Z):0.0} м, режим {menk.Mode}");
+            Check(Mathf.Abs(ring - Height1079.Core.HuntRules.PatrolRadius) < 4f, "кольцо радиусом 14 м", $"до палатки {ring:0.0} м");
+
+            // a lit torch thirty metres off, in the open: it comes
+            var menkAt = new Vector3(menk.X, 0f, menk.Z);
+            var toFire = Vector3.ProjectOnPlane(SandboxHuntYard.Fire - menkAt, Vector3.up).normalized;
+            var standAt = menkAt + toFire * 30f;
+            boot.PlaceAt(new Vector3(standAt.x, 1.2f, standAt.z));
+            if (!hunt.Torch) hunt.ToggleTorch();
+            yield return new WaitForSeconds(5f);
+            Check(menk.Mode == Height1079.Core.HunterBrain.State.ToLight || menk.Mode == Height1079.Core.HunterBrain.State.Chase,
+                "свет фонаря зовёт Менка", $"режим {menk.Mode}, на свет {menk.WentToLight} раз");
+            if (hunt.Torch) hunt.ToggleTorch();
+
+            // the diary: taken at the tent, put down at the fire, counted
+            var diary = run.Errand.Items.Find(i => i.Name == "дневник");
+            boot.PlaceAt(new Vector3(diary.X, 1.2f, diary.Z - 1f));
+            yield return new WaitForSeconds(1f);
+            hunt.TakeOrPutDown();
+            Check(hunt.Held == diary, "дневник взят у палатки", hunt.Held != null ? "в руках: " + hunt.Held.Name : "руки пусты");
+            boot.PlaceAt(SandboxHuntYard.Spawn);
+            yield return new WaitForSeconds(1f);
+            hunt.TakeOrPutDown();
+            Check(diary.Delivered && run.Errand.Delivered == 1, "положен у костра — засчитан", $"принесено {run.Errand.Delivered}");
+
+            // the stove: two hands, and no running with it
+            var stove = run.Errand.Items.Find(i => i.Name == "печка");
+            boot.PlaceAt(new Vector3(stove.X, 1.2f, stove.Z - 1f));
+            yield return new WaitForSeconds(1f);
+            hunt.TakeOrPutDown();
+            Check(hunt.Held == stove, "печка взята", hunt.Held != null ? "в руках: " + hunt.Held.Name : "руки пусты");
+            Check(!Height1079.Core.Errand.MayRun(stove.Carry) && !Height1079.Core.Errand.MayTorch(stove.Carry), "с печкой — шагом и без фонаря", stove.Carry.ToString());
+            hunt.ToggleTorch();
+            Check(!hunt.Torch, "фонарь с печкой не включается", hunt.Torch ? "включился" : "не включился");
+            hunt.TakeOrPutDown();
+            Check(hunt.Held == null && stove.OnSnow && !stove.Delivered, "печка положена в снег у палатки", $"лежит {stove.OnSnow}, сдана {stove.Delivered}");
+
+            // flat in the snow: the body comes down and slows
+            boot.PlaceAt(SandboxHuntYard.Spawn);
+            yield return new WaitForSeconds(1f);
+            float standY = body.Torso.position.y;
+            for (float w = 0f; w < 1.5f; w += Time.deltaTime) { body.Drive(new PuppetInput { Look = Quaternion.identity, Prone = true }); yield return null; }
+            Check(body.Low && body.Prone && standY - body.Torso.position.y > .3f, "лёжа тело ниже на полметра",
+                $"опустилось на {standY - body.Torso.position.y:0.00} м, stance {body.Stance:0.00}");
+            var proneFrom = body.Torso.position;
+            for (float w = 0f; w < 2f; w += Time.deltaTime) { body.Drive(new PuppetInput { Move = new Vector2(0, 1), Run = true, Look = Quaternion.identity, Prone = true }); yield return null; }
+            float crawl = Flat(body.Torso.position - proneFrom).magnitude / 2f;
+            Check(crawl < t.WalkSpeed * .4f, "ползком медленно и без бега", $"{crawl:0.00} м/с при шаге {t.WalkSpeed:0.00}");
+            for (float w = 0f; w < 1.5f; w += Time.deltaTime) { body.Drive(PuppetInput.Idle); yield return null; }
+
+            // standing in front of it in the open: a blow, and the run is over
+            var faceIt = new Vector3(menk.X, 0f, menk.Z) + Quaternion.Euler(0f, menk.Yaw, 0f) * Vector3.forward * 4.5f;
+            boot.PlaceAt(new Vector3(faceIt.x, 1.2f, faceIt.z));
+            var lookAtMenk = Quaternion.Euler(0f, Height1079.Core.HuntRules.Heading(faceIt.x, faceIt.z, menk.X, menk.Z), 0f);
+            for (float w = 0f; w < 10f && !hunt.Dead; w += Time.deltaTime) { body.Drive(new PuppetInput { Look = lookAtMenk }); yield return null; }
+            yield return null;
+            Check(hunt.Dead && run.Over, "стоя перед Менком — удар, забег окончен", $"мёртв {hunt.Dead}, исход «{run.Outcome}», режим {menk.Mode}");
+            Check(body.Limp, "тело после удара лежит", $"limp {body.Limp}");
+            Check(hunt.Report != null && hunt.Report.Count >= 4, "итог написан", hunt.Report != null ? string.Join(" | ", hunt.Report) : "нет итога");
+            hunt.End();
+            yield return new WaitForSeconds(.5f);
+
             Debug.Log($"selftest: итог — провалов {failed}");
             yield return new WaitForSeconds(.5f);
             Application.Quit(failed == 0 ? 0 : 1);

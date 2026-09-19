@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace Height1079.Runtime
+namespace Height1079.Night
 {
     /// <summary>Offline sound synthesis for the night: every clip is rendered from noise and oscillators when the game starts,
     /// so the build ships no audio samples. Loops are cross-faded end-to-start so they repeat without a click.</summary>

@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using UnityEngine;
+using Height1079.Night;
 
 namespace Height1079.Runtime
 {
@@ -27,9 +28,7 @@ namespace Height1079.Runtime
         }
 
         Transform model;
-        readonly Dictionary<string, Transform> bones = new Dictionary<string, Transform>();
-        readonly Dictionary<Transform, Quaternion> rest = new Dictionary<Transform, Quaternion>();
-        Transform hips; Vector3 hipsRest;
+        MenkPuppet puppet;
         AudioSource voice, feet, shout;
         AudioClip thud, growl, roar, canvas, swoosh, creak;
         MenkBrain.State state = MenkBrain.State.Tree;
@@ -51,11 +50,9 @@ namespace Height1079.Runtime
         void Awake()
         {
             instance = this;
-            var prefab = Resources.Load<GameObject>("World/Prefabs/Creatures/Menk");
-            if (prefab == null) { Debug.LogWarning("1079: Menk prefab missing — menu 1079 → Rebuild world"); enabled = false; return; }
-            model = Instantiate(prefab, transform).transform;
-            foreach (var t in model.GetComponentsInChildren<Transform>(true)) { bones[t.name] = t; rest[t] = t.localRotation; }
-            hips = Bone("Hips"); if (hips != null) hipsRest = hips.localPosition;
+            puppet = MenkPuppet.Load(transform);
+            if (puppet == null) { Debug.LogWarning("1079: Menk prefab missing — menu 1079 → Rebuild world"); enabled = false; return; }
+            model = puppet.Model;
             model.gameObject.SetActive(false);
 
             voice = model.gameObject.AddComponent<AudioSource>();
@@ -69,8 +66,6 @@ namespace Height1079.Runtime
             canvas = Synth.CanvasHit(64); swoosh = Synth.Swoosh(65); creak = Synth.Creak(66);
             voice.clip = growl; voice.loop = true;
         }
-
-        Transform Bone(string name) => bones.TryGetValue(name, out var t) ? t : null;
 
         void Update()
         {
@@ -148,15 +143,6 @@ namespace Height1079.Runtime
 
         // ------------------------------------------------------------------ animation
 
-        static Quaternion E(float x, float y, float z) => Quaternion.Euler(x, y, z);
-
-        void Set(string bone, Quaternion tree, Quaternion alive)
-        {
-            var t = Bone(bone);
-            if (t == null) return;
-            t.localRotation = rest[t] * Quaternion.Slerp(alive, tree, treeW);
-        }
-
         void Animate()
         {
             bool still = state == MenkBrain.State.Tree || state == MenkBrain.State.Frozen;
@@ -165,56 +151,27 @@ namespace Height1079.Runtime
 
             float stride = 2.1f;
             phase += speed * Time.deltaTime / stride * Mathf.PI;
-            float sp = Mathf.Sin(phase), cp = Mathf.Cos(phase);
             float gait = Mathf.Clamp01(speed / 1.5f);
             bool hunting = state == MenkBrain.State.Hunting;
-            float hunch = hunting ? 30f : 20f;
 
             // wind in the "branches" while it pretends; a shudder while it wakes
             swayPhase += Time.deltaTime * (.6f + Weather.Wind);
             float wind = Weather.Wind * 3f;
             float shudder = state == MenkBrain.State.Waking ? (Mathf.PerlinNoise(Time.time * 18f, 0) - .5f) * 10f * (1f - stateTime / 3.2f) : 0f;
             float tremble = state == MenkBrain.State.Frozen ? (Mathf.PerlinNoise(Time.time * 25f, 4f) - .5f) * 1.5f : 0f;
-            float sway = Mathf.Sin(swayPhase) * wind + tremble;
 
             // strike / blow timing (0..1.4 s)
             float st = state == MenkBrain.State.Striking ? stateTime : state == MenkBrain.State.Beating ? Mathf.Repeat(stateTime, 1.5f) : -1f;
-            float raise = st < 0f ? 0f : st < .45f ? Mathf.SmoothStep(0, 1, st / .45f) : st < .75f ? 1f - Mathf.SmoothStep(0, 1, (st - .45f) / .3f) : 0f;
-            float slam = st < 0f ? 0f : st < .45f ? 0f : st < .75f ? Mathf.SmoothStep(0, 1, (st - .45f) / .3f) : 1f - Mathf.SmoothStep(0, 1, (st - .75f) / .65f);
-            bool twoHands = state == MenkBrain.State.Beating;
+            MenkPuppet.Swing(st, out float raise, out float slam);
 
-            float bob = gait * Mathf.Abs(sp);
-            Set("Spine", E(-2f + sway * .4f, 0, 2f + sway), E(hunch + bob * 3f - raise * 18f + slam * 25f + shudder, sp * 4f * gait, sp * 3f * gait));
-            Set("Chest", E(0, 0, -3f + sway * .6f), E(6f - raise * 8f + slam * 12f, -sp * 6f * gait, 0));
-            Set("Neck", E(38f, 0, sway * .3f), E(-hunch - 4f + shudder * .5f, 0, 0));
-            Set("Head", E(22f, 0, 0), E(-10f + raise * 10f, Mathf.Sin(Time.time * .7f) * 12f * (1f - gait), 0));
-
-            float swingL = -sp * 26f * gait, swingR = sp * 26f * gait;
-            Quaternion armRAlive = E(swingR + 6f, 0, 8f);
-            armRAlive = Quaternion.Slerp(armRAlive, E(-168f, 0, 18f), raise);
-            armRAlive = Quaternion.Slerp(armRAlive, E(-25f, 0, 6f), slam);
-            Quaternion armLAlive = E(swingL + 6f, 0, -8f);
-            if (twoHands)
+            puppet.Apply(new MenkPuppet.Pose
             {
-                armLAlive = Quaternion.Slerp(armLAlive, E(-168f, 0, -18f), raise);
-                armLAlive = Quaternion.Slerp(armLAlive, E(-25f, 0, -6f), slam);
-            }
-            Set("ArmL", E(-12f, sway * .5f, -146f + sway * 2f), armLAlive);
-            Set("ArmR", E(-8f, -sway * .5f, 142f - sway * 2f), armRAlive);
-            Set("ForearmL", E(0, 0, 34f + sway * 3f), E(-22f - 10f * gait - raise * 25f, 0, 0));
-            Set("ForearmR", E(0, 0, -40f - sway * 3f), E(-22f - 10f * gait - raise * 25f, 0, 0));
-            Set("HandL", E(0, 0, 22f), E(-10f, 0, 0));
-            Set("HandR", E(0, 0, -18f), E(-10f, 0, 0));
-
-            float kneeL = Mathf.Max(0f, cp) * 50f * gait + 8f, kneeR = Mathf.Max(0f, -cp) * 50f * gait + 8f;
-            Set("ThighL", E(0, 0, 2f), E(-sp * 30f * gait - 10f - slam * 8f, 0, 3f));
-            Set("ThighR", E(0, 0, -2f), E(sp * 30f * gait - 10f - slam * 8f, 0, -3f));
-            Set("ShinL", E(0, 0, 0), E(kneeL + slam * 12f, 0, 0));
-            Set("ShinR", E(0, 0, 0), E(kneeR + slam * 12f, 0, 0));
-            Set("FootL", E(0, 0, 0), E(-kneeL * .3f, 0, 0));
-            Set("FootR", E(0, 0, 0), E(-kneeR * .3f, 0, 0));
-
-            if (hips != null) hips.localPosition = hipsRest + Vector3.up * ((1f - treeW) * (-.18f - bob * .1f - slam * .25f));
+                Tree = treeW, Gait = gait, Phase = phase,
+                Hunch = hunting ? 30f : 20f,
+                Raise = raise, Slam = slam, TwoHands = state == MenkBrain.State.Beating,
+                Sway = Mathf.Sin(swayPhase) * wind + tremble, Shudder = shudder,
+                HeadTurn = Mathf.Sin(Time.time * .7f) * 12f * (1f - gait),
+            });
         }
 
         // ------------------------------------------------------------------ sound and shaking

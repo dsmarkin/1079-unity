@@ -9,7 +9,8 @@
     "glTFast",
     "Unity.InputSystem",
     "Height1079.Snow",
-    "Height1079.Torchlight"
+    "Height1079.Torchlight",
+    "Height1079.Night"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],

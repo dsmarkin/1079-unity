@@ -114,6 +114,10 @@ namespace Height1079.Puppet
 
         // ─── walking ────────────────────────────────────────────────────────────────────────────────────────────────
         public float WalkSpeed = 3.0f, RunSpeed = 5.6f;
+        /// <summary>How far the ride height comes down in a crouch and flat on the snow, metres; and the pace of
+        /// each. The capsule shortens with it, so a crawl really is a body a third of its standing height.</summary>
+        public float CrouchDrop = .30f, ProneDrop = .50f;
+        public float CrouchSpeed = 1.3f, ProneSpeed = .55f;
         /// <summary>Distance between the two feet, m — the width of the track the figure stands and walks on. The
         /// first figure walked at 0.20, feet very nearly in one line, and read as a doll on a rail: legs stuck
         /// together and a march instead of a walk. A person on rough ground stands broad. Physics reads it nowhere;

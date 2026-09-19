@@ -5,6 +5,7 @@ using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.EventSystems;
 using Height1079.Core;
+using Height1079.Night;
 
 namespace Height1079.Runtime
 {
@@ -101,7 +102,7 @@ namespace Height1079.Runtime
             BuildNetwork();
             Hud = HudController.Create();
             Ambience.Create();
-            Weather.Create();
+            Weather.Create().gameObject.AddComponent<WeatherDriver>();
             PackView.Create();
             CampView.Create();
             var driver = new GameObject("Atmosphere", typeof(Atmosphere));
