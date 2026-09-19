@@ -46,6 +46,7 @@ namespace Height1079.Sandbox
             yield return new WaitForSeconds(1.5f);
             float drift = Flat(body.Torso.position - p0).magnitude;
             Check(body.Grounded, "стоит на опоре", $"опора {body.GroundDistance:0.00} м, уклон {body.SlopeAngle:0}°");
+            Check(body.Tilt < 4f, "в покое стоит прямо", $"корпус отклонён на {body.Tilt:0.0}° от вертикали");
             Check(Mathf.Abs(body.Torso.position.y - y0) < .08f, "не проваливается и не подпрыгивает", $"Δy {body.Torso.position.y - y0:0.000} м");
             Check(drift < .15f, "не ползёт стоя", $"снос {drift:0.000} м за 1,5 с");
 
@@ -155,7 +156,9 @@ namespace Height1079.Sandbox
             // ── 8. a fall a man walks away from: the knees give and unfold again ──────────────────────────────────
             // two metres, which is over the stagger threshold and under the knock-down one: the body must keep its
             // feet, sink on them and come back up. Before the squash layer it simply arrived and stood there.
-            body.Place(new Vector3(0f, 3.1f, -10f));
+            // The drop is measured from the feet, so the height is the ride height plus the two metres: the body was
+            // made shorter and dropping it from the old mark would quietly have been a longer fall each time.
+            body.Place(new Vector3(0f, t.HoverHeight + 2.05f, -10f));
             float knees = 0f, deepestRide = float.PositiveInfinity, foldedFor = 0f;
             bool touched = false;
             for (float w = 0f; w < 2.5f; w += Time.deltaTime)
@@ -194,12 +197,103 @@ namespace Height1079.Sandbox
             Check(intoStart > 3f, "корпус заваливается вперёд на разгоне", $"{intoStart:0.0}° вперёд");
             Check(backOnStop < -2f, "и откидывается назад на остановке", $"{backOnStop:0.0}° назад");
 
+            // ── 10. the jump ───────────────────────────────────────────────────────────────────────────────────────
+            // Two separate things used to eat it, and both are checked here. The press was read once a frame and the
+            // body steps ninety times a second, so a frame with no step in it threw the press away — hence exactly
+            // one frame of the key below, and the latch inside the body has to carry it. And the leg spring, which
+            // still counts the body as standing for the first quarter metre of the rise, met the launch with its full
+            // downward ceiling: the body lifted about fifteen centimetres and was pulled straight back down.
+            body.Place(new Vector3(0f, 1.2f, -10f));
+            yield return new WaitForSeconds(1.2f);
+            float footY = body.Torso.position.y;
+            body.Drive(new PuppetInput { Look = Quaternion.identity, Jump = true });
+            yield return null;
+            float apex = footY;
+            bool leftGround = false;
+            for (float w = 0f; w < 1.5f; w += Time.deltaTime)
+            {
+                body.Drive(new PuppetInput { Look = Quaternion.identity });
+                apex = Mathf.Max(apex, body.Torso.position.y);
+                if (!body.Footing) leftGround = true;
+                yield return null;
+            }
+            body.Drive(PuppetInput.Idle);
+            float lifted = apex - footY;
+            Check(leftGround, "прыжок отрывает тело от земли", leftGround ? "щуп терял опору" : "ноги не оторвались");
+            Check(lifted > t.JumpHeight * .7f && lifted < t.JumpHeight * 1.6f, "прыжок поднимает на заданную высоту",
+                $"поднялся на {lifted:0.00} м при заданных {t.JumpHeight:0.00} м");
+            Check(body.Grounded && !body.Limp, "после прыжка снова на ногах", $"опора {body.GroundDistance:0.00} м");
+
+            // ── 11. the body faces the camera, never the sticks ────────────────────────────────────────────────────
+            // A man asked to walk left keeps looking where the player looks and goes sideways; he does not swing round
+            // to face his own feet. That is a fact about the physics and not about the drawing, so it can be measured:
+            // hold the look still, press left, and the heading must stay put while the body travels left.
+            body.Place(new Vector3(0f, 1.2f, -10f));
+            yield return new WaitForSeconds(1f);
+            float heading = body.FacingYaw;
+            float swung = 0f, sideDrift = 0f, aheadDrift = 0f;
+            var sideFrom = body.Torso.position;
+            for (float w = 0f; w < 2f; w += Time.deltaTime)
+            {
+                body.Drive(new PuppetInput { Move = new Vector2(-1f, 0f), Look = Quaternion.identity });
+                swung = Mathf.Max(swung, Mathf.Abs(Mathf.DeltaAngle(heading, body.FacingYaw)));
+                sideDrift = Mathf.Min(sideDrift, body.Drift.x);
+                aheadDrift = Mathf.Max(aheadDrift, Mathf.Abs(body.Drift.y));
+                yield return null;
+            }
+            body.Drive(PuppetInput.Idle);
+            var went = Flat(body.Torso.position - sideFrom);
+            Check(swung < 10f, "идёт вбок, не разворачиваясь по направлению шага",
+                $"корпус ушёл от взгляда на {swung:0}°");
+            Check(went.magnitude > 2f && Vector3.Dot(went.normalized, Vector3.left) > .9f, "приставной шаг уносит влево",
+                $"прошёл {went.magnitude:0.0} м, отклонение от «влево» {Vector3.Angle(went, Vector3.left):0}°");
+            Check(sideDrift < -t.WalkSpeed * .6f && aheadDrift < t.WalkSpeed * .35f, "снос читается как боковой",
+                $"Drift вбок {sideDrift:0.0}, вперёд не больше {aheadDrift:0.0} м/с");
+
+            // ── 12. the stature both halves of the body are cut to ─────────────────────────────────────────────────
+            // The figure's bones and the physics ride height are one number seen twice (PuppetTuning.StandHeight), and
+            // they live in different files. This is the check that says they still agree — measured off the renderers,
+            // so it is the height a player sees rather than a constant reading itself back.
+            // The tolerance is not slack: the body stands on a spring, and holding its own weight costs it about seven
+            // centimetres of ride height (mass g over LegSpring). The knees take that, so a standing man measures that
+            // much under the height his bones were cut to, and the check must not call that a mismatch.
+            boot.FirstPerson = false;      // your own figure is kept out of your own eye; it must be drawn to be measured
+            body.Place(new Vector3(0f, 1.2f, -10f));
+            yield return new WaitForSeconds(1.5f);
+            var drawn = FigureBounds(body);
+            float floorY = body.Torso.position.y - body.GroundDistance;
+            Check(drawn.HasValue, "фигура нарисована", drawn.HasValue ? "меши на месте" : "ни одного рендерера");
+            if (drawn.HasValue)
+            {
+                Check(Mathf.Abs(drawn.Value.size.y - t.StandHeight) < .12f, "рост тела соответствует заданному",
+                    $"{drawn.Value.size.y:0.00} м при заданных {t.StandHeight:0.00} м");
+                Check(Mathf.Abs(drawn.Value.min.y - floorY) < .15f, "подошвы стоят на опоре, а не висят над ней",
+                    $"низ фигуры на {drawn.Value.min.y - floorY:0.00} м от опоры");
+            }
+
             Debug.Log($"selftest: итог — провалов {failed}");
             yield return new WaitForSeconds(.5f);
             Application.Quit(failed == 0 ? 0 : 1);
         }
 
         static Vector3 Flat(Vector3 v) => new Vector3(v.x, 0f, v.z);
+
+        /// <summary>The world box every drawn part of the climber fits in. Taken off the renderers and not off the
+        /// bone constants, because the question being asked is how tall the man on the screen is — and the meshes are
+        /// turned in another file, from numbers this one is not allowed to read.</summary>
+        static Bounds? FigureBounds(Puppet.Puppet body)
+        {
+            var parts = body.GetComponentsInChildren<Renderer>();
+            Bounds box = default;
+            bool any = false;
+            foreach (var r in parts)
+            {
+                if (r == null) continue;
+                if (!any) { box = r.bounds; any = true; }
+                else box.Encapsulate(r.bounds);
+            }
+            return any ? box : (Bounds?)null;
+        }
 
         /// <summary>How far the torso is leaning toward a direction, degrees, signed: positive is leaning into it,
         /// negative is hanging back from it. Read off the real torso attitude — the point of the lean being physics

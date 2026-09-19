@@ -12,7 +12,11 @@ namespace Height1079.Sandbox
     /// The numbers here are copied out of the game's own camera rather than shared with it — the sandbox assembly
     /// cannot see the game, and that separation is the point of the sandbox. Head heave, roll and cadence are the
     /// same figures the hiker walks with; what is new is that the depth of the snow comes from the sandbox's own
-    /// field (<see cref="SandboxTerrainSnow.SinkAt"/>) instead of from the trail the game leaves.</summary>
+    /// field (<see cref="SandboxTerrainSnow.SinkAt"/>) instead of from the trail the game leaves.
+    ///
+    /// The ear rides in the head (the listener is on the camera) but the boots do not: the footfalls come out of
+    /// <see cref="SandboxSoundSnow"/>, which sits at the feet and follows them. This class decides <em>when</em> a
+    /// foot lands and what it lands on; what that sounds like is all over there.</summary>
     public sealed class SandboxCameraRig : MonoBehaviour
     {
         /// <summary>From the middle of the floating capsule up to the eyes. A constant, not a share of
@@ -35,20 +39,32 @@ namespace Height1079.Sandbox
         bool snap = true;
         int lastHalf = int.MinValue, foot;
 
-        AudioSource ear;
-        AudioClip[] crunch;
-        int lastCrunch = -1;
+        /// <summary>The boots. Their own object at the feet, not a source on the camera — see
+        /// <see cref="SandboxSoundSnow"/>.</summary>
+        SandboxSoundSnow boots;
+        /// <summary>When the last footfall was heard, in unscaled seconds, and whether the body is currently taking
+        /// steps at all. Together they are what stops the snow stuttering: see <see cref="Step"/>.</summary>
+        float lastFall = -99f;
+        bool striding;
+
+        /// <summary>Two footfalls closer together than this are never two steps. They are the stride phase jumping —
+        /// a frame lost to a hitch, the body picked up and put down somewhere else, the time scale changed — and the
+        /// sound of that is a rattle. Well under the gap between two real steps at a run, so it never sets cadence;
+        /// cadence belongs to the gait.</summary>
+        const float MinGap = .16f;
+        /// <summary>Speed at which the body is walking, and the lower speed at which it has stopped. Two numbers and
+        /// not one: with a single threshold a body drifting along at exactly that speed flickers in and out of
+        /// walking and plays a step every other frame.</summary>
+        const float StrideOn = .60f, StrideOff = .35f;
 
         public Quaternion LookRotation => Quaternion.Euler(Pitch, Yaw, 0f);
 
         public void Setup(Camera cam)
         {
             Cam = cam;
-            ear = cam.gameObject.AddComponent<AudioSource>();
-            ear.playOnAwake = false;
-            ear.spatialBlend = 0f;              // your own boots are not somewhere else in the room
-            crunch = new AudioClip[5];
-            for (int i = 0; i < crunch.Length; i++) crunch[i] = Crunch(31 + i * 7);
+            // Under this component's own object, which is the sandbox root: it never moves, so putting the boots in
+            // world space every frame is a plain assignment, and it dies with the sandbox when the game is returned to.
+            boots = SandboxSoundSnow.Create(transform);
         }
 
         /// <summary>The body is thrown away and rebuilt whenever a number changes, so the eye has to be told.</summary>
@@ -59,6 +75,7 @@ namespace Height1079.Sandbox
             figure = p != null ? p.GetComponent<PuppetFigure>() : null;
             if (body != null) body.Landed += OnLanded;
             stepPhase = 0f; impact = 0f; limpBlend = 0f; lastHalf = int.MinValue;
+            striding = false; lastFall = -99f;
             snap = true;
             ShowFigure();
         }
@@ -69,6 +86,19 @@ namespace Height1079.Sandbox
         {
             // only a landing worth feeling: stepping off a kerb must not shake the picture
             impact = Mathf.Max(impact, Mathf.Clamp01((speed - 4f) / 12f));
+
+            // ...and only a landing worth hearing. An arrival off a jump or a ledge is a footfall with the whole
+            // body behind it rather than half of it, so it is the same two layers weighing more. It shares the gap
+            // with the stride, or a landing at the end of a run doubles up with the step that was already due.
+            if (boots == null || body == null || body.Torso == null) return;
+            if (speed < 2.2f || Time.unscaledTime - lastFall < MinGap) return;
+            lastFall = Time.unscaledTime;
+            var at = body.Torso.position;
+            bool hard = Physics.Raycast(at, Vector3.down, out var hit, 3f, ~0, QueryTriggerInteraction.Ignore)
+                        && HardGround(hit.collider);
+            // both feet arrive at once: neither of the two boot voices, so it is given the one that did not just step
+            boots.Footfall(Mathf.Min(speed, 4f), SandboxTerrainSnow.SinkAt(at), hard, 1 - foot,
+                           Mathf.Clamp(speed / 3f, 1f, 2f));
         }
 
         public void SetView(bool first)
@@ -117,6 +147,9 @@ namespace Height1079.Sandbox
             stepPhase += Time.deltaTime * Mathf.Clamp(speed / .85f, 0f, 2.6f) * Mathf.PI;
             if (stepPhase > 2048f) stepPhase -= 2048f;
             float deep = SandboxTerrainSnow.SinkAt(torso.position);
+            // the boots go where the boots are, in both views: the ear is in the head and the sound is a metre below
+            // it, and that metre is the only thing saying the noise is yours and is underneath you
+            boots?.Follow(torso.position + Vector3.down * body.Tuning.HoverHeight);
             Step(torso, speed, deep);
 
             if (!FirstPerson)
@@ -179,21 +212,33 @@ namespace Height1079.Sandbox
         // ── boots on snow ────────────────────────────────────────────────────────────────────────────────────────
 
         /// <summary>One footfall per half turn of the gait: the sound, and the mark it leaves. Both hang off the same
-        /// phase that moves the head, so what you hear and what you see are the same step.</summary>
+        /// phase that moves the head, so what you hear and what you see are the same step.
+        ///
+        /// What is guarded here is that each step fires exactly once and that a body which is not walking is silent.
+        /// A footfall out of a body that is standing still, sliding down a slab, lying in the snow or hanging off a
+        /// hand is the single loudest way a walk gives itself away as a machine — louder than any fault in the sound
+        /// itself, because a sound in the wrong place cannot be mistaken for anything else.</summary>
         void Step(Transform torso, float speed, float snow)
         {
+            // a walk starts at StrideOn and does not stop until StrideOff: a body loitering at one threshold would
+            // otherwise cross it several times a second and chatter
+            striding = striding ? speed > StrideOff : speed > StrideOn;
+            if (!striding || !body.Grounded || body.Sliding || body.Limp || body.Hanging)
+            {
+                // and the stride is forgotten, so that starting to walk again lands a step at once instead of
+                // waiting out the remainder of a half turn the body never took
+                lastHalf = int.MinValue;
+                return;
+            }
+
             int half = Mathf.FloorToInt(stepPhase / Mathf.PI);
             if (half == lastHalf) return;
+            // more than one half turn can pass in a frame (a hitch, a low frame rate, a run): that is still one step,
+            // not one per turn missed
             lastHalf = half;
-            if (speed < .5f || !body.Grounded) return;
+            if (Time.unscaledTime - lastFall < MinGap) return;
+            lastFall = Time.unscaledTime;
             foot = 1 - foot;
-
-            if (ear != null && crunch != null)
-            {
-                int k; do k = Random.Range(0, crunch.Length); while (k == lastCrunch && crunch.Length > 1);
-                lastCrunch = k;
-                ear.PlayOneShot(crunch[k], Mathf.Clamp(speed / 3f, .35f, 1f) * Mathf.Lerp(.35f, .6f, Mathf.Clamp01(snow / .45f)));
-            }
 
             var ahead = Vector3.ProjectOnPlane(torso.forward, Vector3.up);
             if (ahead.sqrMagnitude < 1e-4f) ahead = Vector3.forward;
@@ -202,30 +247,32 @@ namespace Height1079.Sandbox
             // started just under the capsule, so the body's own hands — which hang there whether or not they are
             // switched on — cannot be mistaken for the ground
             var from = torso.position + side + ahead * .18f + Vector3.down * (body.Tuning.TorsoHeight * .5f + .05f);
-            if (!Physics.Raycast(from, Vector3.down, out var hit, 2.5f, ~0, QueryTriggerInteraction.Ignore)) return;
+            bool found = Physics.Raycast(from, Vector3.down, out var hit, 2.5f, ~0, QueryTriggerInteraction.Ignore);
+
+            // the ray is the better answer — it knows which of the two boots is where, and what that boot is standing
+            // on — but a step that finds nothing under it is still a step, so the gait's own reading of the snow
+            // stands in for it rather than the sound dropping out
+            float sink = found ? SandboxTerrainSnow.SinkAt(hit.point) : snow;
+            boots?.Footfall(speed, sink, found && HardGround(hit.collider), foot);
+
+            if (!found) return;
             // the mark belongs on the snow you can see, not on the lower surface the legs actually stand on
-            SandboxTerrainSnow.Footprint(hit.point + Vector3.up * SandboxTerrainSnow.SinkAt(hit.point), hit.normal, ahead);
+            SandboxTerrainSnow.Footprint(hit.point + Vector3.up * sink, hit.normal, ahead);
         }
 
-        /// <summary>A boot going into cold snow: a short burst of noise chopped into grains (the chop is the squeak —
-        /// smooth noise hisses, it does not crunch) over a dull thump of the weight arriving.</summary>
-        static AudioClip Crunch(int seed)
+        /// <summary>Stone, ice or a ledge under the boot instead of snow — drier and shorter, and no squeak, because
+        /// nothing is packing. The range paints what a thing is made of and the name of that material is the only
+        /// label the sandbox has: the colliders here carry no tags, and the snow field's footing mesh has no renderer
+        /// at all, which is itself the answer for the one surface that matters most.</summary>
+        static bool HardGround(Collider c)
         {
-            const int rate = 44100, n = rate * 22 / 100;
-            var data = new float[n];
-            var rnd = new System.Random(seed);
-            float squeak = 190f + seed % 11 * 14f;
-            for (int i = 0; i < n; i++)
-            {
-                float t = i / (float)rate;
-                float grain = (float)(rnd.NextDouble() * 2.0 - 1.0);
-                float chop = .45f + .55f * Mathf.Abs(Mathf.Sin(t * squeak * Mathf.PI));
-                data[i] = grain * Mathf.Exp(-t * 26f) * chop * .55f
-                        + Mathf.Sin(t * 88f * Mathf.PI * 2f) * Mathf.Exp(-t * 42f) * .28f;
-            }
-            var clip = AudioClip.Create("snow-step-" + seed, n, 1, rate, false);
-            clip.SetData(data, 0);
-            return clip;
+            if (c == null) return false;
+            var r = c.GetComponent<Renderer>();
+            var m = r != null ? r.sharedMaterial : null;
+            if (m == null) return false;
+            // Unity appends " (Instance)" to a material it has copied, so match the front of the name
+            string n = m.name;
+            return n.StartsWith("rock") || n.StartsWith("ice") || n.StartsWith("ledge") || n.StartsWith("mark");
         }
     }
 }

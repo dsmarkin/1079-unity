@@ -32,7 +32,7 @@ namespace Height1079.Sandbox
             var t = boot.Tuning;
 
             // ── state, top left ───────────────────────────────────────────────────────────────────────────────────
-            GUILayout.BeginArea(new Rect(10, 10, 330, 215), GUI.skin.box);
+            GUILayout.BeginArea(new Rect(10, 10, 330, 234), GUI.skin.box);
             GUILayout.Label($"стенд: {boot.StandName}", head);
             string state = b.Limp ? "— ТЕЛО ОБМЯКЛО" : b.Stumbling ? "— СПОТКНУЛСЯ" : b.Rise < .99f ? "— ВСТАЁТ" : "";
             GUILayout.Label($"силы {b.Stamina:0}/{t.Stamina:0}   {(b.Exhausted ? "— РУКИ ОТКАЗАЛИ" : "")}{state}", small);
@@ -46,6 +46,9 @@ namespace Height1079.Sandbox
                           : "в воздухе";
             GUILayout.Label(footing, small);
             GUILayout.Label($"корпус {b.Tilt:0}° от вертикали   колени подались {b.Crouch:0.00} м", small);
+            // the side-step, in numbers: the body faces where the camera looks and the drift says where the feet are
+            // taking it in the body's own frame. Walk left and the heading must not move.
+            GUILayout.Label($"смотрит на {b.FacingYaw:0}°   идёт вперёд {b.Drift.y:0.0}, вбок {b.Drift.x:0.0} м/с", small);
             if (b.HandsEnabled) GUILayout.Label($"руки: Л {b.Left.Now} {b.Left.Load:0} Н · П {b.Right.Now} {b.Right.Load:0} Н", small);
             else GUILayout.Label("руки выключены (F8) — сейчас настраиваем ноги", small);
             GUILayout.Label($"последнее приземление {b.LastImpact:0.0} м/с   шаг физики {1f / Time.fixedDeltaTime:0} Гц", small);
@@ -70,6 +73,9 @@ namespace Height1079.Sandbox
             GUILayout.Label("масса и сложение", head);
             t.TorsoMass = Row("масса тела, кг", t.TorsoMass, 30f, 140f);
             t.HandMass = Row("масса кисти, кг", t.HandMass, .5f, 12f);
+            // the agreed stature. It drives nothing by itself — the body is made of the three numbers under it —
+            // but it is what the self-test measures the drawn figure against, so it belongs where they are set
+            t.StandHeight = Row("рост от подошв, м", t.StandHeight, 1.2f, 2.1f);
             t.TorsoHeight = Row("высота капсулы, м", t.TorsoHeight, .6f, 1.8f);
             t.TorsoRadius = Row("радиус капсулы, м", t.TorsoRadius, .15f, .5f);
             t.ShoulderUp = Row("плечо выше центра, м", t.ShoulderUp, .1f, .8f);
@@ -121,6 +127,12 @@ namespace Height1079.Sandbox
             t.GroundAccel = Row("разгон на ходу", t.GroundAccel, 4f, 80f);
             t.BrakeAccel = Row("торможение", t.BrakeAccel, 1f, 60f);
             t.AirAccel = Row("управление в воздухе", t.AirAccel, 0f, 14f);
+
+            GUILayout.Label("прыжок", head);
+            t.JumpHeight = Row("высота прыжка, м", t.JumpHeight, 0f, 1.5f);
+            t.JumpBuffer = Row("помнить нажатие, с", t.JumpBuffer, 0f, .5f);
+            t.JumpClear = Row("ноги отпущены, с", t.JumpClear, .02f, .6f);
+            t.JumpCost = Row("цена прыжка, сил", t.JumpCost, 0f, 30f);
 
             GUILayout.Label(b.HandsEnabled ? "руки (черновик, F8)" : "руки выключены — F8, чтобы включить", head);
             if (b.HandsEnabled)

@@ -60,11 +60,36 @@ namespace Height1079.Puppet
         /// <summary>Degrees the torso is actually off the vertical. Past about fifty the body is on its way down.</summary>
         public float Tilt { get; private set; }
 
+        // ─── which way the body is facing, and which way it is going: the contract with whatever draws it ───────────
+        /// <summary>The way the body itself faces, as a yaw-only rotation about the world vertical.
+        ///
+        /// The capsule is turned to the camera and to nothing else (<see cref="Upright"/> chases
+        /// <see cref="LookRotation"/>; no part of this body has ever turned toward the direction of travel). So a
+        /// figure posed from this keeps looking where the player looks while the feet go wherever the sticks send
+        /// them — sideways for a side-step, backwards for a retreat — which is how PEAK reads, and it is a fact about
+        /// the physics rather than a trick in the drawing.
+        ///
+        /// While <see cref="Limp"/> the capsule is lying down and this is only the yaw it fell with: draw a fallen
+        /// body from the rigidbody's own rotation, not from here.</summary>
+        public Quaternion Facing { get; private set; } = Quaternion.identity;
+        /// <summary>The same heading in degrees about the world vertical — for readouts and for tests that want to
+        /// assert the body did <em>not</em> turn.</summary>
+        public float FacingYaw { get; private set; }
+        /// <summary>Where the body is actually travelling, in its own frame, m/s: x to its right, y straight ahead.
+        /// A side-step is all x, walking backwards is a negative y, and the length of it is the pace. This is the
+        /// whole of what a figure needs in order to plant the feet sideways instead of turning to face the way it is
+        /// going. Measured from the rigidbody, so a shove from the world shows up in it exactly as a step does.</summary>
+        public Vector2 Drift { get; private set; }
+
         public int GrabMask = ~0;
         /// <summary>Whether the hands do anything at all. Off, this is a body that walks, falls and slides and
         /// nothing else — which is the part that has to be right before climbing is worth writing.</summary>
         public bool HandsEnabled = true;
         float exhaustUntil, restTimer, limpUntil, stumbleUntil;
+        /// <summary>When jump was last asked for, and how long the legs stay let go of after a launch. The first is a
+        /// timestamp and not a flag on purpose — see <see cref="Drive"/> — and starts far in the past so that a body
+        /// built in the first fraction of a second of the game does not jump on its own.</summary>
+        float jumpAsked = -99f, jumpClearUntil;
         /// <summary>0…1 — how much of the leg spring is allowed right now (see <see cref="PuppetTuning.LegRise"/>).</summary>
         float legs;
         /// <summary>Metres the ride height is pulled down by the last landing, and 0…1 of a stand recovered since the
@@ -81,7 +106,9 @@ namespace Height1079.Puppet
         float fallSpeed;
 
         public System.Action<PuppetHand> Grabbed, Released;
-        public System.Action<float> Landed;
+        /// <summary>Speed the body arrived with, m/s, and the speed it left with — the two moments anything outside
+        /// the body (sound, snow, a camera) wants to know about.</summary>
+        public System.Action<float> Landed, Jumped;
 
         void Awake() => Init();
 
@@ -117,7 +144,19 @@ namespace Height1079.Puppet
             return (left != null && rb == left.GetComponent<Rigidbody>()) || (right != null && rb == right.GetComponent<Rigidbody>());
         }
 
-        public void Drive(PuppetInput next) => input = next;
+        /// <summary>Hand the body this step's orders. Everything in <see cref="PuppetInput"/> is a state that can be
+        /// read again next step — except jump, which arrives as "pressed during this frame" and is gone by the next.
+        /// Frames and physics steps are not the same clock (90 Hz of body against whatever the screen is doing), so a
+        /// frame that happens to contain no fixed step threw the press away and the player pressed space and nothing
+        /// happened. So the press is latched here as a time, and the next step that can use it takes it.</summary>
+        public void Drive(PuppetInput next)
+        {
+            input = next;
+            if (next.Jump) jumpAsked = Time.time;
+        }
+
+        /// <summary>A jump was asked for recently enough to still count — see <see cref="PuppetTuning.JumpBuffer"/>.</summary>
+        public bool JumpWanted => Time.time - jumpAsked <= Mathf.Max(Tuning.JumpBuffer, 0f);
 
         /// <summary>Put the body somewhere and let go of everything — the sandbox's teleport and the game's respawn.</summary>
         public void Place(Vector3 position)
@@ -131,6 +170,9 @@ namespace Height1079.Puppet
             // remembered velocity is zeroed too or the teleport itself reads as an acceleration and tips the torso
             stumbleUntil = 0f; squash = 0f; rise = 1f; Tilt = 0f;
             lastFlat = Vector3.zero; accel = Vector3.zero; StandUp = Vector3.up;
+            // and it has not asked for anything either: a jump latched before a teleport must not fire after it
+            jumpAsked = -99f; jumpClearUntil = 0f;
+            Facing = Quaternion.identity; FacingYaw = 0f; Drift = Vector2.zero;
             Rough(false);
             Stamina = Tuning.Stamina;
             if (left != null) left.transform.position = position;
@@ -185,26 +227,51 @@ namespace Height1079.Puppet
             if (Limp && Grounded && Time.time > limpUntil && StaminaFraction > .25f) { Limp = false; Rough(false); }
 
             // the legs come back up to strength over LegRise seconds after they find the ground; off the ground, or
-            // while the body is a sack, they have nothing to push against at all
-            bool standing = Grounded && !Limp && !Hanging && !Sliding;
+            // while the body is a sack, they have nothing to push against at all. A launch counts as off the ground
+            // even though the probe still reports otherwise — see Launch, and JumpClear.
+            bool launching = Time.time < jumpClearUntil;
+            bool standing = Grounded && !Limp && !Hanging && !Sliding && !launching;
             legs = standing ? Mathf.MoveTowards(legs, 1f, dt / Mathf.Max(t.LegRise, .01f)) : 0f;
 
             if (!Limp)
             {
-                if (Grounded && !Hanging) Hover(t);
+                if (Grounded && !Hanging && !launching) Hover(t);
                 else if (Sliding && !Hanging) Slide(t);
                 Upright(t);
                 Move(t, dt, ref drain);
-                if (input.Jump && Grounded && !Hanging && Stamina > 8f)
-                {
-                    Torso.linearVelocity = new Vector3(Torso.linearVelocity.x, 0f, Torso.linearVelocity.z);
-                    Torso.AddForce(Vector3.up * 4.6f, ForceMode.VelocityChange);
-                    Stamina -= 8f;
-                    restTimer = 0f;
-                }
+                // taken from the latch and not from this step's orders, so a press cannot fall between two frames.
+                // Nothing else here is allowed to swallow it quietly: the legs' own ramp does not gate it (a man
+                // jumps off legs that are still coming back), and the launch window is what stops it firing twice.
+                if (JumpWanted && Grounded && !Hanging && !launching && Stamina >= t.JumpCost) Launch(t);
             }
 
             Spend(drain, dt);
+        }
+
+        /// <summary>Off the ground. Two things have to happen, and the second is the one that was missing.
+        ///
+        /// The speed is worked out from the height asked for and the scene's gravity (v = √(2gh)), so the jump is a
+        /// size a person can judge rather than an impulse somebody guessed. It <em>replaces</em> the vertical speed
+        /// instead of adding to it: the leg spring is underdamped and the body is always drifting a few centimetres a
+        /// second up or down, and adding to that gave a jump of a different height every time it was pressed.
+        ///
+        /// Then the legs are let go of for <see cref="PuppetTuning.JumpClear"/> seconds. The probe reaches half of
+        /// LegProbe below the feet, so the body still counts as standing for the first quarter metre of the rise, and
+        /// the hover spring meets a climb of several metres a second with its full downward ceiling. That is what ate
+        /// the old jump: the body left the ground by about fifteen centimetres and was pulled straight back onto it,
+        /// which from the outside is a space bar that does nothing.</summary>
+        void Launch(PuppetTuning t)
+        {
+            float v = Mathf.Sqrt(2f * Mathf.Max(Mathf.Abs(Physics.gravity.y), .01f) * Mathf.Max(t.JumpHeight, 0f));
+            var now = Torso.linearVelocity;
+            Torso.linearVelocity = new Vector3(now.x, v, now.z);
+            jumpClearUntil = Time.time + Mathf.Max(t.JumpClear, .02f);
+            jumpAsked = -99f;               // one press, one jump: the latch is spent here
+            legs = 0f;
+            squash = 0f;                    // pushing off is not a moment to be sitting in the last landing's knees
+            Stamina -= t.JumpCost;
+            restTimer = 0f;
+            Jumped?.Invoke(v);
         }
 
         /// <summary>What is under the feet, and how hard the last landing was.</summary>
@@ -288,6 +355,21 @@ namespace Height1079.Puppet
 
             squash = Mathf.MoveTowards(squash, 0f, PuppetMotion.Unfold(t) * dt);
             if (!Limp && Grounded) rise = Mathf.MoveTowards(rise, 1f, dt / Mathf.Max(t.GetUp, .02f));
+
+            // ── the heading and the drift, published for whatever draws this body ──────────────────────────────────
+            // Read off the capsule and not off the camera: the torso follows the look through a PD controller and is
+            // always a little behind it, and a figure posed from the camera instead skates its feet in every turn.
+            var fwd = Vector3.ProjectOnPlane(transform.forward, Vector3.up);
+            // a body on its face has no horizontal forward left; its own up is then the nearest thing to a heading,
+            // and a fallen body is drawn from the rigidbody anyway, so this only has to stay finite
+            if (fwd.sqrMagnitude < 1e-4f) fwd = Vector3.ProjectOnPlane(transform.up, Vector3.up);
+            if (fwd.sqrMagnitude > 1e-4f)
+            {
+                Facing = Quaternion.LookRotation(fwd.normalized, Vector3.up);
+                FacingYaw = Facing.eulerAngles.y;
+            }
+            var own = Quaternion.Inverse(Facing) * flat;
+            Drift = new Vector2(own.x, own.z);
         }
 
         /// <summary>The legs: a spring that holds the torso at its ride height over whatever the probe found, so steps,
@@ -357,8 +439,13 @@ namespace Height1079.Puppet
                            - Torso.angularVelocity * t.UprightDamper;
                 Torso.AddTorque(torque, ForceMode.Acceleration);
             }
-            // the turn is measured about the world vertical, never about the leaned one: yaw taken about a tilted
-            // axis feeds the lean back into itself and the body starts to corkscrew out of a turn
+            // The yaw target is the look and only ever the look — never the direction of travel. That is the whole of
+            // the side-step: press left and the body does not turn left, it goes left while still facing the camera's
+            // way, and pressing back makes it walk backwards. Nothing downstream may turn the body toward its
+            // velocity either; what it is doing relative to its heading is published as Facing and Drift.
+            //
+            // The turn is measured about the world vertical, never about the leaned one: yaw taken about a tilted
+            // axis feeds the lean back into itself and the body starts to corkscrew out of a turn.
             var want = Vector3.ProjectOnPlane(LookRotation * Vector3.forward, Vector3.up);
             if (want.sqrMagnitude < 1e-4f) return;
             var flat = Vector3.ProjectOnPlane(transform.forward, Vector3.up);

@@ -16,16 +16,28 @@ namespace Height1079.Puppet
         /// <summary>Torso mass, kg. A man with a rucksack is 80; the hands carry it and the stamina pays for it.</summary>
         public float TorsoMass = 70f;
         public float HandMass = 3.5f;
-        /// <summary>Half-height and radius of the torso capsule, m.</summary>
-        public float TorsoHeight = 1.15f, TorsoRadius = .28f;
+        /// <summary>Sole to crown of the climber, m — the stature the whole body is cut to. The physics reads it
+        /// nowhere: it is written down because <see cref="HoverHeight"/>, the capsule and the bone lengths in
+        /// <see cref="PuppetFigure"/> are three views of one number, and left unwritten they drift apart and the
+        /// figure ends up standing with its feet through the snow. The self-test measures the drawn body against it.
+        ///
+        /// 1.62 m and not the 1.78 this started at: a tall thin doll reads as stilts from behind, and PEAK's own
+        /// proportions are short and wide. Only the height came down — the capsule is as broad as it was.</summary>
+        public float StandHeight = 1.45f;
+        /// <summary>Half-height and radius of the torso capsule, m. The radius is the body's width and is deliberately
+        /// not cut with the height: a narrow capsule slips between things a man's shoulders would not.</summary>
+        public float TorsoHeight = .94f, TorsoRadius = .28f;
         /// <summary>Shoulder height above the torso centre and the sideways offset of each shoulder, m.</summary>
-        public float ShoulderUp = .42f, ShoulderOut = .22f;
+        public float ShoulderUp = .34f, ShoulderOut = .22f;
 
         // ─── legs: a capsule floating over the ground on a spring, so steps and ledges cost nothing ─────────────────
-        /// <summary>Where the torso centre rides above whatever is under the feet, m.</summary>
-        public float HoverHeight = 1.05f;
-        /// <summary>How far below the feet the leg probe looks, m — this is the height of a step the legs absorb.</summary>
-        public float LegProbe = .55f;
+        /// <summary>Where the torso centre rides above whatever is under the feet, m. This is the one number the
+        /// figure's legs are cut to (pelvis to sole), so it moves with <see cref="StandHeight"/> and nothing else.</summary>
+        public float HoverHeight = .85f;
+        /// <summary>How far below the feet the leg probe looks, m — this is the height of a step the legs absorb.
+        /// Half of it is also how far the body may rise and still count as standing on something, which is why a jump
+        /// has to let the legs go for a moment (<see cref="JumpClear"/>).</summary>
+        public float LegProbe = .46f;
         public float LegSpring = 140f, LegDamper = 14f;
         /// <summary>Ceiling on what the leg spring may do, m/s². Without it the spring is a catapult: a body that has
         /// been lying down (after a fall) is a metre below its ride height, and the full spring throws it into the air.</summary>
@@ -112,6 +124,26 @@ namespace Height1079.Puppet
         /// <summary>What the legs may do when nothing is asked of them, m/s². A man does not stop dead; at the default
         /// he runs on for about a third of a second after the key comes up.</summary>
         public float BrakeAccel = 8f;
+
+        // ─── the jump ───────────────────────────────────────────────────────────────────────────────────────────────
+        /// <summary>How high the body leaves the ground, m. Kept as a height rather than an impulse because a height
+        /// is the thing that can be judged against the man: on a 1.62 m climber with a pack, 0.55 m is a hop that is
+        /// plainly a jump and plainly not a superhero. The speed that reaches it follows from the scene's own gravity,
+        /// so the jump keeps its size wherever it is used.</summary>
+        public float JumpHeight = .55f;
+        /// <summary>Seconds a press of jump is remembered for. The key is read once a frame and the body steps at
+        /// <see cref="PhysicsRate"/>: a frame that happens to contain no fixed step used to drop the press on the
+        /// floor, which is exactly the "space does nothing" the sandbox showed. Remembering it also means a press made
+        /// a hair before the feet land fires the moment they do, which is how every platformer has done it since.</summary>
+        public float JumpBuffer = .18f;
+        /// <summary>Seconds the leg spring is let go of after a launch — and, because it is the same window, the
+        /// soonest a second jump can fire. The legs are what holds the body at its ride height, and the probe still
+        /// calls the body grounded for <see cref="LegProbe"/>/2 after it leaves: meeting a 3 m/s climb, the spring's
+        /// damper answers with its full downward ceiling and eats the jump inside ten centimetres. This is that
+        /// quarter of a metre, measured in time.</summary>
+        public float JumpClear = .22f;
+        /// <summary>What a jump costs off the one bar. Below it the legs will not push.</summary>
+        public float JumpCost = 8f;
 
         // ─── hands ──────────────────────────────────────────────────────────────────────────────────────────────────
         /// <summary>How far a hand reaches from the shoulder, m.</summary>

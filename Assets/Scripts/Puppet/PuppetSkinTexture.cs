@@ -49,6 +49,11 @@ namespace Height1079.Puppet
         static readonly Color Skin = new Color(.44f, .72f, .37f);
         static readonly Color Cheek = new Color(.53f, .79f, .41f);
         static readonly Color Shirt = new Color(.94f, .47f, .19f);
+        /// <summary>The three clothing tones, public because the worn pieces (sleeve, shorts, sock) are their own
+        /// flat-coloured geometry and must match what the atlas paints on the body underneath them.</summary>
+        public static Color ShirtColour => Shirt;
+        public static Color ShortsColour => Shorts;
+        public static Color SockColour => Sock;
         static readonly Color ShirtDark = new Color(.79f, .36f, .14f);
         static readonly Color Shorts = new Color(.24f, .31f, .45f);
         static readonly Color ShortsDark = new Color(.18f, .24f, .36f);
@@ -57,8 +62,8 @@ namespace Height1079.Puppet
         static readonly Color Leather = new Color(.34f, .23f, .16f);
         static readonly Color LeatherDark = new Color(.25f, .17f, .12f);
         static readonly Color Sole = new Color(.80f, .76f, .67f);
-        static readonly Color Canvas = new Color(.42f, .47f, .26f);
-        static readonly Color CanvasDark = new Color(.33f, .38f, .20f);
+        static readonly Color Canvas = new Color(.30f, .33f, .21f);
+        static readonly Color CanvasDark = new Color(.22f, .25f, .15f);
         static readonly Color Strap = new Color(.27f, .22f, .18f);
         static readonly Color Buckle = new Color(.72f, .70f, .64f);
         static readonly Color Straw = new Color(.92f, .79f, .44f);
