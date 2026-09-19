@@ -7,10 +7,11 @@ namespace Height1079.Puppet
     ///
     /// It is no longer built from Unity's primitives. Every part is a mesh turned in code by <see cref="PuppetMesh"/>
     /// from a hand-drawn silhouette, and all of them are painted from one texture drawn in code by
-    /// <see cref="PuppetSkinTexture"/> — a face with eyes and brows, shorts, socks, sleeves and the pack's straps are
-    /// picture, not geometry. <see cref="PuppetSkin"/> turns that set once and every body in the scene shares it.
-    /// The arms are the exception: each is one tube from the shoulder to the fingertips, rebuilt every frame along
-    /// the line this file solves for it (<see cref="PuppetArm"/>), because an arm made of pieces read as sausages.
+    /// <see cref="PuppetSkinTexture"/> — a face with eyes and brows and the pack's straps are picture, not geometry.
+    /// The clothes are one skinned mesh over the bones posed here (torso, sleeves, seat and trouser legs in a single
+    /// surface, bending at the joints); <see cref="PuppetSkin"/> turns that set once and every body in the scene
+    /// shares it. The arms are one tube each from the shoulder to the fingertips, rebuilt every frame along the line
+    /// this file solves for it (<see cref="PuppetArm"/>), because an arm made of pieces read as sausages.
     ///
     /// Proportions follow the study of PEAK (docs/PHYSICS.md): a head about a quarter of the height and shaped like a
     /// drop, no neck at all, limbs that taper and carry no marked elbow or knee, big hands and boots, flat saturated
@@ -40,17 +41,19 @@ namespace Height1079.Puppet
     ///
     /// The legs are the point of all of it: the feet are planted in turn, the knee is solved with two bones, and the
     /// stride is measured in metres of ground rather than by a timer — so walking, climbing a grade and slipping all
-    /// look different without a single animation clip. A handful of transforms, no skeleton and no skinning — and two
-    /// arms redrawn from scratch every frame.</summary>
+    /// look different without a single animation clip. A handful of transforms solved in world space, two arms
+    /// redrawn from scratch every frame, and the clothes skinned to those same transforms as their bones.</summary>
     public sealed class PuppetFigure : MonoBehaviour
     {
         Puppet owner;
         Transform root, body, head;
-        Transform shorts;
+        SkinnedMeshRenderer clothes;
         /// <summary>0…1 of "in the air with the legs tucked and the arms up". See where it is updated.</summary>
         float airPose;
-        readonly Transform[] sleeve = new Transform[2], trouserUp = new Transform[2], trouserLow = new Transform[2];
         readonly PuppetArm[] arm = new PuppetArm[2];
+        /// <summary>The upper arm as a bone: draws nothing itself (the arm is <see cref="PuppetArm"/>'s tube), but
+        /// the sleeve is skinned to it.</summary>
+        readonly Transform[] armUp = new Transform[2];
         readonly Transform[] thigh = new Transform[2], shin = new Transform[2], boot = new Transform[2];
         Renderer[] parts = System.Array.Empty<Renderer>();
         bool visible = true;
@@ -75,7 +78,7 @@ namespace Height1079.Puppet
         // its own weight, and a leg cut to the nominal height has to eat that in a permanently bent knee — which is
         // what made a standing figure look like it was crouching to jump. Cut to the height the body actually stands
         // at and the knee keeps only the soft bend a person has.
-        const float ThighLen = .352f, ShinLen = .334f, UpperArm = .26f, Forearm = .24f;
+        internal const float ThighLen = .352f, ShinLen = .334f, UpperArm = .26f, Forearm = .24f;
         /// <summary>Where the boot's origin sits above the ground it is standing on. The mesh hangs 6 cm below its own
         /// origin, so the sole ends up a centimetre into the ground — deliberately, because a sole exactly on a probed
         /// plane shows daylight under it on every ridge and stone.</summary>
@@ -84,10 +87,11 @@ namespace Height1079.Puppet
         /// <see cref="PuppetTuning.StanceWidth"/>, a tuning, because it was the number that most wanted trying by
         /// hand. The first figure walked on a 0.20 m track — "people walk very nearly in one line" — and that was
         /// true and looked wrong: legs stuck together and a march. The hips went out with it, from 0.12 to 0.16:
-        /// the trouser legs are 0.28 m thick and hung 0.22 m apart they overlapped at the crotch into one column,
-        /// which no width of stance below could separate. At 0.16 (0.14 on the built figure) they just touch, and
-        /// still sit under the seat of the shorts, which is 0.25 m to each side.</summary>
-        const float HipOut = .16f, HipSag = .019f, ShoulderOut = .28f, ShoulderUp = .414f;
+        /// the trouser legs, 0.24 m thick, hung 0.24 m apart overlapped at the crotch into one column, which no
+        /// width of stance below could separate. At 0.16 there is a hand's width between them, and their tops still
+        /// sit under the seat of the trousers, which is 0.27 m to each side.</summary>
+        // Shared with PuppetSkin: these are also where the clothes' bones sit in the rest pose the cloth is drawn in.
+        internal const float HipOut = .16f, HipSag = .019f, ShoulderOut = .28f, ShoulderUp = .414f;
 
         // ─── the walk ───────────────────────────────────────────────────────────────────────────────────────────────
 
@@ -172,24 +176,32 @@ namespace Height1079.Puppet
             root = new GameObject("Figure").transform;
             root.SetParent(p.transform, false);
 
-            body = Piece(PuppetSkin.Body, "Body");
+            // The body, thighs, shins and upper arms draw nothing of their own: the trunk is the clothes' torso, the
+            // legs are inside the trousers and the arm is PuppetArm's tube. They are still solved every frame,
+            // because they are the bones the cloth hangs on.
+            body = Pivot("Body");
             head = Piece(PuppetSkin.Head, "Head");
             for (int s = 0; s < 2; s++)
             {
                 arm[s] = new PuppetArm(root, "Arm" + s, s == 0 ? -1f : 1f, PuppetSkin.Skin);
-                thigh[s] = Piece(PuppetSkin.Thigh, "Thigh" + s);
-                shin[s] = Piece(PuppetSkin.Shin, "Shin" + s);
+                armUp[s] = Pivot("ArmUp" + s);
+                thigh[s] = Pivot("Thigh" + s);
+                shin[s] = Pivot("Shin" + s);
                 boot[s] = Piece(PuppetSkin.Boot, "Boot" + s);
             }
-            // worn over the top, each its own piece with its own colour: a sleeve with a cuff, shorts with a hem,
-            // socks with a roll. Painted geometry would have no edge, and the edge is what says "clothing".
-            shorts = Piece(PuppetSkin.Shorts, "Shorts", PuppetSkin.ShortsCloth);
-            for (int s = 0; s < 2; s++)
-            {
-                sleeve[s] = Piece(PuppetSkin.Sleeve, "Sleeve" + s, PuppetSkin.ShirtCloth);
-                trouserUp[s] = Piece(PuppetSkin.ThighLeg, "TrouserUp" + s, PuppetSkin.ShortsCloth);
-                trouserLow[s] = Piece(PuppetSkin.ShinLeg, "TrouserLow" + s, PuppetSkin.ShortsCloth);
-            }
+            // The clothes: one skinned surface over seven of those transforms, in the order PuppetSkin drew it in.
+            // Its bounds are given by hand and generously — Unity would otherwise recompute them from every vertex
+            // every frame, or cull the figure the moment its root bone left the box.
+            var cloth = new GameObject("Clothes");
+            cloth.transform.SetParent(root, false);
+            clothes = cloth.AddComponent<SkinnedMeshRenderer>();
+            clothes.sharedMesh = PuppetSkin.Clothes;
+            clothes.sharedMaterial = PuppetSkin.Skin;
+            clothes.bones = new[] { body, thigh[0], shin[0], thigh[1], shin[1], armUp[0], armUp[1] };
+            clothes.rootBone = body;
+            clothes.localBounds = new Bounds(new Vector3(0f, -.15f, 0f), new Vector3(2.2f, 2.8f, 2.2f));
+            clothes.quality = SkinQuality.Bone4;
+            clothes.updateWhenOffscreen = false;
             parts = root.GetComponentsInChildren<Renderer>(true);
             Show();     // SetVisible may have been called before the body existed
         }
@@ -216,14 +228,20 @@ namespace Height1079.Puppet
             for (int i = 0; i < parts.Length; i++) if (parts[i] != null) parts[i].enabled = visible;
         }
 
-        Transform Piece(Mesh mesh, string name) => Piece(mesh, name, PuppetSkin.Skin);
-
-        Transform Piece(Mesh mesh, string name, Material material)
+        Transform Piece(Mesh mesh, string name)
         {
             var go = new GameObject(name);
             go.transform.SetParent(root, false);
             go.AddComponent<MeshFilter>().sharedMesh = mesh;
-            go.AddComponent<MeshRenderer>().sharedMaterial = material;
+            go.AddComponent<MeshRenderer>().sharedMaterial = PuppetSkin.Skin;
+            return go.transform;
+        }
+
+        /// <summary>A bare transform: a bone the clothes hang on, with nothing of its own to draw.</summary>
+        Transform Pivot(string name)
+        {
+            var go = new GameObject(name);
+            go.transform.SetParent(root, false);
             return go.transform;
         }
 
@@ -240,6 +258,14 @@ namespace Height1079.Puppet
             // rather than repeated, the drawn body and the physical one cannot drift apart. The clamp is for a slider
             // dragged somewhere silly — the limb meshes stretch to their bones, and past about a quarter that shows.
             float scale = Mathf.Clamp(t.HoverHeight / HoverBuilt, .80f, 1.25f);
+            // and the pieces are scaled with it, not just the joints they hang between: a torso drawn for one stature
+            // with the shoulders of another leaves the sleeves off the body
+            if (!Mathf.Approximately(body.localScale.x, scale))
+            {
+                var uni = Vector3.one * scale;
+                body.localScale = uni; head.localScale = uni;
+                for (int s = 0; s < 2; s++) boot[s].localScale = uni;
+            }
             float thighLen = ThighLen * scale, shinLen = ShinLen * scale;
             float legLen = thighLen + shinLen, legMax = legLen * .985f;
             float upperArm = UpperArm * scale, forearm = Forearm * scale;
@@ -324,7 +350,6 @@ namespace Height1079.Puppet
 
             // hips, chest and pack are one mesh now: they never moved relative to each other anyway
             body.SetPositionAndRotation(hipPoint, pose);
-            shorts.SetPositionAndRotation(hipPoint, pose);
             // no neck: the head sits straight on the shoulders, the way it does in PEAK. The hat is part of it.
             // the head keeps some of the lean and rights itself against the rest, the way a person's does
             head.SetPositionAndRotation(hipPoint + pose * new Vector3(0f, HeadRise * scale, 0f),
@@ -457,14 +482,12 @@ namespace Height1079.Puppet
                 // reads as a leg and not as a piston. Two straight knees pointing forward on a broad track was the
                 // "robot on parade" the wider stance alone did not cure.
                 var kneeWay = pose * (Quaternion.AngleAxis(sign * t.ToeOut, Vector3.up) * Vector3.forward);
-                var knee = Limb(thigh[s], shin[s], hipJoint, foot, thighLen, shinLen, kneeWay, ThighLen, ShinLen);
+                // the trouser leg is skinned to these two bones, so the cloth bends with the knee and stretches
+                // with the bone inside it
+                Limb(thigh[s], shin[s], hipJoint, foot, thighLen, shinLen, kneeWay, ThighLen, ShinLen, pose * Vector3.forward, scale);
                 // the trouser legs ride the two bones they cover, so the cloth bends with the knee
                 // same line AND same stretch as the bone inside: a trouser leg that keeps its built length while the
                 // bone is scaled hangs past the boot, and the figure measures a head taller than it is
-                trouserUp[s].SetPositionAndRotation(thigh[s].position, thigh[s].rotation);
-                trouserUp[s].localScale = thigh[s].localScale;
-                trouserLow[s].SetPositionAndRotation(shin[s].position, shin[s].rotation);
-                trouserLow[s].localScale = shin[s].localScale;
 
                 // The boot is turned out by the stance (PuppetTuning.ToeOut), turns further into a side-step — hard
                 // on the leading foot, barely on the trailing one — and rolls heel to toe through the stance. It is
@@ -509,9 +532,9 @@ namespace Height1079.Puppet
                 // three points, hand and all
                 var elbow = Joint(shoulder, wrist, upperArm, forearm, pose * Vector3.back);
                 arm[s].Pose(shoulder, elbow, wrist, Wrist(elbow, wrist, pose), scale);
+                // the upper arm as a bone, for the sleeve skinned to it: same line as the tube, rolled to the body
+                Bone(armUp[s], shoulder, elbow, UpperArm, pose * Vector3.forward, scale);
                 // the sleeve sits on the shoulder and runs down the upper arm — same line, its own length
-                var down = elbow - shoulder;
-                sleeve[s].SetPositionAndRotation(shoulder, down.sqrMagnitude > 1e-8f ? Quaternion.FromToRotation(Vector3.up, down.normalized) : Quaternion.identity);
             }
             posed = true;
         }
@@ -580,11 +603,11 @@ namespace Height1079.Puppet
         /// <paramref name="builtA"/> and <paramref name="builtB"/> are the lengths the meshes were actually turned at,
         /// which is not the same as the bone when the whole figure is scaled to a tuning.</summary>
         static Vector3 Limb(Transform upper, Transform lower, Vector3 from, Vector3 to, float a, float b,
-                            Vector3 bendToward, float builtA, float builtB)
+                            Vector3 bendToward, float builtA, float builtB, Vector3 roll, float scale)
         {
             var joint = Joint(from, to, a, b, bendToward);
-            Bone(upper, from, joint, builtA);
-            Bone(lower, joint, to, builtB);
+            Bone(upper, from, joint, builtA, roll, scale);
+            Bone(lower, joint, to, builtB, roll, scale);
             return joint;
         }
 
@@ -608,14 +631,28 @@ namespace Height1079.Puppet
         /// scaling at all and the rounded ends keep their shape. Only a limb scaled to another stature, or the last
         /// bone of an over-reaching arm, stretches — and a little squash-and-stretch there reads better than a gap at
         /// the wrist.</summary>
-        static void Bone(Transform bone, Vector3 from, Vector3 to, float built)
+        static void Bone(Transform bone, Vector3 from, Vector3 to, float built, Vector3 roll, float scale)
         {
             var d = to - from;
             float len = d.magnitude;
-            bone.SetPositionAndRotation(from, len > 1e-4f ? Quaternion.FromToRotation(Vector3.up, d / len) : Quaternion.identity);
+            bone.SetPositionAndRotation(from, len > 1e-4f ? Aim(d / len, roll) : Aim(Vector3.down, roll));
             float k = built > 1e-4f ? Mathf.Clamp(len / built, .75f, 1.5f) : 1f;
             var s = bone.localScale;
-            if (!Mathf.Approximately(s.y, k)) bone.localScale = new Vector3(1f, k, 1f);
+            if (!Mathf.Approximately(s.y, k) || !Mathf.Approximately(s.x, scale)) bone.localScale = new Vector3(scale, k, scale);
+        }
+
+        /// <summary>A bone's frame: Y along <paramref name="dir"/>, Z as near <paramref name="roll"/> as it can be.
+        /// The old way — the shortest turn from "up" to the bone's direction — has no opinion about the roll, and for
+        /// a bone pointing nearly straight down that opinion swings right round as the leg passes through vertical.
+        /// A rigid capsule does not care; a skinned sleeve, half of whose vertices follow the arm and half the body,
+        /// is wrung like a rag by it. Pinned to the body's forward the frame is the same one the clothes were drawn
+        /// in (see <see cref="PuppetSkin.BindPoses"/>).</summary>
+        internal static Quaternion Aim(Vector3 dir, Vector3 roll)
+        {
+            var z = Vector3.ProjectOnPlane(roll, dir);
+            if (z.sqrMagnitude < 1e-6f) z = Vector3.ProjectOnPlane(Vector3.up, dir);
+            if (z.sqrMagnitude < 1e-6f) z = Vector3.ProjectOnPlane(Vector3.forward, dir);
+            return Quaternion.LookRotation(z.normalized, dir);
         }
 
         /// <summary>Sits the hand on the end of the forearm — fingers on along the bone, palm still facing the way the

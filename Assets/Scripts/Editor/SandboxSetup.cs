@@ -39,6 +39,25 @@ namespace Height1079.EditorTools
             Mat("Snow", "snow_02", 6f, .22f, new Color(.97f, .98f, 1f));
             Mat("Crust", "snow_03", 9f, .34f, new Color(.93f, .95f, 1f));
             Mat("Rock", "lichen_rock", 4f, .12f, new Color(.72f, .70f, .66f));
+            Cloth();
+        }
+
+        /// <summary>The climber's material is made at run time (its atlas is painted in code), but the shader variant
+        /// it needs is not: Standard's detail-map path — the cloth weave, tiled through the second UV set — is a
+        /// keyword variant, and a build only carries the variants some material in it uses. This asset is that
+        /// material: no textures, just the keyword and the UV-set switch. <c>PuppetSkinTexture</c> starts its
+        /// material from it, so the player and the editor draw the same thing.</summary>
+        static void Cloth()
+        {
+            string path = MatDir + "/Cloth.mat";
+            var existing = AssetDatabase.LoadAssetAtPath<Material>(path);
+            var m = existing ?? new Material(Shader.Find("Standard"));
+            m.SetFloat("_Glossiness", 0f);
+            m.SetFloat("_Metallic", 0f);
+            m.SetFloat("_UVSec", 1f);
+            m.EnableKeyword("_DETAIL_MULX2");
+            if (existing == null) AssetDatabase.CreateAsset(m, path);
+            else EditorUtility.SetDirty(m);
         }
 
         static void Mat(string name, string id, float tile, float smoothness, Color tint)

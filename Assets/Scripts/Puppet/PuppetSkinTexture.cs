@@ -2,63 +2,86 @@ using UnityEngine;
 
 namespace Height1079.Puppet
 {
-    /// <summary>One texture for the whole climber, painted pixel by pixel in code — face, clothes and skin together.
+    /// <summary>One texture for the whole climber, painted pixel by pixel in code — face, clothes and skin together —
+    /// and a second, tiny one: the weave of the cloth.
     ///
     /// How a texture reaches a model at all: every point of the mesh carries a UV, a pair of numbers saying where on
     /// the picture that point sits. The lathe in <see cref="PuppetMesh"/> writes those while it turns each part, so a
     /// part arrives here already unwrapped. All that is left is to decide which patch of the picture each part gets —
-    /// that is the list of <see cref="Rect"/>s below, an atlas — and to paint into those patches.
+    /// that is the list of tiles below, an atlas — and to paint into those patches.
     ///
-    /// One picture for everything means one material and one shader setup for fourteen pieces, which is why the figure
+    /// One picture for everything means one material and one shader setup for the whole figure, which is why it
     /// costs almost nothing to draw even with a dozen bodies in the sandbox.
+    ///
+    /// The weave is the second picture. Flat colour on a shape this simple reads as plastic; PEAK's figures wear
+    /// cloth with a fine regular knit in it, and that is what this is — a 4 cm tile of soft dots, repeated over every
+    /// garment through the second texture coordinate the lathe lays out in metres, so a stitch is the same size on
+    /// the shirt as on the pack. Standard's own detail-map slot does the tiling and the multiply. What keeps it off
+    /// the skin is the atlas's alpha channel: 1 on the cloth tiles, 0 on the face, hands, arms, boots and hat, and
+    /// the shader reads that as the detail mask. The colours below say nothing about it — it is a single pass at
+    /// the end of <see cref="Build"/>.
     ///
     /// Two things about the layout are worth knowing before reading the numbers:
     /// • The head and the torso are wrapped like a globe — u covers the whole 360° across the tile while v covers only
     ///   180° up it. The picture is therefore stretched two to one sideways, and anything meant to look round on the
     ///   model has to be drawn twice as tall as it is wide. Every eye and brow below obeys that.
-    /// • On a limb, v = 0 is the joint the bone starts from (thigh: the hip; shin: the knee) and v = 1 is the joint it
-    ///   ends at, because that is the order the lathe swept the outline in. Shorts, socks and sleeves are bands in that
-    ///   coordinate, so the clothes are texture, not extra geometry.
+    /// • On a limb or a garment, v = 0 is where the sweep started (a sleeve: inside the chest; a trouser leg: inside
+    ///   the seat) and v = 1 where it ended, measured in metres of arc. Cuffs, hems and the waistband are bands in
+    ///   that coordinate, at fractions <see cref="PuppetSkin"/> works out from the actual garment.
     ///
-    /// The style follows PEAK: flat saturated colour, no baked shading, no gloss. Skin is green because a climber has
-    /// to be findable against snow and rock, and because a realistic flesh tone on a shape this stylised looks ill.</summary>
+    /// The style follows PEAK: flat saturated colour, no baked shading, no gloss.</summary>
     public static class PuppetSkinTexture
     {
         public const int Size = 1024;
-        const int Col = Size / 8;       // the eight narrow columns of the lower half, one per limb piece
+        const int Col = Size / 8;       // the eight narrow columns of the lower half
 
-        /// <summary>Inset by a texel and a half: bilinear filtering and mip-maps both read past the edge of a patch,
-        /// and without the margin a boot would fetch a sliver of sock.</summary>
-        static Rect Tile(int x, int y, int w, int h)
+        /// <summary>A rectangle of the atlas in pixels, and the same inset by a texel and a half as a UV rect:
+        /// bilinear filtering and mip-maps both read past the edge of a patch, and without the margin a boot would
+        /// fetch a sliver of trouser.</summary>
+        readonly struct Tile
         {
-            const float pad = 1.5f;
-            return new Rect((x + pad) / Size, (y + pad) / Size, (w - 2f * pad) / Size, (h - 2f * pad) / Size);
+            public readonly int X, Y, W, H;
+            public Tile(int x, int y, int w, int h) { X = x; Y = y; W = w; H = h; }
+            public Rect Rect
+            {
+                get
+                {
+                    const float pad = 1.5f;
+                    return new Rect((X + pad) / Size, (Y + pad) / Size, (W - 2f * pad) / Size, (H - 2f * pad) / Size);
+                }
+            }
         }
 
-        public static readonly Rect Head = Tile(0, Size / 2, Size / 2, Size / 2);
-        public static readonly Rect Torso = Tile(Size / 2, Size / 2, Size / 2, Size / 2);
-        public static readonly Rect Thigh = Tile(Col * 0, 0, Col, Size / 2);
-        public static readonly Rect Shin = Tile(Col * 1, 0, Col, Size / 2);
-        public static readonly Rect UpperArm = Tile(Col * 2, 0, Col, Size / 2);
-        public static readonly Rect Forearm = Tile(Col * 3, 0, Col, Size / 2);
-        public static readonly Rect Hand = Tile(Col * 4, 0, Col, Size / 2);
-        public static readonly Rect Boot = Tile(Col * 5, 0, Col, Size / 2);
-        public static readonly Rect Hat = Tile(Col * 6, 0, Col, Size / 2);
-        public static readonly Rect Pack = Tile(Col * 7, 0, Col, Size / 2);
+        static readonly Tile HeadT = new Tile(0, Size / 2, Size / 2, Size / 2);
+        static readonly Tile TorsoT = new Tile(Size / 2, Size / 2, Size / 2, Size / 2);
+        static readonly Tile TrouserLegT = new Tile(Col * 0, 0, Col, Size / 2);
+        static readonly Tile SeatT = new Tile(Col * 1, 0, Col, Size / 2);
+        static readonly Tile UpperArmT = new Tile(Col * 2, 0, Col, Size / 2);
+        static readonly Tile ForearmT = new Tile(Col * 3, 0, Col, Size / 2);
+        static readonly Tile HandT = new Tile(Col * 4, 0, Col, Size / 4);          // a hand is small: half a column
+        static readonly Tile SleeveT = new Tile(Col * 4, Size / 4, Col, Size / 4);  // and the sleeve has the other half
+        static readonly Tile BootT = new Tile(Col * 5, 0, Col, Size / 2);
+        static readonly Tile HatT = new Tile(Col * 6, 0, Col, Size / 2);
+        static readonly Tile PackT = new Tile(Col * 7, 0, Col, Size / 2);
+
+        public static Rect Head => HeadT.Rect;
+        public static Rect Torso => TorsoT.Rect;
+        public static Rect TrouserLeg => TrouserLegT.Rect;
+        public static Rect Seat => SeatT.Rect;
+        public static Rect UpperArm => UpperArmT.Rect;
+        public static Rect Forearm => ForearmT.Rect;
+        public static Rect Hand => HandT.Rect;
+        public static Rect Sleeve => SleeveT.Rect;
+        public static Rect Boot => BootT.Rect;
+        public static Rect Hat => HatT.Rect;
+        public static Rect Pack => PackT.Rect;
 
         static readonly Color Skin = new Color(.93f, .75f, .58f);
         static readonly Color Cheek = new Color(.95f, .68f, .58f);
         static readonly Color Shirt = new Color(.94f, .47f, .19f);
-        /// <summary>The three clothing tones, public because the worn pieces (sleeve, shorts, sock) are their own
-        /// flat-coloured geometry and must match what the atlas paints on the body underneath them.</summary>
-        public static Color ShirtColour => Shirt;
-        public static Color ShortsColour => Shorts;
-        public static Color SockColour => Sock;
         static readonly Color ShirtDark = new Color(.79f, .36f, .14f);
-        static readonly Color Shorts = new Color(.24f, .31f, .45f);
-        static readonly Color ShortsDark = new Color(.18f, .24f, .36f);
-        static readonly Color Sock = new Color(.95f, .93f, .86f);
-        static readonly Color Stripe = new Color(.85f, .28f, .25f);
+        static readonly Color Trouser = new Color(.24f, .31f, .45f);
+        static readonly Color TrouserDark = new Color(.18f, .24f, .36f);
         static readonly Color Leather = new Color(.34f, .23f, .16f);
         static readonly Color LeatherDark = new Color(.25f, .17f, .12f);
         static readonly Color Sole = new Color(.80f, .76f, .67f);
@@ -73,14 +96,17 @@ namespace Height1079.Puppet
 
         static Color32[] px;
 
-        /// <summary>Paints the atlas and hands back a matte Standard material wearing it. The caller owns both and is
-        /// expected to destroy them together (see <see cref="PuppetSkin"/>).</summary>
+        /// <summary>Paints the atlas and the weave and hands back a matte Standard material wearing both. The caller
+        /// owns all three and is expected to destroy them together (see <see cref="PuppetSkin"/>).</summary>
         public static Material Build()
         {
             px = new Color32[Size * Size];
             Limbs();
             Face();
             Clothes();
+            // the detail mask: weave on the cloth, none on the skin, the boots or the hat
+            Alpha(TorsoT, 255); Alpha(TrouserLegT, 255); Alpha(SeatT, 255); Alpha(SleeveT, 255); Alpha(PackT, 255);
+            Alpha(HeadT, 0); Alpha(UpperArmT, 0); Alpha(ForearmT, 0); Alpha(HandT, 0); Alpha(BootT, 0); Alpha(HatT, 0);
 
             var tex = new Texture2D(Size, Size, TextureFormat.RGBA32, true)
             {
@@ -94,63 +120,108 @@ namespace Height1079.Puppet
             tex.Apply(true, false);     // kept readable so the atlas can be dumped to PNG when the look is being judged
             px = null;
 
-            var m = new Material(Shader.Find("Standard")) { name = "PuppetSkin", hideFlags = HideFlags.HideAndDontSave, mainTexture = tex };
+            // The material starts from the one the editor saved into Resources, when there is one: a shader variant
+            // only reaches a build if some material in the build uses it, and the detail-map variant of Standard is
+            // exactly the kind that gets stripped. On a clone that has generated nothing yet the plain shader is
+            // used and the weave is simply missing in the player until the project has been set up.
+            var proto = Resources.Load<Material>("Sandbox/Cloth");
+            var m = proto != null ? new Material(proto) : new Material(Shader.Find("Standard"));
+            m.name = "PuppetSkin"; m.hideFlags = HideFlags.HideAndDontSave;
+            m.mainTexture = tex;
             m.color = Color.white;
             m.SetFloat("_Glossiness", 0f);   // matte: gloss is what made the first figure look like a plastic toy
             m.SetFloat("_Metallic", 0f);
+            var weave = Weave();
+            m.SetTexture("_DetailAlbedoMap", weave);
+            m.SetTextureScale("_DetailAlbedoMap", Vector2.one);     // UV1 is already laid out in repeats
+            m.SetTextureOffset("_DetailAlbedoMap", Vector2.zero);
+            m.SetTexture("_DetailMask", tex);                        // its alpha: cloth 1, skin 0
+            m.SetFloat("_UVSec", 1f);                                // the detail map reads the second UV set
+            m.EnableKeyword("_DETAIL_MULX2");
             return m;
         }
 
-        // ── the eight limb columns ─────────────────────────────────────────────────────────────────────────────────
-        // The fractions come straight from the outlines in PuppetSkin: v is arc length, so "shorts end 14 cm below the
-        // hip" becomes a number here once, and stays right when the leg is re-proportioned.
+        /// <summary>The weave: one 4 cm tile of cloth, as a grey the shader multiplies the colour by — 50 % grey is
+        /// "no change", darker is a dip. Sixteen soft dots in a grid, the way a knit or a piqué reads at arm's
+        /// length, and a faint diagonal so it is not a screen-door. Tileable by construction: every dot sits whole
+        /// inside its own cell.</summary>
+        static Texture2D Weave()
+        {
+            const int S = 64, Cell = 16;
+            var w = new Color32[S * S];
+            for (int y = 0; y < S; y++)
+                for (int x = 0; x < S; x++)
+                {
+                    float cx = x % Cell - (Cell - 1) * .5f, cy = y % Cell - (Cell - 1) * .5f;
+                    float d = Mathf.Sqrt(cx * cx + cy * cy);
+                    float dot = Mathf.SmoothStep(1f, 0f, Mathf.Clamp01((d - 2.4f) / 2.6f));    // 1 at the centre, 0 by r = 5
+                    float g = .5f - .12f * dot + (((x + y) / 3) % 2 == 0 ? .014f : -.014f);
+                    byte b = (byte)Mathf.RoundToInt(Mathf.Clamp01(g) * 255f);
+                    w[y * S + x] = new Color32(b, b, b, 255);
+                }
+            var tex = new Texture2D(S, S, TextureFormat.RGBA32, true)
+            {
+                name = "PuppetWeave",
+                hideFlags = HideFlags.HideAndDontSave,
+                wrapMode = TextureWrapMode.Repeat,
+                filterMode = FilterMode.Bilinear,
+                anisoLevel = 4
+            };
+            tex.SetPixels32(w);
+            tex.Apply(true, true);
+            return tex;
+        }
+
+        // ── the columns ────────────────────────────────────────────────────────────────────────────────────────────
+        // v is arc length along the piece, so "a 3 cm hem" is a number here once and stays right when the garment is
+        // re-proportioned; the garments' own fractions are asked of PuppetSkin, which has the outlines.
 
         static void Limbs()
         {
-            Strip(0, 0f, 1f, Skin);                     // thigh: v = 0 at the hip
-            Strip(0, 0f, .45f, Shorts);
-            Strip(0, .42f, .455f, ShortsDark);          // hem, 14 cm below the hip
+            Band(TrouserLegT, 0f, 1f, Trouser);                     // v = 0 inside the seat, v = 1 the inside of the hem
+            Band(TrouserLegT, PuppetSkin.TrouserHemV, 1f, TrouserDark);
 
-            Strip(1, 0f, 1f, Skin);                     // shin: v = 0 at the knee, v = 1 at the ankle
-            // the boot swallows the last 11 cm of the shin, so a short sock shows almost nothing. v = 0.31 puts the
-            // sock top 26 cm above the ankle — and note the shin's outline has no cap at the knee (see
-            // PuppetMesh.Bone), which is why its v runs shorter than the thigh's for the same length of leg.
-            Strip(1, .31f, 1f, Sock);
-            Strip(1, .335f, .383f, Stripe);
-            Strip(1, .420f, .468f, Stripe);
+            Band(SeatT, 0f, 1f, Trouser);                           // v = 0 at the waist
+            Band(SeatT, 0f, PuppetSkin.SeatBeltV, TrouserDark);     // the waistband
 
-            Strip(2, 0f, 1f, Skin);                     // upper arm: v = 0 at the shoulder
-            Strip(2, 0f, .45f, Shirt);
-            Strip(2, .425f, .455f, ShirtDark);          // cuff of the short sleeve, 11 cm below the shoulder
+            Band(UpperArmT, 0f, 1f, Skin);                          // under the sleeve, and bare below the cuff
+            Band(ForearmT, 0f, 1f, Skin);
+            Band(HandT, 0f, 1f, Skin);
 
-            Strip(3, 0f, 1f, Skin);                     // forearm
-            Strip(4, 0f, 1f, Skin);                     // hand
+            Band(SleeveT, 0f, 1f, Shirt);                           // v = 0 inside the chest
+            Band(SleeveT, PuppetSkin.SleeveCuffV, 1f, ShirtDark);   // the cuff, tube end and the turned-in part
 
-            Strip(5, 0f, 1f, Leather);                  // boot: v = 0 is the sole, the outline starts there
-            Strip(5, 0f, .17f, Sole);
-            Strip(5, .84f, 1f, LeatherDark);            // cuff
+            Band(BootT, 0f, 1f, Leather);                           // boot: v = 0 is the sole, the outline starts there
+            Band(BootT, 0f, .17f, Sole);
+            Band(BootT, .84f, 1f, LeatherDark);                     // cuff
 
-            Strip(6, 0f, 1f, Straw);                    // hat: the crown's v runs bottom to top, the brim's around its rim
-            Strip(6, .44f, .56f, StrawDark);            // band on the crown — and the brim's hidden inner edge
-            Strip(6, 0f, .05f, StrawDark);
-            Strip(6, .95f, 1f, StrawDark);              // the brim's outer rim, which the loop meets at both ends
+            Band(HatT, 0f, 1f, Straw);                              // hat: the crown's v runs bottom to top, the brim's around its rim
+            Band(HatT, .44f, .56f, StrawDark);                      // band on the crown — and the brim's hidden inner edge
+            Band(HatT, 0f, .05f, StrawDark);
+            Band(HatT, .95f, 1f, StrawDark);                        // the brim's outer rim, which the loop meets at both ends
 
-            Strip(7, 0f, 1f, Canvas);                   // pack: v = 0 is the bottom of it, v = 1 the top
-            Strip(7, .62f, 1f, CanvasDark);             // the lid thrown over the top
-            Strip(7, .565f, .605f, Strap);              // and the strap that holds it down
+            Band(PackT, 0f, 1f, Canvas);                            // pack: v = 0 is the bottom of it, v = 1 the top
+            Band(PackT, .62f, 1f, CanvasDark);                      // the lid thrown over the top
+            Band(PackT, .565f, .605f, Strap);                       // and the strap that holds it down
         }
 
-        static void Strip(int col, float v0, float v1, Color c)
+        static void Band(Tile t, float v0, float v1, Color c)
         {
-            int y0 = Mathf.RoundToInt(v0 * (Size / 2)), y1 = Mathf.RoundToInt(v1 * (Size / 2));
-            Fill(col * Col, y0, Col, y1 - y0, c);
+            int y0 = t.Y + Mathf.RoundToInt(Mathf.Clamp01(v0) * t.H), y1 = t.Y + Mathf.RoundToInt(Mathf.Clamp01(v1) * t.H);
+            Fill(t.X, y0, t.W, y1 - y0, c);
+        }
+
+        static void Alpha(Tile t, byte a)
+        {
+            for (int y = t.Y; y < t.Y + t.H; y++)
+                for (int x = t.X; x < t.X + t.W; x++) px[y * Size + x].a = a;
         }
 
         // ── the face ───────────────────────────────────────────────────────────────────────────────────────────────
 
         static void Face()
         {
-            const int X = 0, Y = Size / 2, S = Size / 2;
+            int X = HeadT.X, Y = HeadT.Y, S = HeadT.W;
             Fill(X, Y, S, S, Skin);
 
             float cx = X + S * .5f;                 // u = 0.5 — dead ahead
@@ -172,14 +243,15 @@ namespace Height1079.Puppet
             Arc(cx, mouthY + 22f, 30f, 40f, Mathf.PI * 1.22f, Mathf.PI * 1.78f, 5f, 8f, Ink);
         }
 
-        // ── shirt, shorts and the pack's straps ────────────────────────────────────────────────────────────────────
+        // ── shirt and the pack's straps ────────────────────────────────────────────────────────────────────────────
 
         static void Clothes()
         {
-            const int X = Size / 2, Y = Size / 2, S = Size / 2;
+            int X = TorsoT.X, Y = TorsoT.Y, S = TorsoT.W;
             Fill(X, Y, S, S, Shirt);                                            // v = 0 is the crotch, v = 1 the neck
-            Fill(X, Y, S, Mathf.RoundToInt(S * .33f), Shorts);
-            Fill(X, Y + Mathf.RoundToInt(S * .30f), S, Mathf.RoundToInt(S * .04f), ShortsDark);
+            // the trousers' seat is worn over the lower trunk; what is painted under it only has to be the right
+            // colour in case a sliver ever shows at the waist
+            Fill(X, Y, S, Mathf.RoundToInt(S * .40f), Trouser);
             Fill(X, Y + Mathf.RoundToInt(S * .94f), S, Mathf.RoundToInt(S * .06f), ShirtDark);   // collar
 
             float cx = X + S * .5f;

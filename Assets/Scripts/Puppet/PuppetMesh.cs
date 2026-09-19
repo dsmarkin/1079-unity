@@ -13,25 +13,74 @@ namespace Height1079.Puppet
     /// Writing thousands of points by hand is hopeless, so every part of the climber is turned the way a wooden toy is:
     /// an outline is drawn on paper — a flat curve of (radius, height) — and spun around the vertical axis.
     /// <see cref="Revolve"/> samples that spin at `sides` steps and sews neighbouring rings into quads. A head, a hat,
-    /// a thigh and a boot are the same operation with different outlines, and an outline is only a handful of control
-    /// points with a spline run through them (<see cref="Spline"/>) — so the silhouette stays something a person can
-    /// nudge by eye while the surface stays smooth.
+    /// a boot are the same operation with different outlines, and an outline is only a handful of control points with
+    /// a spline run through them (<see cref="Spline"/>) — so the silhouette stays something a person can nudge by eye
+    /// while the surface stays smooth.
     ///
-    /// The UV falls out of the sweep for free: u runs around the shape, v runs along the outline measured in metres of
-    /// arc, so a band painted on the texture keeps its real width on the body — a 6 cm stripe is 6 cm of sock. And
-    /// u = 0.5 always looks along +Z, which is how a face painted in the middle of a texture tile lands on the front of
-    /// the head instead of behind the ear.</summary>
+    /// Clothing needs one thing more than a lathe gives: a sleeve is a tube that comes OUT of the shoulder, and a
+    /// trouser leg comes out of the seat, which no shape spun round one axis can do. <see cref="Sweep"/> is the lathe
+    /// with the axis let loose — a chain of rings, each with its own centre, direction and radius, sewn into one
+    /// surface. Run the first rings inside the torso and the rest down the arm and the sleeve grows out of the body
+    /// the way a sewn one does. Each ring also names which bones it follows (<see cref="Station.Weight"/>), so the
+    /// same surface can be skinned: vertices near a joint are pulled by both bones and the cloth bends instead of
+    /// breaking. That is how every game does clothing, and it costs nothing here that the lathe did not already pay.
+    ///
+    /// Two texture coordinates come out of the sweep for free. The first (UV0) picks a patch of the shared atlas: u
+    /// runs around the shape, v along it measured in metres of arc, so a band painted on the texture keeps its real
+    /// width on the body — a 3 cm cuff is 3 cm of cuff. The second (UV1) is the same pair in plain metres, wrapped a
+    /// whole number of times round the ring; the fabric weave is tiled through it, so a stitch is the same size on a
+    /// sleeve as on a trouser leg and the seam never shows. u = 0.5 always looks along +Z, which is how a face
+    /// painted in the middle of a texture tile lands on the front of the head instead of behind the ear.</summary>
     public sealed class PuppetMesh
     {
+        /// <summary>One ring of a <see cref="Sweep"/>: where it is, which way the tube is going there, how wide it is,
+        /// and which bones it belongs to.</summary>
+        public struct Station
+        {
+            public Vector3 Centre;
+            /// <summary>The direction of travel — the ring lies in the plane at right angles to it.</summary>
+            public Vector3 Axis;
+            public float Radius;
+            /// <summary>Squashes the ring into an ellipse: x across, y along the ring's own "forward".</summary>
+            public Vector2 Squash;
+            public BoneWeight Weight;
+        }
+
+        /// <summary>Metres per repeat of the fabric weave tiled through UV1.</summary>
+        public const float DetailTile = .04f;
+
         readonly List<Vector3> pos = new List<Vector3>();
         readonly List<Vector3> nrm = new List<Vector3>();
         readonly List<Vector2> uv = new List<Vector2>();
+        readonly List<Vector2> uv1 = new List<Vector2>();
+        readonly List<BoneWeight> weight = new List<BoneWeight>();
         readonly List<int> tri = new List<int>();
 
         public int VertexCount => pos.Count;
         public int TriangleCount => tri.Count / 3;
 
-        public int Vert(Vector3 p, Vector3 n, Vector2 t) { pos.Add(p); nrm.Add(n); uv.Add(t); return pos.Count - 1; }
+        public static BoneWeight Rigid(int bone) => new BoneWeight { boneIndex0 = bone, weight0 = 1f };
+
+        /// <summary>Two bones sharing a vertex: <paramref name="b"/> gets <paramref name="wb"/> of it.</summary>
+        public static BoneWeight Blend(int a, int b, float wb)
+        {
+            wb = Mathf.Clamp01(wb);
+            return new BoneWeight { boneIndex0 = a, weight0 = 1f - wb, boneIndex1 = b, weight1 = wb };
+        }
+
+        public static BoneWeight Blend(int a, float wa, int b, float wb, int c, float wc)
+        {
+            float sum = Mathf.Max(wa + wb + wc, 1e-6f);
+            return new BoneWeight { boneIndex0 = a, weight0 = wa / sum, boneIndex1 = b, weight1 = wb / sum, boneIndex2 = c, weight2 = wc / sum };
+        }
+
+        public int Vert(Vector3 p, Vector3 n, Vector2 t) => Vert(p, n, t, Vector2.zero, Rigid(0));
+
+        public int Vert(Vector3 p, Vector3 n, Vector2 t, Vector2 t1, BoneWeight w)
+        {
+            pos.Add(p); nrm.Add(n); uv.Add(t); uv1.Add(t1); weight.Add(w);
+            return pos.Count - 1;
+        }
 
         /// <summary>Quad a-b-c-d in order; the face looks along Cross(b - a, d - a) — the same convention the world's
         /// MeshBuilder uses, so a patch wound the wrong way vanishes outright instead of going subtly wrong.</summary>
@@ -50,6 +99,8 @@ namespace Height1079.Puppet
                 var n = m.MultiplyVector(other.nrm[i]);
                 nrm.Add(n.sqrMagnitude > 1e-12f ? n.normalized : Vector3.up);
                 uv.Add(other.uv[i]);
+                uv1.Add(other.uv1[i]);
+                weight.Add(other.weight[i]);
             }
             for (int i = 0; i + 2 < other.tri.Count; i += 3)
             {
@@ -60,16 +111,19 @@ namespace Height1079.Puppet
         }
 
         /// <summary>The meshes are built at run time and belong to no scene, so they carry HideAndDontSave: without it
-        /// Unity offers to save them into the sandbox scene and then throws them away on the next load.</summary>
-        public Mesh ToMesh(string name)
+        /// Unity offers to save them into the sandbox scene and then throws them away on the next load.
+        /// With <paramref name="bindposes"/> the mesh is a skinned one: the weights every ring was given are written
+        /// out, and the caller hands it to a SkinnedMeshRenderer whose bones are in the same order.</summary>
+        public Mesh ToMesh(string name, Matrix4x4[] bindposes = null)
         {
             var m = new Mesh { name = name, hideFlags = HideFlags.HideAndDontSave };
-            m.SetVertices(pos); m.SetNormals(nrm); m.SetUVs(0, uv);
+            m.SetVertices(pos); m.SetNormals(nrm); m.SetUVs(0, uv); m.SetUVs(1, uv1);
+            if (bindposes != null) { m.boneWeights = weight.ToArray(); m.bindposes = bindposes; }
             m.SetTriangles(tri, 0, true);
             return m;
         }
 
-        public void Clear() { pos.Clear(); nrm.Clear(); uv.Clear(); tri.Clear(); }
+        public void Clear() { pos.Clear(); nrm.Clear(); uv.Clear(); uv1.Clear(); weight.Clear(); tri.Clear(); }
 
         /// <summary>Writes the lists into a mesh that already exists — the way a part rebuilt every frame (an arm)
         /// gets to the screen without a new Mesh object each time. Only cleared first when the vertex count changed:
@@ -77,12 +131,13 @@ namespace Height1079.Puppet
         public void Fill(Mesh m)
         {
             if (m.vertexCount != pos.Count) m.Clear(false);
-            m.SetVertices(pos); m.SetNormals(nrm); m.SetUVs(0, uv);
+            m.SetVertices(pos); m.SetNormals(nrm); m.SetUVs(0, uv); m.SetUVs(1, uv1);
             m.SetTriangles(tri, 0, true);
         }
 
-        /// <summary>One cross-section of a sweep: where its centre is, which way the tube is travelling there, how
-        /// wide it is and how far from round (x and z of the ring's own frame, 1 = a circle).</summary>
+        /// <summary>One cross-section of a hand-placed sweep (<see cref="Sweep(List{Section}, Quaternion, int, Rect)"/>):
+        /// where its centre is, which way the tube is travelling there, how wide it is and how far from round (x and
+        /// z of the ring's own frame, 1 = a circle). The skinned cousin is <see cref="Station"/>.</summary>
         public struct Section
         {
             public Vector3 Centre, Tangent;
@@ -93,11 +148,10 @@ namespace Height1079.Puppet
             { Centre = centre; Tangent = tangent; Radius = radius; Squash = squash; }
         }
 
-        /// <summary>A lathe bent along a path — a hose. <see cref="Revolve"/> spins an outline round a straight axis;
-        /// this sews the same rings along any line of centres, so one surface can run from the shoulder round the
-        /// elbow and out into the palm with no joint in it anywhere. That is how a limb is made in a game with a
-        /// skinned mesh, and this is the same surface without the skeleton: the rings are placed by hand every frame
-        /// instead of being weighted to bones.
+        /// <summary>A lathe bent along a path — a hose — for a part placed by hand every frame rather than skinned.
+        /// <see cref="Revolve"/> spins an outline round a straight axis; this sews the same rings along any line of
+        /// centres, so one surface can run from the shoulder round the elbow and out into the palm with no joint in
+        /// it anywhere (<see cref="PuppetArm"/>).
         ///
         /// <paramref name="frame"/> is the rotation of the piece the tube ends in (a hand): its right and forward are
         /// the x and z of every ring, turned by the least rotation that takes the frame's <b>down</b> onto the ring's
@@ -191,51 +245,143 @@ namespace Height1079.Puppet
             return d.sqrMagnitude > 1e-12f ? d.normalized : Vector3.down;
         }
 
-        /// <summary>Spins <paramref name="outline"/> — points of (radius, height), ordered bottom to top, which is what
-        /// makes the faces point outwards — around the Y axis. <paramref name="xz"/> squashes the circle into an
-        /// ellipse (a torso is not round, a foot is long), and <paramref name="uvRect"/> is the patch of the shared
-        /// texture this piece is painted from.</summary>
-        public void Revolve(Vector2[] outline, int sides, Vector2 xz, Rect uvRect)
+        /// <summary>Spins <paramref name="outline"/> — points of (radius, height) — around the Y axis. The outline may
+        /// run either way: the faces are turned outwards whichever way it goes. <paramref name="xz"/> squashes the
+        /// circle into an ellipse (a torso is not round, a foot is long), <paramref name="uvRect"/> is the patch of
+        /// the shared texture this piece is painted from, and <paramref name="weightAt"/>, given a point of the
+        /// outline, says which bones that ring follows — left out, the piece is rigid on bone 0.</summary>
+        public void Revolve(Vector2[] outline, int sides, Vector2 xz, Rect uvRect,
+                            System.Func<Vector2, BoneWeight> weightAt = null, float weave = 1f)
         {
             int n = outline == null ? 0 : outline.Length;
-            if (n < 2 || sides < 3) return;
-            xz = new Vector2(Mathf.Max(xz.x, 1e-3f), Mathf.Max(xz.y, 1e-3f));
-
-            // v in metres of outline, then normalised — this is what keeps painted bands the right width on the body
-            var along = new float[n];
-            float total = 0f;
-            for (int i = 1; i < n; i++) { total += (outline[i] - outline[i - 1]).magnitude; along[i] = total; }
-            if (total > 1e-6f) for (int i = 0; i < n; i++) along[i] /= total;
-
-            // the outward normal of a lathe is exact: turn the outline's tangent a quarter turn. No smoothing pass,
-            // no seams between separately generated pieces, and a pole closes as a dome rather than a spike.
-            var flat = new Vector2[n];
+            if (n < 2) return;
+            var st = new Station[n];
+            // one frame for every ring, whichever way the outline travels: a closed loop (the hat's brim) goes up one
+            // side and down the other, and rings framed by their own direction would twist against each other
             for (int i = 0; i < n; i++)
             {
-                var tan = outline[Mathf.Min(i + 1, n - 1)] - outline[Mathf.Max(i - 1, 0)];
-                if (tan.sqrMagnitude < 1e-12f) tan = Vector2.up;
-                flat[i] = new Vector2(tan.y, -tan.x).normalized;
+                st[i] = new Station
+                {
+                    Centre = new Vector3(0f, outline[i].y, 0f),
+                    Axis = Vector3.up,
+                    Radius = Mathf.Max(0f, outline[i].x),
+                    Squash = xz,
+                    Weight = weightAt != null ? weightAt(outline[i]) : Rigid(0),
+                };
+            }
+            Sweep(st, sides, uvRect, weave);
+        }
+
+        /// <summary>A tube along a chain of rings. Every ring is sampled at <paramref name="sides"/> steps and sewn to
+        /// the next; a ring of zero radius closes the tube as a pole. Normals come off the surface itself — the
+        /// cross of "along the tube" and "around it" at each vertex — so a bend, a flare and an inward-turned hem all
+        /// shade right without a smoothing pass, and the seam ring is duplicated so u can reach 1. The faces are
+        /// turned outwards whichever way the chain runs.</summary>
+        public void Sweep(Station[] st, int sides, Rect uvRect, float weave = 1f)
+        {
+            int n = st == null ? 0 : st.Length;
+            if (n < 2 || sides < 3) return;
+            int ring = sides + 1;
+
+            // v in metres of tube, then normalised: this is what keeps painted bands the right width on the body.
+            // A change of radius counts as length too, so a hem turned inwards still travels down the texture.
+            var along = new float[n];
+            float total = 0f, rMean = 0f;
+            for (int i = 0; i < n; i++)
+            {
+                if (i > 0)
+                {
+                    var d = st[i].Centre - st[i - 1].Centre;
+                    total += Mathf.Sqrt(d.sqrMagnitude + Mathf.Pow(st[i].Radius - st[i - 1].Radius, 2f));
+                }
+                along[i] = total;
+                rMean += st[i].Radius * (Mathf.Abs(st[i].Squash.x) + Mathf.Abs(st[i].Squash.y)) * .5f;
+            }
+            rMean /= n;
+            // the weave goes round a whole number of times, so its seam meets itself at the back
+            int reps = Mathf.Max(1, Mathf.RoundToInt(2f * Mathf.PI * rMean * weave / DetailTile));
+
+            var p = new Vector3[n * ring];
+            for (int i = 0; i < n; i++)
+            {
+                var axis = st[i].Axis.sqrMagnitude > 1e-12f ? st[i].Axis.normalized : Vector3.up;
+                // the ring's own frame: "forward" is as much of +Z as is at right angles to the axis, so u = 0.5
+                // looks the same way on every ring and a texture drawn on the front stays on the front
+                var fwd = Vector3.ProjectOnPlane(Vector3.forward, axis);
+                if (fwd.sqrMagnitude < 1e-6f) fwd = Vector3.ProjectOnPlane(Vector3.up, axis);
+                fwd.Normalize();
+                var side = Vector3.Cross(axis, fwd);
+                float sx = Mathf.Max(Mathf.Abs(st[i].Squash.x), 1e-3f), sz = Mathf.Max(Mathf.Abs(st[i].Squash.y), 1e-3f);
+                for (int j = 0; j <= sides; j++)
+                {
+                    float a = (j / (float)sides - .5f) * Mathf.PI * 2f + Mathf.PI * .5f;
+                    p[i * ring + j] = st[i].Centre + st[i].Radius * (Mathf.Cos(a) * sx * side + Mathf.Sin(a) * sz * fwd);
+                }
             }
 
-            int start = pos.Count, ring = sides + 1;    // the seam ring is duplicated so u can actually reach 1
+            // Which way round the surface is: the first ring with any width says whether "along × around" points
+            // out of the tube or into it, and the winding follows. An outline run top to bottom or a tube swept
+            // downwards therefore comes out the same as one run upwards.
+            float sign = 1f;
             for (int i = 0; i < n; i++)
+            {
+                if (st[i].Radius < 1e-4f) continue;
+                float dot = 0f;
+                for (int j = 0; j < sides; j++)
+                {
+                    var alongV = p[Mathf.Min(i + 1, n - 1) * ring + j] - p[Mathf.Max(i - 1, 0) * ring + j];
+                    var around = p[i * ring + (j + 1) % sides] - p[i * ring + (j + sides - 1) % sides];
+                    dot += Vector3.Dot(Vector3.Cross(alongV, around), p[i * ring + j] - st[i].Centre);
+                }
+                if (Mathf.Abs(dot) > 1e-9f) { sign = dot < 0f ? -1f : 1f; break; }
+            }
+
+            int start = pos.Count;
+            for (int i = 0; i < n; i++)
+            {
+                float v = total > 1e-6f ? along[i] / total : 0f;
+                var travel = st[Mathf.Min(i + 1, n - 1)].Centre - st[Mathf.Max(i - 1, 0)].Centre;
+                if (travel.sqrMagnitude < 1e-12f) travel = st[i].Axis;
+                travel = travel.sqrMagnitude > 1e-12f ? travel.normalized : Vector3.up;
                 for (int j = 0; j <= sides; j++)
                 {
                     float u = j / (float)sides;
-                    float a = (u - .5f) * Mathf.PI * 2f + Mathf.PI * .5f;   // u = 0.5 looks along +Z: the face goes there
-                    float c = Mathf.Cos(a), s = Mathf.Sin(a);
-                    var p = new Vector3(outline[i].x * c * xz.x, outline[i].y, outline[i].x * s * xz.y);
-                    // a non-uniform squash tilts normals the other way round, hence the divide
-                    var nv = new Vector3(flat[i].x * c / xz.x, flat[i].y, flat[i].x * s / xz.y);
-                    Vert(p, nv.sqrMagnitude > 1e-12f ? nv.normalized : Vector3.up,
-                         new Vector2(Mathf.Lerp(uvRect.xMin, uvRect.xMax, u), Mathf.Lerp(uvRect.yMin, uvRect.yMax, along[i])));
+                    Vector3 normal;
+                    if (st[i].Radius < 1e-4f)
+                        normal = i == 0 ? -travel : travel;                       // a pole faces away from the tube
+                    else
+                    {
+                        var alongV = p[Mathf.Min(i + 1, n - 1) * ring + j] - p[Mathf.Max(i - 1, 0) * ring + j];
+                        var around = p[i * ring + (j + 1) % sides] - p[i * ring + (j + sides - 1) % sides];
+                        normal = Vector3.Cross(alongV, around) * sign;
+                        if (normal.sqrMagnitude < 1e-12f) normal = p[i * ring + j] - st[i].Centre;
+                        normal = normal.sqrMagnitude > 1e-12f ? normal.normalized : travel;
+                    }
+                    Vert(p[i * ring + j], normal,
+                         new Vector2(Mathf.Lerp(uvRect.xMin, uvRect.xMax, u), Mathf.Lerp(uvRect.yMin, uvRect.yMax, v)),
+                         new Vector2(u * reps, along[i] * weave / DetailTile),
+                         st[i].Weight);
                 }
+            }
             for (int i = 0; i + 1 < n; i++)
                 for (int j = 0; j < sides; j++)
                 {
                     int a0 = start + i * ring + j;
-                    Quad(a0, a0 + ring, a0 + ring + 1, a0 + 1);
+                    if (sign > 0f) Quad(a0, a0 + ring, a0 + ring + 1, a0 + 1);
+                    else Quad(a0, a0 + 1, a0 + ring + 1, a0 + ring);
                 }
+        }
+
+        /// <summary>Metres of tube along a chain of stations, the same measure <see cref="Sweep"/> lays v out by.</summary>
+        public static float Arc(Station[] st, int upTo = int.MaxValue)
+        {
+            float total = 0f;
+            for (int i = 1; i < st.Length && i <= upTo; i++)
+            {
+                var d = st[i].Centre - st[i - 1].Centre;
+                total += Mathf.Sqrt(d.sqrMagnitude + Mathf.Pow(st[i].Radius - st[i - 1].Radius, 2f));
+            }
+            return total;
         }
 
         // ── outlines ───────────────────────────────────────────────────────────────────────────────────────────────
