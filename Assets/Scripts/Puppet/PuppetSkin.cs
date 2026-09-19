@@ -32,6 +32,10 @@ namespace Height1079.Puppet
         /// y back up the forearm, x the thin way across the palm, z the wide way. Not a Mesh: <see cref="PuppetArm"/>
         /// copies them into its own tube each frame, mirrored in x for the left hand.</summary>
         public static PuppetMesh Digits;
+        /// <summary>The same fingers for the hands held up in front of the eye: bent further and cut thinner. At
+        /// arm's length from the body the relaxed curl reads as a hand; half a metre from the lens it reads as
+        /// four sausages pointing at the horizon.</summary>
+        public static PuppetMesh EyeDigits;
         /// <summary>Torso with the pack, both sleeves, seat and both trouser legs: one skinned mesh over
         /// <see cref="BoneCount"/> bones in the order below.</summary>
         public static Mesh Clothes;
@@ -46,13 +50,14 @@ namespace Height1079.Puppet
 
         public static void Ensure()
         {
-            if (Skin != null && Head != null && Digits != null && Boot != null && Clothes != null) return;
+            if (Skin != null && Head != null && Digits != null && EyeDigits != null && Boot != null && Clothes != null) return;
             Discard();
 
             Skin = PuppetSkinTexture.Build();
             Head = MakeHead();
             // the arms themselves are PuppetArm's, rebuilt every frame; only their fingers are turned here
-            Digits = MakeDigits();
+            Digits = MakeDigits(1f, 1f);
+            EyeDigits = MakeDigits(1.9f, .78f);
             Boot = MakeBoot();
             Clothes = MakeClothes();
         }
@@ -67,7 +72,7 @@ namespace Height1079.Puppet
                 PuppetRig.Kill(Skin.GetTexture("_DetailAlbedoMap"));
             }
             PuppetRig.Kill(Skin); PuppetRig.Kill(Head); PuppetRig.Kill(Boot); PuppetRig.Kill(Clothes);
-            Skin = null; Head = Boot = Clothes = null; Digits = null;
+            Skin = null; Head = Boot = Clothes = null; Digits = null; EyeDigits = null;
         }
 
         static Mesh Turn(string name, Vector2[] outline, int sides, Vector2 xz, Rect uv)
@@ -283,19 +288,26 @@ namespace Height1079.Puppet
         ///
         /// Frame: origin at the hand point, y up the forearm, x across the thin way — the right palm faces −x, toward
         /// the body — and z along the wide way, +z forward. The fingers curl toward −x. The left hand is this
-        /// mirrored in x, which puts its thumb in front and its curl toward the body as well.</summary>
-        static PuppetMesh MakeDigits()
+        /// mirrored in x, which puts its thumb in front and its curl toward the body as well.
+        ///
+        /// <paramref name="curl"/> is how far the fingers are bent, 1 for the loose curl of a hand hanging at the
+        /// side and about 2 for one loosely closed: the tips are drawn further round toward the palm and less far
+        /// along. <paramref name="thin"/> scales the fingers' thickness.</summary>
+        static PuppetMesh MakeDigits(float curl, float thin)
         {
             var m = new PuppetMesh();
             const float root = -(PuppetArm.PalmHalf + .005f);   // half a centimetre past the end of the palm proper
+            float bend = curl - 1f;
             for (int i = 0; i < 3; i++)
             {
                 float z = (i - 1) * .044f;
-                m.Digit(new Vector3(0f, root, z), new Vector3(-.005f, root - .045f, z * 1.12f),
-                        new Vector3(-.030f, root - .068f, z * 1.22f), .029f, .025f, 6, 10, PuppetSkinTexture.Hand);
+                m.Digit(new Vector3(0f, root, z), new Vector3(-.005f - .012f * bend, root - .045f + .006f * bend, z * 1.12f),
+                        new Vector3(-.030f - .032f * bend, root - .068f + .034f * bend, z * 1.22f),
+                        .029f * thin, .025f * thin, 6, 10, PuppetSkinTexture.Hand);
             }
-            m.Digit(new Vector3(0f, -.020f, .030f), new Vector3(-.010f, -.045f, .075f),
-                    new Vector3(-.032f, -.060f, .095f), .027f, .023f, 6, 10, PuppetSkinTexture.Hand);
+            m.Digit(new Vector3(0f, -.020f, .030f), new Vector3(-.010f - .010f * bend, -.045f, .075f - .008f * bend),
+                    new Vector3(-.032f - .022f * bend, -.060f + .012f * bend, .095f - .020f * bend),
+                    .027f * thin, .023f * thin, 6, 10, PuppetSkinTexture.Hand);
             return m;
         }
 

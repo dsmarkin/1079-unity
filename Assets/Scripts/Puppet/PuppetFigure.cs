@@ -587,12 +587,12 @@ namespace Height1079.Puppet
         /// shoulder 0.4 m below it, and a hand near enough to reach fills a quarter of the picture — the first
         /// try, at 0.31 m, was two palms the size of dinner plates. So the shoulders are brought forward under the
         /// eye instead; nothing above the elbow is ever in the picture, and the arm's length is what it was.</summary>
-        const float EyeShoulderOut = .20f, EyeShoulderDown = .30f, EyeShoulderAhead = .16f;
-        const float EyeHandOut = .28f, EyeHandDown = .22f, EyeHandAhead = .46f;
-        /// <summary>Which way the palms face, degrees out from straight down. Palm-down and a little out is what
-        /// turns the back of each hand toward an eye that is above and between them; a hand that is out to the
-        /// side and tilted the other way shows the eye its edge.</summary>
-        const float EyePalmOut = 30f;
+        const float EyeShoulderOut = .20f, EyeShoulderDown = .34f, EyeShoulderAhead = .16f;
+        const float EyeHandOut = .28f, EyeHandDown = .23f, EyeHandAhead = .46f;
+        /// <summary>Which way the palms face: toward each other, tipped this many degrees down. Palms flat down
+        /// showed the eye four fingers laid out toward the horizon; a hand carried with the palm in and the fingers
+        /// loosely closed is seen from the thumb side, the way a person sees their own hands walking.</summary>
+        const float EyePalmDown = 35f;
         /// <summary>How far, m, a hand may lag behind where the eye wants it. The lag is what makes the hands
         /// yours rather than painted on the lens — they hang back a fraction when the head turns and bob against
         /// the head's bob — and the cap keeps a fast turn from dragging them out of the picture.</summary>
@@ -639,7 +639,7 @@ namespace Height1079.Puppet
                 var hand = eyeHand[s];
                 // the elbow goes down and out, below the bottom of the picture
                 var elbow = Joint(shoulder, hand, upperArm, forearm, look * new Vector3(sign * .6f, -1f, -.3f));
-                arm[s].Pose(shoulder, elbow, hand, EyeGrip(elbow, hand, look, sign), k);
+                arm[s].Pose(shoulder, elbow, hand, EyeGrip(elbow, hand, look, sign), k, PuppetSkin.EyeDigits);
                 Bone(armUp[s], shoulder, elbow, UpperArm, look * Vector3.forward, k);
             }
             eyePosed = true;
@@ -651,14 +651,14 @@ namespace Height1079.Puppet
         /// a forearm nearly along it, points down): thumbs outside, palms up. Here the frame is written down from
         /// what is wanted — the grip's up is back along the forearm, as PuppetArm expects, its right is the thin
         /// axis of the palm, and the palm side is <c>−sign·right</c> (the digits are drawn for a right hand whose
-        /// palm faces the body, and mirrored for the left), so the palm is pointed down and a little out and the
-        /// rest of the frame follows from it.</summary>
+        /// palm faces the body, and mirrored for the left), so the palm is pointed in toward the other hand and a
+        /// little down, and the rest of the frame follows from it.</summary>
         static Quaternion EyeGrip(Vector3 elbow, Vector3 hand, Quaternion look, float sign)
         {
             var along = elbow - hand;
             var up = along.sqrMagnitude > 1e-8f ? along.normalized : look * Vector3.down;
-            float a = EyePalmOut * Mathf.Deg2Rad;
-            var palm = Vector3.ProjectOnPlane(look * new Vector3(sign * Mathf.Sin(a), -Mathf.Cos(a), 0f), up);
+            float a = EyePalmDown * Mathf.Deg2Rad;
+            var palm = Vector3.ProjectOnPlane(look * new Vector3(-sign * Mathf.Cos(a), -Mathf.Sin(a), 0f), up);
             if (palm.sqrMagnitude < 1e-6f) palm = Vector3.ProjectOnPlane(look * Vector3.down, up);
             var right = -sign * palm.normalized;
             return Quaternion.LookRotation(Vector3.Cross(right, up), up);

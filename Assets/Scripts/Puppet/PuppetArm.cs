@@ -66,8 +66,9 @@ namespace Height1079.Puppet
 
         /// <summary>Rebuilds the arm through three world points. <paramref name="grip"/> is the hand's rotation —
         /// its up points back along the forearm, its right is the thin axis of the palm — and <paramref name="k"/>
-        /// the figure's scale against the stature these radii were drawn for.</summary>
-        public void Pose(Vector3 shoulder, Vector3 elbow, Vector3 hand, Quaternion grip, float k)
+        /// the figure's scale against the stature these radii were drawn for. <paramref name="digits"/> is the set of
+        /// fingers to put on the end, the relaxed ones when none is given.</summary>
+        public void Pose(Vector3 shoulder, Vector3 elbow, Vector3 hand, Quaternion grip, float k, PuppetMesh digits = null)
         {
             Vector3 e = elbow - shoulder, p = hand - shoulder;
             var u1 = e.sqrMagnitude > 1e-8f ? e.normalized : Vector3.down;
@@ -131,7 +132,7 @@ namespace Height1079.Puppet
 
             buf.Clear();
             buf.Sweep(rings, grip, PuppetSkin.Slim, PuppetSkinTexture.Forearm);
-            buf.Append(PuppetSkin.Digits, Matrix4x4.TRS(p, grip, new Vector3(side < 0f ? -k : k, k, k)));
+            buf.Append(digits ?? PuppetSkin.Digits, Matrix4x4.TRS(p, grip, new Vector3(side < 0f ? -k : k, k, k)));
             buf.Fill(Mesh);
             Node.SetPositionAndRotation(shoulder, Quaternion.identity);
         }
