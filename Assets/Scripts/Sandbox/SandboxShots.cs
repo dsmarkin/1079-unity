@@ -7,7 +7,10 @@ namespace Height1079.Sandbox
 {
     /// <summary>`1079-sandbox -shot -shotdir &lt;path&gt;` — puts the body in a few telling poses, photographs each one
     /// and quits. The point is to be able to look at the figure without anybody having to sit at the machine:
-    /// a build, four pictures, done.</summary>
+    /// a build, six pictures, done.
+    ///
+    /// The last two are the ones worth sending to somebody who asked what the sandbox looks like now: the view out of
+    /// the body's own eyes, and what the drifts do to a man walking through them.</summary>
     public sealed class SandboxShots : MonoBehaviour
     {
         public static bool Requested
@@ -32,10 +35,14 @@ namespace Height1079.Sandbox
         IEnumerator Start()
         {
             var boot = SandboxBoot.Instance;
+            // Scripted stops the keyboard driving the body and, just as importantly, stops the camera rig placing
+            // itself: every frame below is framed by hand and has to stay framed until it is read out.
             boot.Scripted = true;
             SandboxHud.Panel = false;
             Directory.CreateDirectory(Folder);
             var body = boot.Body;
+            // the first four are of the figure, so the figure has to be drawn
+            boot.FirstPerson = false;
             yield return new WaitForSeconds(1f);
 
             boot.GoTo(0);
@@ -64,9 +71,39 @@ namespace Height1079.Sandbox
             while (t < .9f) { body.Drive(PuppetInput.Idle); Frame(boot, body, from60); t += Time.deltaTime; yield return null; }
             yield return Shoot(boot, body, "4-соскальзывание", from60);
 
+            // ── the drifts, from inside the head and from outside it ──────────────────────────────────────────────
+            // one walk north from the foot of the drift stand crosses two of them; the eye is shot deep in the first
+            boot.GoTo(SandboxRange.DriftStand);
+            boot.FirstPerson = true;
+            boot.Eye.Yaw = 0f; boot.Eye.Pitch = 4f;
+            yield return new WaitForSeconds(1f);
+            yield return Walk(boot, body, 4.2f);
+            yield return ShootHere(boot, body, "5-от-первого-лица", keepDriving: true);
+
+            // and the same moment from the side, where the snow is visibly over the boots
+            boot.FirstPerson = false;
+            var fromSide = new Vector3(5.2f, 1.3f, -1.4f);
+            yield return Walk(boot, body, 1.4f, fromSide);
+            yield return Shoot(boot, body, "6-сугробы", fromSide, keepDriving: true);
+            body.Drive(PuppetInput.Idle);
+
             Debug.Log("shots: папка " + Folder);
             yield return new WaitForSeconds(.4f);
             Application.Quit(0);
+        }
+
+        /// <summary>Walk the body north for a while, keeping the camera on it. With no offset the camera is the body's
+        /// own eye and the rig places it; with one it watches from there.</summary>
+        static IEnumerator Walk(SandboxBoot boot, Puppet.Puppet body, float seconds, Vector3? offset = null)
+        {
+            float t = 0f;
+            while (t < seconds)
+            {
+                body.Drive(new PuppetInput { Move = new Vector2(0, 1), Look = Quaternion.identity });
+                t += Time.deltaTime;
+                if (offset.HasValue) Frame(boot, body, offset.Value); else boot.AimCamera();
+                yield return null;
+            }
         }
 
         static void Frame(SandboxBoot boot, Puppet.Puppet body, Vector3 offset)
@@ -79,6 +116,19 @@ namespace Height1079.Sandbox
         IEnumerator Shoot(SandboxBoot boot, Puppet.Puppet body, string name, Vector3 offset, bool keepDriving = false)
         {
             Frame(boot, body, offset);
+            return Capture(boot, body, name, keepDriving);
+        }
+
+        /// <summary>Photograph what the camera rig is already looking at — the first-person shot, where the eye is
+        /// placed by the same code that places it in play.</summary>
+        IEnumerator ShootHere(SandboxBoot boot, Puppet.Puppet body, string name, bool keepDriving = false)
+        {
+            boot.AimCamera();
+            return Capture(boot, body, name, keepDriving);
+        }
+
+        IEnumerator Capture(SandboxBoot boot, Puppet.Puppet body, string name, bool keepDriving)
+        {
             yield return new WaitForEndOfFrame();
             string path = Path.Combine(Folder, name + ".png");
             // rendered by hand into a texture rather than through ScreenCapture: this project does not carry the

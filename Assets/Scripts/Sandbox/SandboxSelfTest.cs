@@ -61,9 +61,19 @@ namespace Height1079.Sandbox
             boot.GoTo(1);
             yield return new WaitForSeconds(1f);
             float beforeY = body.Torso.position.y;
-            yield return Drive(body, new Vector2(0, 1), 4f);
-            Check(body.Torso.position.y - beforeY > .35f, "поднимается по ступеням 0,2 м",
-                $"набрал {body.Torso.position.y - beforeY:0.00} м за 4 с");
+            var stepFrom = body.Torso.position;
+            // the highest it got, not where it ended up: four steps of 0.2 m are climbed in two seconds and walked
+            // off the far end in the next two, and measuring the finish scored that as having climbed nothing
+            float topOfSteps = beforeY;
+            for (float w = 0f; w < 4f; w += Time.deltaTime)
+            {
+                body.Drive(new PuppetInput { Move = new Vector2(0, 1), Look = Quaternion.identity });
+                topOfSteps = Mathf.Max(topOfSteps, body.Torso.position.y);
+                yield return null;
+            }
+            body.Drive(PuppetInput.Idle);
+            Check(topOfSteps - beforeY > .35f, "поднимается по ступеням 0,2 м",
+                $"поднялся на {topOfSteps - beforeY:0.00} м, прошёл {Flat(body.Torso.position - stepFrom).magnitude:0.0} м");
 
             // ── 4. walking up a thirty-degree slope: possible, and slower than flat ────────────────────────────────
             var ramp30 = SandboxRange.Ramps[1];
@@ -126,14 +136,63 @@ namespace Height1079.Sandbox
             }
             float impact = body.LastImpact, landedAt = body.Torso.position.y;
             Check(impact > 14f, "падение с 17 м засчитано целиком", $"удар {impact:0.0} м/с, с {startY:0.0} до {landedAt:0.0} м");
-            float bounce = 0f;
+            // the same four seconds now answer three questions at once: does the body get thrown over, does it get up,
+            // and does getting up take time. A fall the player cannot see is the whole complaint being fixed here.
+            float bounce = 0f, tilted = 0f, stoodAt = -1f;
             for (float w = 0f; w < 4f; w += Time.deltaTime)
             {
                 bounce = Mathf.Max(bounce, body.Torso.position.y - landedAt);
+                tilted = Mathf.Max(tilted, body.Tilt);
+                if (stoodAt < 0f && tilted > 50f && body.Tilt < 20f) stoodAt = w;
                 yield return null;
             }
             Check(bounce < 1.6f, "ноги не подбрасывают тело после падения", $"подъём {bounce:0.00} м");
             Check(!body.Limp, "встаёт после падения", $"обмякшее тело: {body.Limp}");
+            Check(tilted > 50f, "падение валит тело на бок", $"корпус уходил на {tilted:0}° от вертикали");
+            Check(stoodAt > .8f, "встаёт не рывком",
+                stoodAt < 0f ? "так и не выпрямился за 4 с" : $"выпрямился через {stoodAt:0.0} с после удара");
+
+            // ── 8. a fall a man walks away from: the knees give and unfold again ──────────────────────────────────
+            // two metres, which is over the stagger threshold and under the knock-down one: the body must keep its
+            // feet, sink on them and come back up. Before the squash layer it simply arrived and stood there.
+            body.Place(new Vector3(0f, 3.1f, -10f));
+            float knees = 0f, deepestRide = float.PositiveInfinity, foldedFor = 0f;
+            bool touched = false;
+            for (float w = 0f; w < 2.5f; w += Time.deltaTime)
+            {
+                body.Drive(PuppetInput.Idle);
+                if (body.Grounded) { touched = true; deepestRide = Mathf.Min(deepestRide, body.GroundDistance); }
+                knees = Mathf.Max(knees, body.Crouch);
+                if (body.Crouch > .02f) foldedFor += Time.deltaTime;
+                yield return null;
+            }
+            Check(touched && knees > .05f, "удар сажает тело на ноги", $"колени подались на {knees:0.00} м при ударе {body.LastImpact:0.0} м/с");
+            Check(foldedFor > .15f, "приседание разгибается не мгновенно", $"держалось {foldedFor:0.00} с");
+            Check(deepestRide < t.HoverHeight - .08f, "тело при этом действительно просело",
+                $"опора падала до {deepestRide:0.00} м при росте {t.HoverHeight:0.00} м");
+            Check(!body.Limp && Mathf.Abs(body.GroundDistance - t.HoverHeight) < .12f, "и снова встаёт в рост",
+                $"опора {body.GroundDistance:0.00} м");
+
+            // ── 9. the torso has weight: it leans into the start and hangs back on the stop ───────────────────────
+            body.Place(new Vector3(0f, 1.2f, -10f));
+            yield return new WaitForSeconds(1f);
+            float intoStart = 0f;
+            for (float w = 0f; w < .8f; w += Time.deltaTime)
+            {
+                body.Drive(new PuppetInput { Move = new Vector2(0f, 1f), Look = Quaternion.identity });
+                intoStart = Mathf.Max(intoStart, Lean(body, Vector3.forward));
+                yield return null;
+            }
+            yield return Drive(body, new Vector2(0, 1), 1.2f);      // let the lean settle back at a steady pace
+            float backOnStop = 0f;
+            for (float w = 0f; w < .8f; w += Time.deltaTime)
+            {
+                body.Drive(PuppetInput.Idle);
+                backOnStop = Mathf.Min(backOnStop, Lean(body, Vector3.forward));
+                yield return null;
+            }
+            Check(intoStart > 3f, "корпус заваливается вперёд на разгоне", $"{intoStart:0.0}° вперёд");
+            Check(backOnStop < -2f, "и откидывается назад на остановке", $"{backOnStop:0.0}° назад");
 
             Debug.Log($"selftest: итог — провалов {failed}");
             yield return new WaitForSeconds(.5f);
@@ -141,6 +200,12 @@ namespace Height1079.Sandbox
         }
 
         static Vector3 Flat(Vector3 v) => new Vector3(v.x, 0f, v.z);
+
+        /// <summary>How far the torso is leaning toward a direction, degrees, signed: positive is leaning into it,
+        /// negative is hanging back from it. Read off the real torso attitude — the point of the lean being physics
+        /// and not decoration is that a script can measure it.</summary>
+        static float Lean(Puppet.Puppet body, Vector3 towards)
+            => Mathf.Asin(Mathf.Clamp(Vector3.Dot(body.Torso.transform.up, towards.normalized), -1f, 1f)) * Mathf.Rad2Deg;
 
         static IEnumerator Drive(Puppet.Puppet body, Vector2 move, float seconds)
         {

@@ -20,9 +20,20 @@ namespace Height1079.Sandbox
         public PuppetTuning Tuning = new PuppetTuning();
         public Camera Cam { get; private set; }
 
-        float yaw, pitch = 8f, orbit = 4.5f;
-        bool firstPerson, cursorFree;
+        SandboxCameraRig rig;
+        bool cursorFree;
         int stand;
+
+        /// <summary>First person or over the shoulder. First is the default and the game's, and the sandbox is here to
+        /// answer whether walking <em>feels</em> right, which is a question you cannot ask from four metres behind.</summary>
+        public bool FirstPerson { get => rig == null || rig.FirstPerson; set => rig?.SetView(value); }
+        /// <summary>Head bob. On by default; off when the eye needs to be a tripod to read a leg spring.</summary>
+        public bool HeadBob { get => rig == null || rig.Bob; set { if (rig != null) rig.Bob = value; } }
+        /// <summary>Put the camera where it belongs this frame. Only the shot script needs to ask: while
+        /// <see cref="Scripted"/> is set the camera is not driven from here at all.</summary>
+        public void AimCamera() => rig?.Aim();
+        /// <summary>The camera rig itself, for the shot script, which needs to say where to look.</summary>
+        public SandboxCameraRig Eye => rig;
         /// <summary>Slow motion, for watching a fall or a slide frame by frame.</summary>
         public float TimeScale = 1f;
         /// <summary>Hands are off by default. First the legs: walking, grades, slipping, falling. Climbing is not
@@ -87,7 +98,12 @@ namespace Height1079.Sandbox
             Sky();
             SandboxRange.Build();
             Spawn();
+            rig = gameObject.AddComponent<SandboxCameraRig>();
+            rig.Setup(Cam);
+            rig.Bind(Body);
             gameObject.AddComponent<SandboxHud>();
+            // the panel's list of keys is written into the HUD and does not know about these yet; say them once
+            SandboxHud.Say("V, F7, F3 — вид (сейчас от первого лица) · F10 — покачивание головы · Tab, 0 — стенды, включая сугробы");
             Cursor.lockState = CursorLockMode.Locked; Cursor.visible = false;
             // `-selftest` drives the body by script and quits: the only way to check physics in a batch build
             if (SandboxSelfTest.Requested) gameObject.AddComponent<SandboxSelfTest>();
@@ -101,25 +117,41 @@ namespace Height1079.Sandbox
             Physics.defaultSolverVelocityIterations = Mathf.Max(2, Tuning.SolverIterations / 2);
         }
 
+        /// <summary>A day on a mountain: a low raking sun, snow throwing light back into every shadow, air with depth
+        /// in it, and ridges on the horizon. None of the game's night, weather or sky code is dragged in — the sandbox
+        /// has to come up in a second — and this is all it takes to stop the range reading as a room.</summary>
         void Sky()
         {
             var sun = new GameObject("Sun", typeof(Light));
             var l = sun.GetComponent<Light>();
-            l.type = LightType.Directional; l.intensity = 1.1f; l.color = new Color(1f, .97f, .9f);
+            l.type = LightType.Directional; l.intensity = 1.25f; l.color = new Color(1f, .96f, .89f);
             l.shadows = LightShadows.Soft;
-            sun.transform.rotation = Quaternion.Euler(42f, 35f, 0f);
+            // shadows on snow are pale: almost all of what the sun does not light is lit by the ground anyway
+            l.shadowStrength = .7f;
+            // low and off to one side, so every lip, step and drift throws a shadow long enough to read
+            sun.transform.rotation = Quaternion.Euler(34f, -50f, 0f);
             RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Trilight;
-            // a strong gradient ambient is what makes flat matte colour read as round instead of plastic:
-            // the shaded side of a body must never fall to black
-            RenderSettings.ambientSkyColor = new Color(.72f, .79f, .90f);
-            RenderSettings.ambientEquatorColor = new Color(.60f, .62f, .66f);
-            RenderSettings.ambientGroundColor = new Color(.44f, .42f, .40f);
+            // a strong gradient ambient is what makes flat matte colour read as round instead of plastic, and on snow
+            // the brightest of the three is the ground: that bounce is why nothing on a glacier is ever silhouetted
+            RenderSettings.ambientSkyColor = new Color(.66f, .76f, .92f);
+            RenderSettings.ambientEquatorColor = new Color(.74f, .78f, .83f);
+            RenderSettings.ambientGroundColor = new Color(.82f, .84f, .88f);
+            // distance. Without it the ridges are cardboard and the range has no size.
+            // (In a player build Unity can strip the fog variants of a shader nothing in the scene fogs — the game
+            //  keeps them on purpose, see ProjectSetup.EnsureFogVariants. If they ever are stripped here, the picture
+            //  loses its haze and nothing else: the range still builds and still plays.)
+            var air = new Color(.78f, .84f, .91f);
+            RenderSettings.fog = true;
+            RenderSettings.fogMode = FogMode.ExponentialSquared;
+            RenderSettings.fogDensity = .0026f;
+            RenderSettings.fogColor = air;
             var camGo = new GameObject("Main Camera", typeof(Camera), typeof(AudioListener));
             camGo.tag = "MainCamera";
             Cam = camGo.GetComponent<Camera>();
-            Cam.nearClipPlane = .05f; Cam.farClipPlane = 600f; Cam.fieldOfView = 65f;
+            // the game's sixty degrees, so a slope that looks walkable here looks walkable there
+            Cam.nearClipPlane = .08f; Cam.farClipPlane = 1000f; Cam.fieldOfView = 60f;
             Cam.clearFlags = CameraClearFlags.SolidColor;
-            Cam.backgroundColor = new Color(.62f, .70f, .78f);
+            Cam.backgroundColor = air;        // the sky is the far end of the air, or the horizon shows as a seam
         }
 
         /// <summary>Throws away the body and builds a new one — the only way to be sure a change of mass or size has
@@ -131,6 +163,7 @@ namespace Height1079.Sandbox
             Body = PuppetRig.Build(at, Tuning, "Climber");
             Body.HandsEnabled = HandsOn;
             Body.Landed += f => Land = f;
+            rig?.Bind(Body);
         }
 
         public float Land { get; private set; }
@@ -140,6 +173,7 @@ namespace Height1079.Sandbox
             if (index < 0 || index >= SandboxRange.Stands.Count) return;
             stand = index;
             Body?.Place(SandboxRange.Stands[index].Spawn);
+            rig?.Snap();          // the eye is put down with the body, not flown across the range to it
         }
 
         public string StandName => stand >= 0 && stand < SandboxRange.Stands.Count ? SandboxRange.Stands[stand].Name : "—";
@@ -158,12 +192,25 @@ namespace Height1079.Sandbox
         void Update()
         {
             if (Body == null) return;
-            if (Scripted) { Aim(); return; }
+            // the self-test and the shot script drive the body and place the camera themselves; a keyboard and an
+            // orbit spring fighting them is how a photograph ends up framed on the back of somebody's head
+            if (Scripted) return;
 #if ENABLE_INPUT_SYSTEM
             if (Down(Key.Escape)) { cursorFree = !cursorFree; Cursor.lockState = cursorFree ? CursorLockMode.None : CursorLockMode.Locked; Cursor.visible = cursorFree; }
             if (Down(Key.F1)) SandboxHud.Panel = !SandboxHud.Panel;
             if (Down(Key.F2)) Spawn();
-            if (Down(Key.F3) || Down(Key.F7)) firstPerson = !firstPerson;
+            // the game's key for this is V, read by physical position (a Russian layout has no V where V is), with F7
+            // as the spare that reaches the game under automation. F3 was the sandbox's own and stays.
+            if (Down(Key.V) || Down(Key.F7) || Down(Key.F3))
+            {
+                rig.Toggle();
+                SandboxHud.Say(rig.FirstPerson ? "вид от первого лица (V, F7, F3)" : "вид со стороны (V, F7, F3)");
+            }
+            if (Down(Key.F10))
+            {
+                rig.Bob = !rig.Bob;
+                SandboxHud.Say(rig.Bob ? "голова покачивается при ходьбе (F10)" : "голова неподвижна — так виднее работу ног (F10)");
+            }
             if (Down(Key.F4)) { TimeScale = TimeScale > .9f ? .25f : 1f; Time.timeScale = TimeScale; }
             if (Down(Key.F9)) { LeaveToGame(); return; }
             if (Down(Key.F8)) { HandsOn = !HandsOn; Body.HandsEnabled = HandsOn; SandboxHud.Say(HandsOn ? "руки включены (черновик)" : "руки выключены — работаем над ногами"); }
@@ -171,13 +218,15 @@ namespace Height1079.Sandbox
             if (Down(Key.F6)) { Tuning = PuppetTuning.Load("sandbox"); ApplySolver(); Spawn(); SandboxHud.Say("загружено"); }
             for (int i = 0; i < SandboxRange.Stands.Count && i < 9; i++)
                 if (Down(Key.Digit1 + i)) GoTo(i);
+            // the range outgrew the nine digits when the snow went in: 0 jumps straight to the drifts, and Tab walks
+            // round every stand there is. Both reach the game under automation, which letters do not.
+            if (Down(Key.Digit0) && SandboxRange.DriftStand >= 0) GoTo(SandboxRange.DriftStand);
+            if (Down(Key.Tab) && SandboxRange.Stands.Count > 0) GoTo((stand + 1) % SandboxRange.Stands.Count);
 
             if (!cursorFree && Mouse.current != null)
             {
-                var d = Mouse.current.delta.ReadValue();
-                yaw += d.x * .12f;
-                pitch = Mathf.Clamp(pitch - d.y * .12f, -80f, 80f);
-                orbit = Mathf.Clamp(orbit - Mouse.current.scroll.ReadValue().y * .004f, 1.5f, 14f);
+                rig.Look(Mouse.current.delta.ReadValue());
+                rig.Zoom(Mouse.current.scroll.ReadValue().y);
             }
 
             var move = new Vector2((Held(Key.D) ? 1f : 0f) - (Held(Key.A) ? 1f : 0f),
@@ -188,11 +237,10 @@ namespace Height1079.Sandbox
                                    (Held(Key.UpArrow) ? 1f : 0f) - (Held(Key.DownArrow) ? 1f : 0f));
             bool grabL = HandsOn && Mouse.current != null && Mouse.current.leftButton.isPressed && !cursorFree;
             bool grabR = HandsOn && Mouse.current != null && Mouse.current.rightButton.isPressed && !cursorFree;
-            var look = Quaternion.Euler(pitch, yaw, 0f);
             Body.Drive(new PuppetInput
             {
                 Move = Vector2.ClampMagnitude(move, 1f),
-                Look = look,
+                Look = rig.LookRotation,
                 Run = Held(Key.LeftShift) || Held(Key.RightShift),
                 Jump = Down(Key.Space),
                 GrabLeft = grabL,
@@ -200,23 +248,13 @@ namespace Height1079.Sandbox
                 PullUp = (grabL || grabR) && move.y > .3f,
             });
 #endif
-            Aim();
         }
 
-        void LateUpdate() => Aim();
-
-        void Aim()
+        /// <summary>The camera is placed after everything else has moved. Put in <c>Update</c> it is always a frame
+        /// behind the body it is strapped to, and from inside the head that reads as a shiver.</summary>
+        void LateUpdate()
         {
-            if (Cam == null || Body == null) return;
-            var rot = Quaternion.Euler(pitch, yaw, 0f);
-            var head = Body.Torso.position + Body.Torso.transform.up * (Tuning.TorsoHeight * .5f + .1f);
-            if (firstPerson) { Cam.transform.SetPositionAndRotation(head, rot); return; }
-            var pivot = Body.Torso.position + Vector3.up * .3f;
-            var want = pivot - rot * Vector3.forward * orbit;
-            if (Physics.SphereCast(pivot, .2f, (want - pivot).normalized, out var hit, orbit, ~0, QueryTriggerInteraction.Ignore))
-                want = pivot + (want - pivot).normalized * Mathf.Max(.8f, hit.distance - .1f);
-            Cam.transform.position = Vector3.Lerp(Cam.transform.position, want, 1f - Mathf.Exp(-16f * Time.unscaledDeltaTime));
-            Cam.transform.LookAt(pivot);
+            if (!Scripted) rig?.Aim();
         }
     }
 }

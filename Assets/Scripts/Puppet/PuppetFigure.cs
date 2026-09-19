@@ -5,95 +5,85 @@ namespace Height1079.Puppet
     /// <summary>The figure you actually see, posed every frame from what the physics body is doing. The physics is one
     /// capsule floating on a leg spring; this layer is what makes it read as a person walking.
     ///
-    /// Proportions and shapes follow the study of PEAK (docs/PHYSICS.md): a head about a quarter of the height,
-    /// no neck at all, round tapering limbs with no elbow or knee marked, big hands and boots, flat saturated colour
-    /// and no gloss. Boxes are deliberately not used — hard edges are what made the first version read as a crate on
-    /// sticks, and they also tear an outline pass later on.
+    /// It is no longer built from Unity's primitives. Every part is a mesh turned in code by <see cref="PuppetMesh"/>
+    /// from a hand-drawn silhouette, and all of them are painted from one texture drawn in code by
+    /// <see cref="PuppetSkinTexture"/> — a face with eyes and brows, shorts, socks, sleeves and the pack's straps are
+    /// picture, not geometry. <see cref="PuppetSkin"/> turns that set once and every body in the scene shares it.
+    ///
+    /// Proportions follow the study of PEAK (docs/PHYSICS.md): a head about a quarter of the height and shaped like a
+    /// drop, no neck at all, limbs that taper and carry no marked elbow or knee, big hands and boots, flat saturated
+    /// colour and no gloss. Boxes are still deliberately absent — hard edges are what made the first version read as a
+    /// crate on sticks.
     ///
     /// The legs are the point of it: the feet are planted in turn, the knee is solved with two bones, and the stride
     /// comes from distance travelled rather than a timer — so walking, climbing a grade and slipping all look
-    /// different without a single animation clip.</summary>
+    /// different without a single animation clip. Fourteen transforms, no skeleton and no skinning.</summary>
     public sealed class PuppetFigure : MonoBehaviour
     {
         Puppet owner;
-        Transform root, hips, chest, head, hat, pack;
+        Transform root, body, head;
         readonly Transform[] armUp = new Transform[2], armLow = new Transform[2], hand = new Transform[2];
         readonly Transform[] thigh = new Transform[2], shin = new Transform[2], boot = new Transform[2];
-        readonly Transform[] elbow = new Transform[2], knee = new Transform[2];
+        Renderer[] parts = System.Array.Empty<Renderer>();
+        bool visible = true;
 
-        /// <summary>Bone lengths, metres. Legs 0.78 + boot 0.13 + torso 0.48 + head 0.39 ≈ 1.78 m — a man of the
+        /// <summary>Bone lengths, metres — and they must match the meshes turned in <see cref="PuppetSkin"/>, because
+        /// a bone is now drawn at its built length and only stretches under protest. The legs add up to 0.86 on
+        /// purpose: the default hover puts the sole 0.85 m below the pelvis, so a standing climber has a slightly bent
+        /// knee and nothing is stretched. Sole to crown is about 1.73 m, of which the head is a quarter — a man of the
         /// right height whose head is far too big, which is exactly the trick.</summary>
-        const float ThighLen = .40f, ShinLen = .38f, UpperArm = .30f, Forearm = .28f;
+        const float ThighLen = .44f, ShinLen = .42f, UpperArm = .30f, Forearm = .28f;
         const float HipDrop = .14f;    // pelvis below the floating capsule's centre
 
         float stride;
         readonly Vector3[] plant = new Vector3[2];
         readonly bool[] planted = new bool[2];
 
-        static Material skin, coat, trouser, boots, packMat;
-
         public void Bind(Puppet p)
         {
             owner = p;
-            Palette();
+            PuppetSkin.Ensure();
             root = new GameObject("Figure").transform;
             root.SetParent(p.transform, false);
 
-            hips = Ball(root, "Hips", new Vector3(.34f, .26f, .28f), coat);
-            chest = Pill(root, "Chest", new Vector3(.46f, .48f, .34f), coat);
-            head = Ball(root, "Head", new Vector3(.42f, .39f, .40f), skin);
-            hat = Ball(root, "Hat", new Vector3(.44f, .17f, .42f), trouser);
-            pack = Pill(root, "Pack", new Vector3(.36f, .42f, .24f), packMat);
-
+            body = Piece(PuppetSkin.Body, "Body");
+            head = Piece(PuppetSkin.Head, "Head");
             for (int s = 0; s < 2; s++)
             {
-                armUp[s] = Pill(root, "ArmUp" + s, new Vector3(.15f, UpperArm, .15f), coat);
-                armLow[s] = Pill(root, "ArmLow" + s, new Vector3(.13f, Forearm, .13f), coat);
-                elbow[s] = Ball(root, "Elbow" + s, Vector3.one * .14f, coat);
-                hand[s] = Ball(root, "Hand" + s, new Vector3(.16f, .17f, .08f), skin);
-                thigh[s] = Pill(root, "Thigh" + s, new Vector3(.19f, ThighLen, .19f), trouser);
-                shin[s] = Pill(root, "Shin" + s, new Vector3(.16f, ShinLen, .16f), trouser);
-                knee[s] = Ball(root, "Knee" + s, Vector3.one * .18f, trouser);
-                boot[s] = Ball(root, "Boot" + s, new Vector3(.17f, .13f, .28f), boots);
+                armUp[s] = Piece(PuppetSkin.UpperArm, "ArmUp" + s);
+                armLow[s] = Piece(PuppetSkin.Forearm, "ArmLow" + s);
+                hand[s] = Piece(s == 0 ? PuppetSkin.HandL : PuppetSkin.HandR, "Hand" + s);
+                thigh[s] = Piece(PuppetSkin.Thigh, "Thigh" + s);
+                shin[s] = Piece(PuppetSkin.Shin, "Shin" + s);
+                boot[s] = Piece(PuppetSkin.Boot, "Boot" + s);
             }
+            parts = root.GetComponentsInChildren<Renderer>(true);
+            Show();     // SetVisible may have been called before the body existed
         }
 
-        /// <summary>Flat, saturated, matte. A climber has to be findable against snow, rock and sky, and gloss is what
-        /// made the first version look like plastic.</summary>
-        static void Palette()
+        /// <summary>Show or hide the whole climber. The first person needs it: your own body must not fill the camera.
+        /// Renderers are switched rather than the object, so the pose keeps being solved and nothing has to be caught
+        /// up when the view changes back. Calling it with the state it already has costs nothing.</summary>
+        public void SetVisible(bool on)
         {
-            if (coat != null) return;
-            skin = Mat(new Color(.93f, .74f, .56f));
-            coat = Mat(new Color(.90f, .33f, .16f));
-            trouser = Mat(new Color(.20f, .25f, .34f));
-            boots = Mat(new Color(.13f, .12f, .12f));
-            packMat = Mat(new Color(.45f, .50f, .28f));
+            if (visible == on) return;
+            visible = on;
+            Show();
         }
 
-        static Material Mat(Color c)
+        public bool Visible => visible;
+
+        void Show()
         {
-            var m = new Material(Shader.Find("Standard")) { color = c };
-            m.SetFloat("_Glossiness", 0f);
-            m.SetFloat("_Metallic", 0f);
-            return m;
+            for (int i = 0; i < parts.Length; i++) if (parts[i] != null) parts[i].enabled = visible;
         }
 
-        /// <summary>A capsule: round in section, rounded at both ends, so two of them meeting look like a limb and not
-        /// like two sticks. Unity's capsule is two units long, hence the halving in <see cref="Bone"/>.</summary>
-        static Transform Pill(Transform parent, string name, Vector3 size, Material m)
-            => Prim(PrimitiveType.Capsule, parent, name, new Vector3(size.x, size.y * .5f, size.z), m);
-
-        static Transform Ball(Transform parent, string name, Vector3 size, Material m)
-            => Prim(PrimitiveType.Sphere, parent, name, size, m);
-
-        static Transform Prim(PrimitiveType type, Transform parent, string name, Vector3 scale, Material m)
+        Transform Piece(Mesh mesh, string name)
         {
-            var go = GameObject.CreatePrimitive(type);
-            go.name = name;
-            PuppetRig.Kill(go.GetComponent<Collider>());
-            go.GetComponent<Renderer>().sharedMaterial = m;
-            go.transform.SetParent(parent, false);
-            go.transform.localScale = scale;
+            var go = new GameObject(name);
+            go.transform.SetParent(root, false);
+            go.AddComponent<MeshFilter>().sharedMesh = mesh;
+            go.AddComponent<MeshRenderer>().sharedMaterial = PuppetSkin.Skin;
             return go.transform;
         }
 
@@ -101,28 +91,31 @@ namespace Height1079.Puppet
         {
             if (owner == null || owner.Torso == null) return;
             var t = owner.Tuning;
-            var body = owner.Torso.transform;
+            var rb = owner.Torso.transform;
             var v = owner.Torso.linearVelocity;
             var flat = new Vector3(v.x, 0f, v.z);
             float speed = flat.magnitude;
 
             float ride = float.IsInfinity(owner.GroundDistance) ? t.HoverHeight : owner.GroundDistance;
-            var hipPoint = body.position + Vector3.down * HipDrop;
+            var hipPoint = rb.position + Vector3.down * HipDrop;
             var face = speed > .2f
                 ? Quaternion.LookRotation(flat / speed, Vector3.up)
-                : Quaternion.LookRotation(Vector3.ProjectOnPlane(body.forward, Vector3.up), Vector3.up);
-            float lean = owner.Limp ? 0f : Mathf.Clamp(speed * 2.2f, 0f, 14f);
-            if (owner.Sliding) lean = -22f;
-            if (owner.Limp) { face = body.rotation; lean = 0f; }
-            var pose = face * Quaternion.Euler(lean, 0f, 0f);
+                : Quaternion.LookRotation(Vector3.ProjectOnPlane(rb.forward, Vector3.up), Vector3.up);
+            // The torso really leans: Puppet tilts the whole capsule into its own acceleration, so the figure draws
+            // the physics instead of a cosmetic angle worked out from speed. Limp is the physics too — the body has
+            // been thrown over and the capsule is lying down, so the pose is simply the capsule's own rotation.
+            if (owner.Limp) face = rb.rotation;
+            var tilt = Quaternion.FromToRotation(Vector3.up, Quaternion.Inverse(face) * (rb.rotation * Vector3.up));
+            var pose = face * tilt;
+            // the one thing the physics does not say: a man whose feet have gone sits back on his heels
+            if (owner.Sliding && !owner.Limp) pose *= Quaternion.Euler(-12f, 0f, 0f);
 
-            hips.SetPositionAndRotation(hipPoint, pose);
-            chest.SetPositionAndRotation(hipPoint + pose * new Vector3(0f, .26f, .01f), pose);
-            pack.SetPositionAndRotation(hipPoint + pose * new Vector3(0f, .28f, -.24f), pose);
-            var headRot = face * Quaternion.Euler(lean * .3f, 0f, 0f);
-            // no neck: the head sits straight on the shoulders, the way it does in PEAK
-            head.SetPositionAndRotation(hipPoint + pose * new Vector3(0f, .68f, .01f), headRot);
-            hat.SetPositionAndRotation(hipPoint + pose * new Vector3(0f, .83f, .01f), headRot);
+            // hips, chest and pack are one mesh now: they never moved relative to each other anyway
+            body.SetPositionAndRotation(hipPoint, pose);
+            // no neck: the head sits straight on the shoulders, the way it does in PEAK. The hat is part of it.
+            // the head keeps some of the lean and rights itself against the rest, the way a person's does
+            head.SetPositionAndRotation(hipPoint + pose * new Vector3(0f, .68f, .01f),
+                face * Quaternion.Slerp(Quaternion.identity, tilt, .35f));
 
             // ── legs ───────────────────────────────────────────────────────────────────────────────────────────────
             stride += speed * Time.deltaTime;
@@ -155,10 +148,8 @@ namespace Height1079.Puppet
                     foot = hipSide + pose * new Vector3(0f, 0f, sign * .03f) + Vector3.down * (ThighLen + ShinLen);
                     planted[s] = false;
                 }
-                var kneeAt = Limb(thigh[s], shin[s], hipSide, foot, ThighLen, ShinLen, pose * Vector3.forward);
-                knee[s].position = kneeAt;
-                boot[s].position = foot + Vector3.up * .06f + pose * new Vector3(0f, 0f, .04f);
-                boot[s].rotation = pose;
+                Limb(thigh[s], shin[s], hipSide, foot, ThighLen, ShinLen, pose * Vector3.forward);
+                boot[s].SetPositionAndRotation(foot + pose * new Vector3(0f, 0f, .02f), pose);
             }
 
             // ── arms ───────────────────────────────────────────────────────────────────────────────────────────────
@@ -175,44 +166,54 @@ namespace Height1079.Puppet
                     float ahead = walking ? Mathf.Sin(p) * Mathf.Lerp(.12f, .30f, swing) : 0f;
                     wrist = shoulder + pose * new Vector3(sign * .09f, -(UpperArm + Forearm) * .90f, ahead);
                 }
-                var elbowAt = Limb(armUp[s], armLow[s], shoulder, wrist, UpperArm, Forearm, pose * Vector3.back);
-                elbow[s].position = elbowAt;
-                hand[s].position = wrist;
-                hand[s].rotation = pose;
-                if (physical != null)
-                {
-                    var view = physical.transform.Find("View");
-                    if (view != null && view.gameObject.activeSelf != owner.HandsEnabled) view.gameObject.SetActive(owner.HandsEnabled);
-                }
+                var elbow = Limb(armUp[s], armLow[s], shoulder, wrist, UpperArm, Forearm, pose * Vector3.back);
+                hand[s].SetPositionAndRotation(wrist, Wrist(elbow, wrist, pose));
             }
         }
 
         /// <summary>Two bones between a joint and an end point, bent the right way; returns where the joint between
-        /// them ended up, so a ball can be dropped there and hide the seam. The law of cosines, nothing more.</summary>
+        /// them ended up. The law of cosines, nothing more — but the reach is clamped at both ends now: pulled past
+        /// full stretch the limb used to detach, and pulled into the shoulder it used to shoot out sideways.</summary>
         static Vector3 Limb(Transform upper, Transform lower, Vector3 from, Vector3 to, float a, float b, Vector3 bendToward)
         {
             var delta = to - from;
-            float d = Mathf.Clamp(delta.magnitude, .01f, (a + b) * .999f);
+            float reach = a + b, near = Mathf.Min(Mathf.Abs(a - b) * 1.02f + .01f, reach * .9f);
+            float d = Mathf.Clamp(delta.magnitude, near, reach * .999f);
             var dir = delta.sqrMagnitude > 1e-6f ? delta.normalized : Vector3.down;
             float along = (a * a - b * b + d * d) / (2f * d);
             float out_ = Mathf.Sqrt(Mathf.Max(0f, a * a - along * along));
             var side = Vector3.ProjectOnPlane(bendToward, dir);
             if (side.sqrMagnitude < 1e-6f) side = Vector3.ProjectOnPlane(Vector3.forward, dir);
             var joint = from + dir * along + side.normalized * out_;
-            Bone(upper, from, joint);
-            Bone(lower, joint, to);
+            Bone(upper, from, joint, a);
+            Bone(lower, joint, to, b);
             return joint;
         }
 
-        static void Bone(Transform bone, Vector3 from, Vector3 to)
+        /// <summary>Puts a bone mesh on the line from <paramref name="from"/> to <paramref name="to"/>. The mesh is
+        /// turned at its built length and the joint IK hands over exactly that, so normally there is no scaling at all
+        /// and the rounded ends keep their shape. Only the last bone of an over-reaching arm stretches, and a little
+        /// squash-and-stretch there reads better than a gap at the wrist.</summary>
+        static void Bone(Transform bone, Vector3 from, Vector3 to, float built)
         {
-            var mid = (from + to) * .5f;
             var d = to - from;
             float len = d.magnitude;
-            bone.position = mid;
-            bone.rotation = len > 1e-4f ? Quaternion.FromToRotation(Vector3.up, d / len) : Quaternion.identity;
+            bone.SetPositionAndRotation(from, len > 1e-4f ? Quaternion.FromToRotation(Vector3.up, d / len) : Quaternion.identity);
+            float k = built > 1e-4f ? Mathf.Clamp(len / built, .75f, 1.5f) : 1f;
             var s = bone.localScale;
-            bone.localScale = new Vector3(s.x, Mathf.Max(len * .5f, .02f), s.z);   // Unity's capsule is 2 units long
+            if (!Mathf.Approximately(s.y, k)) bone.localScale = new Vector3(1f, k, 1f);
+        }
+
+        /// <summary>Sits the hand on the end of the forearm — fingers on along the bone, palm still facing the way the
+        /// body does. Bolted to the torso's rotation instead, a hand twists off the wrist whenever the arm swings.</summary>
+        static Quaternion Wrist(Vector3 elbow, Vector3 wrist, Quaternion pose)
+        {
+            var along = wrist - elbow;
+            if (along.sqrMagnitude < 1e-6f) return pose;
+            var up = -along.normalized;
+            var fwd = Vector3.ProjectOnPlane(pose * Vector3.forward, up);
+            if (fwd.sqrMagnitude < 1e-4f) fwd = Vector3.ProjectOnPlane(pose * Vector3.up, up);
+            return fwd.sqrMagnitude < 1e-6f ? pose : Quaternion.LookRotation(fwd.normalized, up);
         }
     }
 }

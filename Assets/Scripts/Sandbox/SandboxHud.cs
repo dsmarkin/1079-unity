@@ -32,9 +32,10 @@ namespace Height1079.Sandbox
             var t = boot.Tuning;
 
             // ── state, top left ───────────────────────────────────────────────────────────────────────────────────
-            GUILayout.BeginArea(new Rect(10, 10, 330, 200), GUI.skin.box);
+            GUILayout.BeginArea(new Rect(10, 10, 330, 215), GUI.skin.box);
             GUILayout.Label($"стенд: {boot.StandName}", head);
-            GUILayout.Label($"силы {b.Stamina:0}/{t.Stamina:0}   {(b.Exhausted ? "— РУКИ ОТКАЗАЛИ" : "")}{(b.Limp ? "— ТЕЛО ОБМЯКЛО" : "")}", small);
+            string state = b.Limp ? "— ТЕЛО ОБМЯКЛО" : b.Stumbling ? "— СПОТКНУЛСЯ" : b.Rise < .99f ? "— ВСТАЁТ" : "";
+            GUILayout.Label($"силы {b.Stamina:0}/{t.Stamina:0}   {(b.Exhausted ? "— РУКИ ОТКАЗАЛИ" : "")}{state}", small);
             GUI.backgroundColor = Color.Lerp(new Color(.8f, .25f, .2f), new Color(.3f, .7f, .35f), b.StaminaFraction);
             GUILayout.HorizontalScrollbar(0f, Mathf.Max(b.StaminaFraction, .001f), 0f, 1f, GUILayout.Height(12));
             GUI.backgroundColor = Color.white;
@@ -44,6 +45,7 @@ namespace Height1079.Sandbox
                           : b.Grounded ? $"опора {b.GroundDistance:0.00} м, уклон {b.SlopeAngle:0}°"
                           : "в воздухе";
             GUILayout.Label(footing, small);
+            GUILayout.Label($"корпус {b.Tilt:0}° от вертикали   колени подались {b.Crouch:0.00} м", small);
             if (b.HandsEnabled) GUILayout.Label($"руки: Л {b.Left.Now} {b.Left.Load:0} Н · П {b.Right.Now} {b.Right.Load:0} Н", small);
             else GUILayout.Label("руки выключены (F8) — сейчас настраиваем ноги", small);
             GUILayout.Label($"последнее приземление {b.LastImpact:0.0} м/с   шаг физики {1f / Time.fixedDeltaTime:0} Гц", small);
@@ -53,8 +55,8 @@ namespace Height1079.Sandbox
             // ── keys, bottom left ─────────────────────────────────────────────────────────────────────────────────
             GUILayout.BeginArea(new Rect(10, Screen.height - 96, 560, 86), GUI.skin.box);
             GUILayout.Label("WASD/стрелки — идти · Shift — бегом · Space — прыжок", small);
-            GUILayout.Label("1…9 — стенд · F1 — панель · F2 — пересобрать тело · F3 — вид · F4 — замедление · F5/F6 — сохранить/загрузить · F8 — руки (черновик) · Esc — курсор", small);
-            GUILayout.Label("F9 — выйти в меню игры", small);
+            GUILayout.Label("V, F7, F3 — вид от первого лица / со стороны · F10 — покачивание головы · Tab — следующий стенд · 0 — сугробы · 1…9 — стенды", small);
+            GUILayout.Label("F1 — панель · F2 — пересобрать тело · F4 — замедление · F5/F6 — сохранить/загрузить · F8 — руки (черновик) · Esc — курсор · F9 — выйти в меню игры", small);
             GUILayout.Label($"файл настроек: {PuppetTuning.PathFor(t.Name)}", small);
             GUILayout.EndArea();
 
@@ -88,17 +90,36 @@ namespace Height1079.Sandbox
             t.SlideTop = Row("скольжение: предел, м/с", t.SlideTop, 2f, 25f);
             t.SlideControl = Row("скольжение: управление", t.SlideControl, 0f, 8f);
             t.SlideLift = Row("скольжение: доля ног", t.SlideLift, 0f, 1f);
+            t.SquashFrom = Row("приседать от удара, м/с", t.SquashFrom, 0f, 10f);
+            t.SquashGive = Row("приседание на 1 м/с, м", t.SquashGive, 0f, .15f);
+            t.SquashMax = Row("приседание не глубже, м", t.SquashMax, 0f, .45f);
+            t.SquashTime = Row("разгибается за, с", t.SquashTime, .05f, 2f);
 
             GUILayout.Label("стойка", head);
             t.UprightSpring = Row("держать вертикаль", t.UprightSpring, 10f, 400f);
             t.UprightDamper = Row("гашение вертикали", t.UprightDamper, 1f, 60f);
             t.TurnSpring = Row("поворот к взгляду", t.TurnSpring, 5f, 200f);
             t.TurnDamper = Row("гашение поворота", t.TurnDamper, 1f, 40f);
+            t.LeanInto = Row("наклон в разгон, доля", t.LeanInto, 0f, 1.5f);
+            t.LeanMax = Row("наклон не больше, °", t.LeanMax, 0f, 40f);
+            t.LeanLag = Row("наклон запаздывает, с", t.LeanLag, 0f, .8f);
+
+            GUILayout.Label("падение и вставание", head);
+            t.TripFrom = Row("спотыкание от, м/с", t.TripFrom, 1f, 12f);
+            t.TripTime = Row("спотыкание длится, с", t.TripTime, 0f, 2f);
+            t.TripHold = Row("в спотыкании управление", t.TripHold, 0f, 1f);
+            t.LimpFrom = Row("падение от, м/с", t.LimpFrom, 2f, 20f);
+            t.LimpTime = Row("лежит, с", t.LimpTime, .1f, 4f);
+            t.FallSpin = Row("заваливает, °/с", t.FallSpin, 0f, 500f);
+            t.LimpFriction = Row("трение лежащего", t.LimpFriction, 0f, 1f);
+            t.GetUp = Row("встаёт за, с", t.GetUp, .05f, 4f);
 
             GUILayout.Label("шаг", head);
             t.WalkSpeed = Row("шаг, м/с", t.WalkSpeed, .5f, 6f);
             t.RunSpeed = Row("бег, м/с", t.RunSpeed, 1f, 10f);
-            t.GroundAccel = Row("разгон на земле", t.GroundAccel, 4f, 80f);
+            t.StartAccel = Row("трогается с места", t.StartAccel, 1f, 60f);
+            t.GroundAccel = Row("разгон на ходу", t.GroundAccel, 4f, 80f);
+            t.BrakeAccel = Row("торможение", t.BrakeAccel, 1f, 60f);
             t.AirAccel = Row("управление в воздухе", t.AirAccel, 0f, 14f);
 
             GUILayout.Label(b.HandsEnabled ? "руки (черновик, F8)" : "руки выключены — F8, чтобы включить", head);

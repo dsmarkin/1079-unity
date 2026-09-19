@@ -48,15 +48,70 @@ namespace Height1079.Puppet
         /// descent is worth. Walking up a mountain is slower than walking across a room; this is the whole difference.</summary>
         public float UphillSpeed = .45f, DownhillSpeed = 1.12f;
 
+        // ─── the knees: how a landing is absorbed ───────────────────────────────────────────────────────────────────
+        /// <summary>Under this impact, m/s, the knees do not give at all — a man comes off a kerb and keeps walking.</summary>
+        public float SquashFrom = 2.5f;
+        /// <summary>Metres the ride height is pulled down per m/s of impact over the threshold, and the deepest it is
+        /// ever pulled. At the defaults a two-metre drop folds the body by about 0.16 m and a roof puts it at the cap.
+        /// Keep the cap under the capsule's clearance (HoverHeight − TorsoHeight/2) or the body sits on its own shell.</summary>
+        public float SquashGive = .045f, SquashMax = .30f;
+        /// <summary>Seconds the deepest crouch takes to unfold. It is a rate underneath, so a light landing is over in
+        /// a blink and a heavy one hangs — two behaviours out of one number. The leg spring is underdamped, so the
+        /// body settles back up <em>through</em> the target rather than stepping onto it.</summary>
+        public float SquashTime = .55f;
+
+        // ─── going down: what a fall costs and how long it takes to be a man again ──────────────────────────────────
+        /// <summary>Impact that takes the legs away, m/s — about a three-metre drop. Over it there is no control, no
+        /// leg spring and no vertical at all: the body is thrown over and lies where it stops.</summary>
+        public float LimpFrom = 7f;
+        /// <summary>Seconds down after a landing right at the threshold; a harder arrival keeps the body down
+        /// proportionally longer, to a ceiling of four seconds.</summary>
+        public float LimpTime = .9f;
+        /// <summary>Degrees a second of tumble handed to the body as it goes down, doubling by twice the threshold
+        /// speed. Without it a knocked-out body stands on the spot with its controls off and nobody reads it as a fall.</summary>
+        public float FallSpin = 170f;
+        /// <summary>Friction of the capsule while the body is down, 0…1. The walking capsule is frictionless on
+        /// purpose — friction catches on every lip and fights the leg spring — and a frictionless body on its side
+        /// skates like a bar of soap. It wears this while it lies and gets the slick skin back the moment it is up.</summary>
+        public float LimpFriction = .55f;
+        /// <summary>Seconds to get back up. The legs and the vertical both come back over it, so the body unfolds off
+        /// the ground instead of being snapped upright by the full leg spring the instant the timer runs out.</summary>
+        public float GetUp = 1.2f;
+        /// <summary>Impact that only staggers, m/s, and how long the stagger lasts — the cheap fall, for the knocks
+        /// that are not worth putting a man on the floor for.</summary>
+        public float TripFrom = 4f, TripTime = .45f;
+        /// <summary>What is left of the player's control through a stagger, 0…1: steering and the vertical both.</summary>
+        public float TripHold = .35f;
+
         // ─── standing up: a PD controller on the torso rotation, the thing that makes a ragdoll look alive ──────────
-        public float UprightSpring = 110f, UprightDamper = 16f;
+        /// <summary>The spring that holds the body upright, and its damper. Soft on purpose: at the old 110/16 the
+        /// torso was welded to the vertical. Here ω ≈ 8 rad/s and ζ ≈ 0.55, so the chest swings past the target once
+        /// and settles, and that overshoot is what the eye reads as the weight of a man.</summary>
+        public float UprightSpring = 70f, UprightDamper = 9f;
         /// <summary>How hard the body turns to face where the player looks.</summary>
         public float TurnSpring = 40f, TurnDamper = 7f;
+        /// <summary>How much of its own horizontal acceleration the body leans into: 0 is a pole on a spring, 1 is the
+        /// lean the physics says a runner takes, over 1 is a cartoon. One knob gives all three of forward on the
+        /// start, back on the stop and a shoulder into the turn, because they are the same fact (tan θ = a/g).</summary>
+        public float LeanInto = .85f;
+        /// <summary>Cap on that lean, degrees.</summary>
+        public float LeanMax = 16f;
+        /// <summary>Seconds the lean takes to follow a change of pace — the torso's inertia. At 0 the chest leans in
+        /// the same step the feet do, which is exactly the machine we are getting away from.</summary>
+        public float LeanLag = .18f;
 
         // ─── walking ────────────────────────────────────────────────────────────────────────────────────────────────
         public float WalkSpeed = 3.0f, RunSpeed = 5.6f;
-        /// <summary>Acceleration used to reach the wanted speed, m/s²; the cap is what keeps the body from teleporting.</summary>
-        public float GroundAccel = 26f, AirAccel = 3.5f;
+        /// <summary>Acceleration the legs may use once the body is already at walking pace, m/s², and what little
+        /// steering there is in the air. This was 26 with nothing under it and the clamp was never reached: the body
+        /// went from a stand to full speed inside one fixed step.</summary>
+        public float GroundAccel = 18f, AirAccel = 3.5f;
+        /// <summary>What the legs may do from a standstill, m/s², rising to <see cref="GroundAccel"/> by the time the
+        /// body is at <see cref="WalkSpeed"/>. This is the third of a second of getting under way.</summary>
+        public float StartAccel = 11f;
+        /// <summary>What the legs may do when nothing is asked of them, m/s². A man does not stop dead; at the default
+        /// he runs on for about a third of a second after the key comes up.</summary>
+        public float BrakeAccel = 8f;
 
         // ─── hands ──────────────────────────────────────────────────────────────────────────────────────────────────
         /// <summary>How far a hand reaches from the shoulder, m.</summary>

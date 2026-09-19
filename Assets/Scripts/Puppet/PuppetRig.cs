@@ -2,9 +2,10 @@ using UnityEngine;
 
 namespace Height1079.Puppet
 {
-    /// <summary>Builds a climber out of primitives — torso capsule, two hand balls, and the sticks that draw the arms
-    /// and legs. No assets and no prefab: the sandbox has to be able to throw a body away and make another one with a
-    /// different tuning while the game runs.</summary>
+    /// <summary>Builds a climber: the torso capsule that the physics actually uses, the two hand bodies, and the
+    /// <see cref="PuppetFigure"/> that draws all of it. No assets and no prefab — the meshes and the texture are turned
+    /// in code by <see cref="PuppetSkin"/> — because the sandbox has to be able to throw a body away and make another
+    /// one with a different tuning while the game runs.</summary>
     public static class PuppetRig
     {
         /// <summary>Destroy that also works in the editor: the EditMode tests build a rig, and <c>Object.Destroy</c>
@@ -50,21 +51,9 @@ namespace Height1079.Puppet
             var ball = go.AddComponent<SphereCollider>();
             ball.radius = tuning.GrabRadius * .8f;
             ball.material = Grippy();
-            var view = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-            view.name = "View"; view.transform.SetParent(go.transform, false);
-            view.transform.localScale = Vector3.one * (tuning.GrabRadius * 1.6f);
-            Kill(view.GetComponent<Collider>());
-            Paint(view, new Color(.86f, .74f, .58f));
+            // Nothing is drawn here. The hand a player sees is the sculpted one PuppetFigure puts at this very
+            // point, and a sphere here as well left a bare ball sticking out through the fingers.
             return go.AddComponent<PuppetHand>();
-        }
-
-        static void Paint(GameObject go, Color c)
-        {
-            var r = go.GetComponent<Renderer>();
-            if (r == null) return;
-            var m = new Material(Shader.Find("Standard")) { color = c };
-            m.SetFloat("_Glossiness", .08f);
-            r.sharedMaterial = m;
         }
 
         /// <summary>The torso slides: friction on the capsule catches on every lip and fights the hover spring.</summary>

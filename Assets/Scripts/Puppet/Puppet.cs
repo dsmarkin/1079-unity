@@ -42,16 +42,40 @@ namespace Height1079.Puppet
         public bool Exhausted => exhaustUntil > Time.time;
         /// <summary>Tired hands hold worse — a grip taken on the last of the stamina tears off.</summary>
         public float GripStrength => Mathf.Lerp(.35f, 1f, StaminaFraction);
-        /// <summary>Thrown, torn off or spent: the body is a sack until the feet find the ground again.</summary>
+        /// <summary>Thrown, torn off or spent: the body is a sack until the feet find the ground again. Nothing holds
+        /// it upright, nothing holds it off the ground, and it has been thrown over — see <see cref="Tip"/>.</summary>
         public bool Limp { get; private set; }
+        /// <summary>A stagger: a fraction of a second of the legs being somewhere else, off a landing that was not
+        /// quite bad enough to put the body down. Control is not gone, only cut to <see cref="PuppetTuning.TripHold"/>.</summary>
+        public bool Stumbling => stumbleUntil > Time.time;
+        /// <summary>Metres the knees are giving under the body right now. The ride height really is pulled down by
+        /// this much, so the figure drawn from the physics crouches without being told to.</summary>
+        public float Crouch => squash;
+        /// <summary>0…1 of a stand recovered since the body last went down. Scales the legs and the vertical together,
+        /// so getting up takes <see cref="PuppetTuning.GetUp"/> seconds instead of snapping.</summary>
+        public float Rise => rise;
+        /// <summary>The up axis the body is trying to stand on this step: vertical, plus the lean its own acceleration
+        /// has earned. Public because it is the body's intent, and a figure drawn from the physics may want it.</summary>
+        public Vector3 StandUp { get; private set; } = Vector3.up;
+        /// <summary>Degrees the torso is actually off the vertical. Past about fifty the body is on its way down.</summary>
+        public float Tilt { get; private set; }
 
         public int GrabMask = ~0;
         /// <summary>Whether the hands do anything at all. Off, this is a body that walks, falls and slides and
         /// nothing else — which is the part that has to be right before climbing is worth writing.</summary>
         public bool HandsEnabled = true;
-        float exhaustUntil, restTimer, limpUntil;
+        float exhaustUntil, restTimer, limpUntil, stumbleUntil;
         /// <summary>0…1 — how much of the leg spring is allowed right now (see <see cref="PuppetTuning.LegRise"/>).</summary>
         float legs;
+        /// <summary>Metres the ride height is pulled down by the last landing, and 0…1 of a stand recovered since the
+        /// body last lay down. Both scale what the legs are allowed to do, which is why they live beside them.</summary>
+        float squash, rise = 1f;
+        /// <summary>Horizontal velocity last step and the lagged acceleration read out of it. The lean is built on
+        /// what the body is measurably doing rather than on what it was told to do, so a shove from the world tips it
+        /// exactly as a step does, and nothing has to be told about the shove.</summary>
+        Vector3 lastFlat, accel;
+        /// <summary>The frictionless skin the body walks on, and the rough one it wears while it is down.</summary>
+        PhysicsMaterial slick, rough;
         /// <summary>Speed the body hit the ground with, m/s — what a fall-damage rule would read.</summary>
         public float LastImpact { get; private set; }
         float fallSpeed;
@@ -72,6 +96,9 @@ namespace Height1079.Puppet
             Torso.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
             Torso.freezeRotation = false;
             Torso.angularDamping = 3f;
+            // remembered, not edited: the walking skin is a material this body owns, and a fall swaps it rather than
+            // changing its numbers, so whatever the rig chose comes back exactly as it was
+            slick = capsule.sharedMaterial;
             Stamina = Tuning.Stamina;
         }
 
@@ -100,6 +127,11 @@ namespace Height1079.Puppet
             Torso.linearVelocity = Vector3.zero; Torso.angularVelocity = Vector3.zero;
             Torso.rotation = Quaternion.identity;
             Limp = false; limpUntil = 0f; exhaustUntil = 0f; fallSpeed = 0f; legs = 0f;
+            // a body put down by hand has not fallen: the knees, the stand and the lean all start clean, and the
+            // remembered velocity is zeroed too or the teleport itself reads as an acceleration and tips the torso
+            stumbleUntil = 0f; squash = 0f; rise = 1f; Tilt = 0f;
+            lastFlat = Vector3.zero; accel = Vector3.zero; StandUp = Vector3.up;
+            Rough(false);
             Stamina = Tuning.Stamina;
             if (left != null) left.transform.position = position;
             if (right != null) right.transform.position = position;
@@ -109,8 +141,27 @@ namespace Height1079.Puppet
         {
             Limp = true;
             limpUntil = Mathf.Max(limpUntil, Time.time + seconds);
+            // the legs go with the control: a sack does not hold itself off the ground, and the stand has to be
+            // earned back over GetUp seconds afterwards rather than handed back with the flag
+            legs = 0f; rise = 0f;
+            Rough(true);
             left?.Release(); right?.Release();
         }
+
+        /// <summary>The capsule is frictionless on purpose — friction catches on every lip and fights the leg spring —
+        /// and a body lying on the ground is the one case where that is plainly wrong: it skates. So it wears a rough
+        /// skin while it is down instead of the shared material having its numbers edited under everyone else.</summary>
+        void Rough(bool on)
+        {
+            if (capsule == null) return;
+            if (!on) { capsule.sharedMaterial = slick; return; }
+            if (rough == null) rough = new PhysicsMaterial("puppet-down") { frictionCombine = PhysicsMaterialCombine.Average };
+            float f = Mathf.Clamp01(Tuning.LimpFriction);
+            rough.dynamicFriction = f; rough.staticFriction = f;
+            capsule.sharedMaterial = rough;
+        }
+
+        void OnDestroy() { if (rough != null) PuppetRig.Kill(rough); }
 
         void FixedUpdate()
         {
@@ -120,6 +171,7 @@ namespace Height1079.Puppet
             capsule.height = t.TorsoHeight; capsule.radius = t.TorsoRadius;
 
             Sense(t);
+            Soften(t, dt);
             float drain = 0f;
 
             bool exhausted = Exhausted || Limp;
@@ -130,7 +182,7 @@ namespace Height1079.Puppet
             }
             else if (Hanging) { left.Release(); right.Release(); }
 
-            if (Limp && Grounded && Time.time > limpUntil && StaminaFraction > .25f) Limp = false;
+            if (Limp && Grounded && Time.time > limpUntil && StaminaFraction > .25f) { Limp = false; Rough(false); }
 
             // the legs come back up to strength over LegRise seconds after they find the ground; off the ground, or
             // while the body is a sack, they have nothing to push against at all
@@ -167,8 +219,11 @@ namespace Height1079.Puppet
             if (hit)
             {
                 GroundDistance = info.distance + radius;
-                GroundNormal = info.normal;
-                SlopeAngle = Vector3.Angle(info.normal, Vector3.up);
+                // a sweep that starts already touching reports a zero normal, and a zero normal turns the gravity
+                // cancellation below into NaN and the body into confetti. A body lying on its side after a fall is
+                // exactly that case, so it is worth the two lines.
+                GroundNormal = info.normal.sqrMagnitude > 1e-6f ? info.normal : Vector3.up;
+                SlopeAngle = Vector3.Angle(GroundNormal, Vector3.up);
                 Footing = GroundDistance <= toFeet + t.LegProbe * .5f;
                 Grounded = Footing && SlopeAngle <= t.FootGrip;
                 // too steep to stand on is not the same as thin air: the body keeps touching the slope all the way down
@@ -177,16 +232,62 @@ namespace Height1079.Puppet
             else { GroundDistance = float.PositiveInfinity; GroundNormal = Vector3.up; SlopeAngle = 0f; Footing = Grounded = Sliding = false; }
 
             float vy = Torso.linearVelocity.y;
-            if (!Grounded && vy < 0f) fallSpeed = -vy;
-            else if (Grounded && fallSpeed > 1f)
+            // only a drop counts as a fall, and a drop is when there is nothing under the feet at all. Measuring it
+            // from Grounded counted a slide too — the feet never leave the rock in a slide — and the body was being
+            // thrown flat at the bottom of every gully by speed it had earned honestly on its feet.
+            if (!Footing) { if (vy < 0f) fallSpeed = -vy; }
+            else if (fallSpeed > 1f) { Land(t, fallSpeed); fallSpeed = 0f; }
+            else fallSpeed = 0f;
+        }
+
+        /// <summary>The feet find the ground again after a drop. Three things can happen, and the choice between them
+        /// is the whole of whether a fall reads as a fall: the knees give a little, the body staggers, or it is thrown
+        /// over and has to get up. The old body only ever did the first, silently.</summary>
+        void Land(PuppetTuning t, float speed)
+        {
+            LastImpact = speed;
+            Landed?.Invoke(speed);
+            squash = Mathf.Max(squash, PuppetMotion.Squash(speed, t));
+            if (speed >= t.LimpFrom)
             {
-                LastImpact = fallSpeed;
-                Landed?.Invoke(fallSpeed);
-                // a real drop throws the body down: this is where the game's fall damage and the ragdoll hook in
-                if (fallSpeed > 9f) GoLimp(Mathf.Clamp(fallSpeed * .12f, .5f, 3f));
-                fallSpeed = 0f;
+                GoLimp(PuppetMotion.LimpFor(speed, t));
+                Tip(PuppetMotion.TipSpin(speed, t));
             }
-            else if (Grounded) fallSpeed = 0f;
+            else if (speed >= t.TripFrom)
+            {
+                stumbleUntil = Mathf.Max(stumbleUntil, Time.time + t.TripTime);
+                // a stagger is a fall that was caught: the same throw, a quarter of it, legs still underneath
+                Tip(PuppetMotion.TipSpin(speed, t) * .25f);
+            }
+        }
+
+        /// <summary>Throws the body over the line it was travelling on. This is what turns "the controls went away"
+        /// into something an onlooker calls falling over; the damping on the rigidbody bleeds the spin off again, so
+        /// the body goes past horizontal and stops rather than rolling away down the hill like a barrel.</summary>
+        void Tip(float degreesPerSecond)
+        {
+            var axis = PuppetMotion.TipAxis(Torso.linearVelocity, transform.right);
+            Torso.angularVelocity += axis * (degreesPerSecond * Mathf.Deg2Rad);
+        }
+
+        /// <summary>Everything that lags, in one place. The body's own horizontal acceleration is measured, smoothed
+        /// and turned into the up axis it will try to stand on; the knees unfold at their own rate; the legs and the
+        /// vertical come back after a fall. None of it is cosmetic — the lean is a real torque target, which is what
+        /// lets the figure, the camera and a self-test all read the same body.</summary>
+        void Soften(PuppetTuning t, float dt)
+        {
+            var flat = new Vector3(Torso.linearVelocity.x, 0f, Torso.linearVelocity.z);
+            var raw = (flat - lastFlat) / Mathf.Max(dt, 1e-4f);
+            lastFlat = flat;
+            // a first-order lag rather than the raw reading: a derivative taken ninety times a second is mostly noise,
+            // and the delay is the point anyway — a chest that leans in the same step the feet do is the machine
+            accel = Vector3.Lerp(accel, raw, 1f - Mathf.Exp(-dt / Mathf.Max(t.LeanLag, .01f)));
+            // in the air and on a sack there is nothing to lean against: leaning needs a foot on the ground
+            StandUp = Grounded && !Limp ? PuppetMotion.LeanUp(accel, t.LeanInto, t.LeanMax) : Vector3.up;
+            Tilt = Vector3.Angle(transform.up, Vector3.up);
+
+            squash = Mathf.MoveTowards(squash, 0f, PuppetMotion.Unfold(t) * dt);
+            if (!Limp && Grounded) rise = Mathf.MoveTowards(rise, 1f, dt / Mathf.Max(t.GetUp, .02f));
         }
 
         /// <summary>The legs: a spring that holds the torso at its ride height over whatever the probe found, so steps,
@@ -194,9 +295,12 @@ namespace Height1079.Puppet
         void Hover(PuppetTuning t)
         {
             if (float.IsInfinity(GroundDistance)) return;
-            float error = t.HoverHeight - GroundDistance;
+            // a landing bends the knees, not the man: the ride height itself is pulled down by the impact and unfolds
+            // again over SquashTime. The spring under it is underdamped, so the body settles back up through the
+            // target instead of stepping onto it — that overshoot is the spring in a pair of legs.
+            float error = (t.HoverHeight - squash) - GroundDistance;
             float vy = Vector3.Dot(Torso.linearVelocity, Vector3.up);
-            float a = Mathf.Clamp(error * t.LegSpring - vy * t.LegDamper, -t.LegMaxAccel, t.LegMaxAccel) * legs;
+            float a = Mathf.Clamp(error * t.LegSpring - vy * t.LegDamper, -t.LegMaxAccel, t.LegMaxAccel) * legs * rise;
             Torso.AddForce(Vector3.up * a, ForceMode.Acceleration);
             // legs stand a body up, they do not launch it
             var now = Torso.linearVelocity;
@@ -232,11 +336,18 @@ namespace Height1079.Puppet
         }
 
         /// <summary>Standing up and facing the way the player looks. Two PD controllers on the same rigidbody: one
-        /// rights the body, one turns it. Hanging, the body is allowed to swing — only the yaw is kept.</summary>
+        /// rights the body, one turns it. Hanging, the body is allowed to swing — only the yaw is kept.
+        ///
+        /// What it rights <em>to</em> is not the vertical but <see cref="StandUp"/>, the vertical tilted into whatever
+        /// the body is accelerating toward. The lean therefore lives in the physics: the torso really is pitched over
+        /// its feet coming out of a stand and hanging back into a stop, and anything reading the rigidbody — the
+        /// figure, the camera, a test — sees the same body. Cosmetic lean drawn on top of an upright capsule was the
+        /// robot look, because the mass was still standing bolt upright underneath it.</summary>
         void Upright(PuppetTuning t)
         {
-            var up = Vector3.up;
-            float authority = Grounded ? 1f : Hanging ? .45f : .25f;
+            var up = Grounded ? StandUp : Vector3.up;
+            float authority = (Grounded ? 1f : Hanging ? .45f : .25f) * rise;
+            if (Stumbling) authority *= Mathf.Clamp01(t.TripHold);
             var delta = Quaternion.FromToRotation(transform.up, up);
             delta.ToAngleAxis(out float angle, out var axis);
             if (angle > 180f) angle -= 360f;
@@ -246,12 +357,14 @@ namespace Height1079.Puppet
                            - Torso.angularVelocity * t.UprightDamper;
                 Torso.AddTorque(torque, ForceMode.Acceleration);
             }
-            var want = Vector3.ProjectOnPlane(LookRotation * Vector3.forward, up);
+            // the turn is measured about the world vertical, never about the leaned one: yaw taken about a tilted
+            // axis feeds the lean back into itself and the body starts to corkscrew out of a turn
+            var want = Vector3.ProjectOnPlane(LookRotation * Vector3.forward, Vector3.up);
             if (want.sqrMagnitude < 1e-4f) return;
-            var flat = Vector3.ProjectOnPlane(transform.forward, up);
-            float yawErr = Vector3.SignedAngle(flat, want, up) * Mathf.Deg2Rad;
-            float yawRate = Vector3.Dot(Torso.angularVelocity, up);
-            Torso.AddTorque(up * (yawErr * t.TurnSpring * authority - yawRate * t.TurnDamper), ForceMode.Acceleration);
+            var flat = Vector3.ProjectOnPlane(transform.forward, Vector3.up);
+            float yawErr = Vector3.SignedAngle(flat, want, Vector3.up) * Mathf.Deg2Rad;
+            float yawRate = Vector3.Dot(Torso.angularVelocity, Vector3.up);
+            Torso.AddTorque(Vector3.up * (yawErr * t.TurnSpring * authority - yawRate * t.TurnDamper), ForceMode.Acceleration);
         }
 
         void Move(PuppetTuning t, float dt, ref float drain)
@@ -260,6 +373,8 @@ namespace Height1079.Puppet
             var wish = look * new Vector3(input.Move.x, 0f, input.Move.y);
             wish.y = 0f;
             if (wish.sqrMagnitude > 1f) wish.Normalize();
+            // mid-stagger the legs are somewhere else: the player still has a share of them, not all of them
+            if (Stumbling) wish *= Mathf.Clamp01(t.TripHold);
             bool running = input.Run && wish.sqrMagnitude > .01f && Grounded && !Hanging && Stamina > 1f;
             float speed = running ? t.RunSpeed : t.WalkSpeed;
             if (running) drain += t.RunCost * dt;
@@ -282,7 +397,11 @@ namespace Height1079.Puppet
                 var v = Torso.linearVelocity;
                 var flat = new Vector3(v.x, 0f, v.z);
                 var err = new Vector3(along.x, 0f, along.z) - flat;
-                var a = Vector3.ClampMagnitude(err / Mathf.Max(dt, 1e-4f), t.GroundAccel);
+                // what the legs may change about the speed this step is not one number. Getting under way from a
+                // stand is slow, holding a stride is cheap, and letting it die is softer still — without the split
+                // the clamp was never reached at all and the body took walking pace inside a single fixed step.
+                float cap = PuppetMotion.StepAccel(flat.magnitude, wish.sqrMagnitude > .01f, t);
+                var a = Vector3.ClampMagnitude(err / Mathf.Max(dt, 1e-4f), cap);
                 Torso.AddForce(a, ForceMode.Acceleration);
             }
             else
