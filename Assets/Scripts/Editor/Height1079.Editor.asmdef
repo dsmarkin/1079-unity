@@ -1,7 +1,7 @@
 {
   "name": "Height1079.Editor",
   "rootNamespace": "Height1079.EditorTools",
-  "references": ["Height1079.Core", "Height1079.Runtime", "Height1079.Puppet", "Height1079.Sandbox", "Unity.Netcode.Runtime"],
+  "references": ["Height1079.Core", "Height1079.Runtime", "Height1079.Puppet", "Height1079.Sandbox", "Unity.Netcode.Runtime", "Height1079.Snow"],
   "includePlatforms": ["Editor"],
   "excludePlatforms": [],
   "allowUnsafeCode": false,

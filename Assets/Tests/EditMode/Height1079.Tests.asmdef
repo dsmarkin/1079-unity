@@ -1,7 +1,7 @@
 {
   "name": "Height1079.Tests",
   "rootNamespace": "Height1079.Tests",
-  "references": ["Height1079.Core", "Height1079.Runtime", "Height1079.Puppet", "UnityEngine.TestRunner", "UnityEditor.TestRunner"],
+  "references": ["Height1079.Core", "Height1079.Runtime", "Height1079.Puppet", "UnityEngine.TestRunner", "UnityEditor.TestRunner", "Height1079.Snow"],
   "includePlatforms": ["Editor"],
   "excludePlatforms": [],
   "allowUnsafeCode": false,

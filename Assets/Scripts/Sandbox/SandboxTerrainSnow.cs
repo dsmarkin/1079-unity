@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 using Height1079.Puppet;
 
@@ -83,9 +84,6 @@ namespace Height1079.Sandbox
             return Mathf.Min(s, .55f) * Edge(x, z);
         }
 
-        /// <summary>Convenience for the camera: the sink under a world point, yard included (the yard is bare ice-hard
-        /// plate and swallows nothing).</summary>
-        public static float SinkAt(Vector3 p) => Sink(p.x, p.z);
 
         static float Edge(float x, float z)
             => Ramp(0f, Rim, Mathf.Min(Mathf.Min(x - MinX, MaxX - x), Mathf.Min(z - MinZ, MaxZ - z)));
@@ -238,50 +236,36 @@ namespace Height1079.Sandbox
             r.receiveShadows = false;
         }
 
-        // ── footprints ───────────────────────────────────────────────────────────────────────────────────────────
-        // The game leaves a trail in the snow (SnowTrail) and it is half of why walking there feels like walking.
-        // That lives in the game assembly, which the sandbox cannot see, so here is the cheap half of it: a ring of
-        // flat patches laid where the feet land, the oldest moved on when the ring comes round.
+        // ── the snow you see and the ground you stand on ─────────────────────────────────────────────────────────
+        // The field is two meshes and the difference between them is Sink. The yard and its stands are the same idea
+        // in another shape: a collider under a skin of snow with no collider of its own (SandboxRange.Cap). Either
+        // way a boot that has found a collider is some way under the snow it can see, and that distance is what the
+        // prints, the sound and the gait all want. The prints themselves are the game's (Height1079.Snow.SnowPrints):
+        // the sandbox only says where the visible snow is.
 
-        const int Prints = 96;
-        static readonly Transform[] prints = new Transform[Prints];
-        static int printAt;
-        static Material printMat;
+        static readonly List<Bounds> skins = new List<Bounds>();
 
-        /// <summary>Called when the range is rebuilt: the old patches went with the old scene.</summary>
-        public static void ClearPrints()
+        /// <summary>Called when the range is rebuilt: the old skins went with the old scene.</summary>
+        public static void ClearSkins() => skins.Clear();
+
+        /// <summary>A slab of snow lying on a collider, looked at and never stood on.</summary>
+        public static void Skin(Bounds slab) => skins.Add(slab);
+
+        /// <summary>How far under the visible snow a point on a collider is: the field's <see cref="Sink"/>, or the
+        /// thickness of the skin lying over the yard and its stands, or nothing on bare rock and ice.</summary>
+        public static float SinkAt(Vector3 on)
         {
-            for (int i = 0; i < Prints; i++) prints[i] = null;
-            printAt = 0;
-        }
-
-        public static void Footprint(Vector3 at, Vector3 normal, Vector3 forward)
-        {
-            if (printMat == null)
+            if (Inside(on.x, on.z)) return Sink(on.x, on.z);
+            float deepest = 0f;
+            foreach (var b in skins)
             {
-                printMat = new Material(Shader.Find("Standard")) { name = "print", color = new Color(.70f, .75f, .84f) };
-                printMat.SetFloat("_Glossiness", .04f);
+                if (on.x < b.min.x || on.x > b.max.x || on.z < b.min.z || on.z > b.max.z) continue;
+                float under = b.max.y - on.y;
+                // a little tolerance below, for a probe that stopped a hair short; and nothing from a slab that is
+                // a level above or below the point, because the stands are stacked
+                if (under > -.03f && under < .4f) deepest = Mathf.Max(deepest, under);
             }
-            var t = prints[printAt];
-            if (t == null)
-            {
-                var go = GameObject.CreatePrimitive(PrimitiveType.Quad);
-                go.name = "Print";
-                // the quad ships with a collider and nothing here is meant to be stood on: off this frame, gone the next
-                var quadCol = go.GetComponent<Collider>();
-                if (quadCol != null) { quadCol.enabled = false; Object.Destroy(quadCol); }
-                var r = go.GetComponent<Renderer>();
-                r.sharedMaterial = printMat;
-                r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-                t = go.transform;
-                t.localScale = new Vector3(.22f, .34f, 1f);
-                prints[printAt] = t;
-            }
-            // a quad faces its own +z, so the surface normal has to be handed in as the look direction
-            var along = Vector3.ProjectOnPlane(forward, normal);
-            if (along.sqrMagnitude < 1e-4f) along = Vector3.forward;
-            t.SetPositionAndRotation(at + normal * .02f, Quaternion.LookRotation(normal, along));
-            printAt = (printAt + 1) % Prints;
+            return deepest;
         }
     }
 }

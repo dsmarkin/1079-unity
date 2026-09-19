@@ -36,6 +36,10 @@ namespace Height1079.EditorTools
         static void EnsureMaterials()
         {
             Directory.CreateDirectory(MatDir);
+            // the prints and puffs the body leaves in the snow are the game's own (Height1079.Snow.SnowPrints), and
+            // their materials are baked by the world pipeline; a sandbox built before the world exists bakes just them
+            if (AssetDatabase.LoadAssetAtPath<Material>(World.WorldPaths.Generated + "/Materials/SnowFx/Footprint_0.mat") == null)
+                World.SnowFxFactory.Build();
             Mat("Snow", "snow_02", 6f, .22f, new Color(.97f, .98f, 1f));
             Mat("Crust", "snow_03", 9f, .34f, new Color(.93f, .95f, 1f));
             Mat("Rock", "lichen_rock", 4f, .12f, new Color(.72f, .70f, .66f));
