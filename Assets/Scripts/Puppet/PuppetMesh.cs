@@ -38,7 +38,7 @@ namespace Height1079.Puppet
         public void Quad(int a, int b, int c, int d) { tri.Add(a); tri.Add(b); tri.Add(c); tri.Add(a); tri.Add(c); tri.Add(d); }
 
         /// <summary>Copies another piece in, moved by <paramref name="m"/>. A mirrored matrix turns a surface inside
-        /// out, so the winding is flipped back — that is how the left hand is made out of the right one.</summary>
+        /// out, so the winding is flipped back — that is how the left hand's fingers are made out of the right one's.</summary>
         public void Append(PuppetMesh other, Matrix4x4 m)
         {
             if (other == null || other == this) return;
@@ -67,6 +67,128 @@ namespace Height1079.Puppet
             m.SetVertices(pos); m.SetNormals(nrm); m.SetUVs(0, uv);
             m.SetTriangles(tri, 0, true);
             return m;
+        }
+
+        public void Clear() { pos.Clear(); nrm.Clear(); uv.Clear(); tri.Clear(); }
+
+        /// <summary>Writes the lists into a mesh that already exists — the way a part rebuilt every frame (an arm)
+        /// gets to the screen without a new Mesh object each time. Only cleared first when the vertex count changed:
+        /// the old index list would point past the new vertices for the moment between the two calls.</summary>
+        public void Fill(Mesh m)
+        {
+            if (m.vertexCount != pos.Count) m.Clear(false);
+            m.SetVertices(pos); m.SetNormals(nrm); m.SetUVs(0, uv);
+            m.SetTriangles(tri, 0, true);
+        }
+
+        /// <summary>One cross-section of a sweep: where its centre is, which way the tube is travelling there, how
+        /// wide it is and how far from round (x and z of the ring's own frame, 1 = a circle).</summary>
+        public struct Section
+        {
+            public Vector3 Centre, Tangent;
+            public float Radius;
+            public Vector2 Squash;
+            public Section(Vector3 centre, Vector3 tangent, float radius) : this(centre, tangent, radius, Vector2.one) { }
+            public Section(Vector3 centre, Vector3 tangent, float radius, Vector2 squash)
+            { Centre = centre; Tangent = tangent; Radius = radius; Squash = squash; }
+        }
+
+        /// <summary>A lathe bent along a path — a hose. <see cref="Revolve"/> spins an outline round a straight axis;
+        /// this sews the same rings along any line of centres, so one surface can run from the shoulder round the
+        /// elbow and out into the palm with no joint in it anywhere. That is how a limb is made in a game with a
+        /// skinned mesh, and this is the same surface without the skeleton: the rings are placed by hand every frame
+        /// instead of being weighted to bones.
+        ///
+        /// <paramref name="frame"/> is the rotation of the piece the tube ends in (a hand): its right and forward are
+        /// the x and z of every ring, turned by the least rotation that takes the frame's <b>down</b> onto the ring's
+        /// tangent — a sweep travels along −y of its frame, the way fingers point away from the wrist. Every ring's
+        /// frame is found from that one, never from the ring before it, so nothing accumulates and a tube that is
+        /// straight one frame and bent the next does not twist. The winding runs the other way from Revolve's for the
+        /// same reason: there the outline climbs +y, here it descends.
+        ///
+        /// A ring of radius 0 is a pole: put one at the end and the tube closes in a dome, the normal computed from
+        /// the outline exactly as on a lathe.</summary>
+        public void Sweep(List<Section> rings, Quaternion frame, int sides, Rect uvRect)
+        {
+            int n = rings == null ? 0 : rings.Count;
+            if (n < 2 || sides < 3) return;
+
+            var along = new float[n];
+            float total = 0f;
+            for (int i = 1; i < n; i++) { total += (rings[i].Centre - rings[i - 1].Centre).magnitude; along[i] = total; }
+            var flat = new Vector2[n];
+            for (int i = 0; i < n; i++)
+            {
+                int lo = Mathf.Max(i - 1, 0), hi = Mathf.Min(i + 1, n - 1);
+                var tan = new Vector2(rings[hi].Radius - rings[lo].Radius, along[hi] - along[lo]);
+                if (tan.sqrMagnitude < 1e-12f) tan = Vector2.up;
+                flat[i] = new Vector2(tan.y, -tan.x).normalized;
+            }
+            if (total > 1e-6f) for (int i = 0; i < n; i++) along[i] /= total;
+
+            var travel = frame * Vector3.down;
+            int start = pos.Count, ring = sides + 1;
+            for (int i = 0; i < n; i++)
+            {
+                var r = rings[i];
+                var t = r.Tangent.sqrMagnitude > 1e-12f ? r.Tangent.normalized : travel;
+                var q = Quaternion.FromToRotation(travel, t) * frame;
+                Vector3 x = q * Vector3.right, z = q * Vector3.forward;
+                float sx = Mathf.Max(r.Squash.x, 1e-3f), sz = Mathf.Max(r.Squash.y, 1e-3f);
+                for (int j = 0; j <= sides; j++)
+                {
+                    float u = j / (float)sides;
+                    float a = (u - .5f) * Mathf.PI * 2f + Mathf.PI * .5f;   // u = 0.5 looks along the frame's +Z
+                    float c = Mathf.Cos(a), s = Mathf.Sin(a);
+                    var p = r.Centre + x * (r.Radius * c * sx) + z * (r.Radius * s * sz);
+                    var nv = x * (flat[i].x * c / sx) + z * (flat[i].x * s / sz) + t * flat[i].y;
+                    Vert(p, nv.sqrMagnitude > 1e-12f ? nv.normalized : t,
+                         new Vector2(Mathf.Lerp(uvRect.xMin, uvRect.xMax, u), Mathf.Lerp(uvRect.yMin, uvRect.yMax, along[i])));
+                }
+            }
+            for (int i = 0; i + 1 < n; i++)
+                for (int j = 0; j < sides; j++)
+                {
+                    int a0 = start + i * ring + j;
+                    Quad(a0, a0 + 1, a0 + ring + 1, a0 + ring);
+                }
+        }
+
+        /// <summary>A short curved tube, open where it starts and rounded where it ends — a finger. The curve is a
+        /// quadratic Bézier: it leaves <paramref name="from"/> towards <paramref name="via"/> and arrives at
+        /// <paramref name="to"/> from it, which is exactly the curl of a relaxed finger. The open start is meant to
+        /// be buried in a palm, where the tube simply comes out of the bigger surface.</summary>
+        public void Digit(Vector3 from, Vector3 via, Vector3 to, float rFrom, float rTo, int steps, int sides, Rect uvRect)
+        {
+            steps = Mathf.Max(2, steps);
+            var rings = new List<Section>(steps + 5);
+            for (int i = 0; i <= steps; i++)
+            {
+                float t = i / (float)steps;
+                rings.Add(new Section(Bezier(from, via, to, t), BezierTangent(from, via, to, t), Mathf.Lerp(rFrom, rTo, t)));
+            }
+            var tip = BezierTangent(from, via, to, 1f);
+            for (int i = 1; i <= 4; i++)
+            {
+                float a = Mathf.PI * .5f * i / 4;
+                rings.Add(new Section(to + tip * (rTo * Mathf.Sin(a)), tip, rTo * Mathf.Cos(a)));
+            }
+            Sweep(rings, Quaternion.identity, sides, uvRect);
+        }
+
+        public static Vector3 Bezier(Vector3 a, Vector3 ctrl, Vector3 b, float t)
+        {
+            float s = 1f - t;
+            return a * (s * s) + ctrl * (2f * s * t) + b * (t * t);
+        }
+
+        /// <summary>Direction of travel along the same curve, unit length; falls back to the chord where the curve
+        /// has no direction (all three points in one place).</summary>
+        public static Vector3 BezierTangent(Vector3 a, Vector3 ctrl, Vector3 b, float t)
+        {
+            var d = (ctrl - a) * (2f * (1f - t)) + (b - ctrl) * (2f * t);
+            if (d.sqrMagnitude < 1e-12f) d = b - a;
+            return d.sqrMagnitude > 1e-12f ? d.normalized : Vector3.down;
         }
 
         /// <summary>Spins <paramref name="outline"/> — points of (radius, height), ordered bottom to top, which is what

@@ -2,16 +2,18 @@ using UnityEngine;
 
 namespace Height1079.Puppet
 {
-    /// <summary>The climber's parts, turned once and shared by every body in the scene: nine meshes and the single
+    /// <summary>The climber's parts, turned once and shared by every body in the scene: the meshes and the single
     /// material they are all painted with. This is where the silhouettes actually live — the numbers below are the
     /// figure, and moving one of them changes the character.
     ///
     /// Why several meshes on plain transforms rather than one skinned mesh on a skeleton: the pose is not a bone
     /// hierarchy. <see cref="PuppetFigure"/> solves every joint in world space from the physics capsule, so there is
     /// no chain for a skin to hang off, and a SkinnedMeshRenderer would mean inventing one and maintaining bind poses
-    /// for it. The one thing skinning buys — a surface that stays continuous across a bend — is bought here instead by
-    /// giving both bones of a joint the same hemisphere at that joint (see <see cref="PuppetMesh.Bone"/>). Everything
-    /// shares one material, so the fourteen pieces still batch into very few draw calls.
+    /// for it. The one thing skinning buys — a surface that stays continuous across a bend — is bought two ways:
+    /// the legs give both bones of a joint the same hemisphere at that joint (see <see cref="PuppetMesh.Bone"/>),
+    /// and the arms are not here at all, because an arm is one tube rebuilt every frame along the line the figure
+    /// solved (<see cref="PuppetArm"/>). Only the fingers of it are turned here. Everything shares one material, so
+    /// the pieces still batch into very few draw calls.
     ///
     /// Everything is built at run time and cached in statics. Unity can destroy these behind our back on a domain
     /// reload or a scene load, so <see cref="Ensure"/> checks all of them and rebuilds the set as a whole.</summary>
@@ -22,15 +24,19 @@ namespace Height1079.Puppet
         /// the arm comes out of, shorts are a skirt with a hem, socks are a tube with a roll at the top — so each is
         /// its own turned piece, a little wider than the limb inside it, with its own flat colour.</summary>
         public static Material ShirtCloth, ShortsCloth, SockCloth;
-        public static Mesh Body, Head, Thigh, Shin, UpperArm, Forearm, HandL, HandR, Boot;
+        public static Mesh Body, Head, Thigh, Shin, Boot;
         public static Mesh Sleeve, Shorts, ThighLeg, ShinLeg;
+        /// <summary>Three fingers and a thumb of the right hand, in the hand's own frame — origin at the hand point,
+        /// y back up the forearm, x the thin way across the palm, z the wide way. Not a Mesh: <see cref="PuppetArm"/>
+        /// copies them into its own tube each frame, mirrored in x for the left hand.</summary>
+        public static PuppetMesh Digits;
 
         /// <summary>Segments around a piece. The head and torso are what the eye reads, a finger is four pixels.</summary>
-        const int Round = 22, Slim = 14;
+        public const int Round = 22, Slim = 14;
 
-        /// <summary>Joint radii, shared by the two bones that meet there — a thigh ends exactly as thick as a shin
+        /// <summary>The knee's radius, shared by the two bones that meet there — a thigh ends exactly as thick as a shin
         /// begins, which is what keeps the knee a single smooth surface at any bend.</summary>
-        const float Knee = .098f, Elbow = .074f;
+        const float Knee = .098f;
 
         /// <summary>Bone lengths, and they are the same numbers PuppetFigure poses with (ThighLen, ShinLen, UpperArm,
         /// Forearm there). A mesh turned shorter than the bone that carries it gets stretched to fit, which is the one
@@ -44,7 +50,7 @@ namespace Height1079.Puppet
         public static void Ensure()
         {
             if (Skin != null && Body != null && Head != null && Thigh != null && Shin != null
-             && UpperArm != null && Forearm != null && HandL != null && HandR != null && Boot != null
+             && Digits != null && Boot != null
              && Sleeve != null && Shorts != null && ThighLeg != null && ShinLeg != null) return;
             Discard();
 
@@ -58,19 +64,17 @@ namespace Height1079.Puppet
             // a thin limb on a short body reads as a spindly child rather than a stubby doll
             Thigh = Turn("PuppetThigh", PuppetMesh.Bone(.352f, .128f, Knee, .05f), Slim + 2, Vector2.one, PuppetSkinTexture.Thigh);
             Shin = Turn("PuppetShin", PuppetMesh.Bone(.334f, Knee, .076f, .02f, openStart: true), Slim + 2, Vector2.one, PuppetSkinTexture.Shin);
-            UpperArm = Turn("PuppetUpperArm", PuppetMesh.Bone(.26f, .094f, Elbow, .04f), Slim, Vector2.one, PuppetSkinTexture.UpperArm);
-            Forearm = Turn("PuppetForearm", PuppetMesh.Bone(.24f, Elbow, .062f, .02f, openStart: true), Slim, Vector2.one, PuppetSkinTexture.Forearm);
-            // worn over the top of those, each ending in a visible hem
+            // the arms themselves are PuppetArm's, rebuilt every frame; only their fingers are turned here
+            Digits = MakeDigits();
+            // worn over the top, each ending in a visible hem
             // Oversized on purpose: a sleeve that follows the arm is a painted-on stripe. This one stands well clear
-            // of a 9.4 cm arm and flares at the cuff, so the arm visibly comes OUT of it.
+            // of a 9.4 cm arm (PuppetArm.ShoulderR) and flares at the cuff, so the arm visibly comes OUT of it.
             Sleeve = Turn("PuppetSleeve", PuppetMesh.Bone(.165f, .140f, .152f, .004f, 5, 3), Round, new Vector2(1f, .92f), PuppetSkinTexture.UpperArm);
             Shorts = MakeShorts();
             // Trouser legs, not shorts and socks: loose tubes over the thigh and the shin that reach the boot, each
             // flaring slightly downward so the cloth hangs rather than grips.
             ThighLeg = Turn("PuppetThighLeg", PuppetMesh.Bone(.352f, .150f, .142f, .004f, 5, 3), Round, new Vector2(1f, .94f), PuppetSkinTexture.Thigh);
             ShinLeg = Turn("PuppetShinLeg", PuppetMesh.Bone(.334f, .138f, .128f, .004f, 5, 3), Round, new Vector2(1f, .94f), PuppetSkinTexture.Shin);
-            HandR = MakeHand(false);
-            HandL = MakeHand(true);
             Boot = MakeBoot();
         }
 
@@ -80,10 +84,10 @@ namespace Height1079.Puppet
         {
             if (Skin != null) PuppetRig.Kill(Skin.mainTexture);
             PuppetRig.Kill(Skin); PuppetRig.Kill(Body); PuppetRig.Kill(Head); PuppetRig.Kill(Thigh); PuppetRig.Kill(Shin);
-            PuppetRig.Kill(UpperArm); PuppetRig.Kill(Forearm); PuppetRig.Kill(HandL); PuppetRig.Kill(HandR); PuppetRig.Kill(Boot);
+            PuppetRig.Kill(Boot);
             PuppetRig.Kill(Sleeve); PuppetRig.Kill(Shorts); PuppetRig.Kill(ThighLeg); PuppetRig.Kill(ShinLeg);
             PuppetRig.Kill(ShirtCloth); PuppetRig.Kill(ShortsCloth); PuppetRig.Kill(SockCloth);
-            Skin = null; Body = Head = Thigh = Shin = UpperArm = Forearm = HandL = HandR = Boot = null;
+            Skin = null; Body = Head = Thigh = Shin = Boot = null; Digits = null;
             Sleeve = Shorts = ThighLeg = ShinLeg = null; ShirtCloth = ShortsCloth = SockCloth = null;
         }
 
@@ -169,38 +173,28 @@ namespace Height1079.Puppet
             return m.ToMesh("PuppetHead");
         }
 
-        /// <summary>A hand, not a ball: a palm flattened front to back, four fingers hanging off the bottom edge and a
-        /// thumb swung inwards. The whole thing is built once pointing one way and mirrored for the other side, which
-        /// also flips the winding so the surface does not end up inside out.</summary>
-        static Mesh MakeHand(bool mirror)
+        /// <summary>Three fingers and a thumb, for the right hand, curled the way a hand hangs when nothing is asked
+        /// of it. Three and not four: four thin ones read as sticks glued to a cylinder, and a cartoon hand is short,
+        /// thick and curled. Each is a bent tube with an open root, and the roots start a centimetre inside the palm
+        /// (see <see cref="PuppetArm"/>), so the fingers come out of the hand rather than sit on it. The thumb leaves
+        /// the front edge of the palm and curls across it.
+        ///
+        /// Frame: origin at the hand point, y up the forearm, x across the thin way — the right palm faces −x, toward
+        /// the body — and z along the wide way, +z forward. The fingers curl toward −x. The left hand is this
+        /// mirrored in x, which puts its thumb in front and its curl toward the body as well.</summary>
+        static PuppetMesh MakeDigits()
         {
             var m = new PuppetMesh();
-            m.Revolve(PuppetMesh.Spline(new[]
-            {
-                new Vector2(0f, -.078f), new Vector2(.056f, -.070f), new Vector2(.082f, -.03f),
-                new Vector2(.088f, .02f), new Vector2(.066f, .062f), new Vector2(0f, .078f)
-            }, 4), Slim, new Vector2(1f, .52f), PuppetSkinTexture.Hand);
-
-            // Three fat stubs and a thumb. Four thin ones read as sticks glued to a cylinder; a cartoon hand is
-            // short, thick and curled, and the curl is what makes it a hand rather than a mitten with grooves.
-            var finger = new PuppetMesh();
-            finger.Revolve(PuppetMesh.Bone(.036f, .031f, .028f, .002f, 3, 3), 10, new Vector2(1f, .92f), PuppetSkinTexture.Hand);
+            const float root = -(PuppetArm.PalmHalf + .005f);   // half a centimetre past the end of the palm proper
             for (int i = 0; i < 3; i++)
             {
-                float x = -.038f + i * .038f;
-                // curled in toward the palm: the fingers point down and back, not straight out
-                m.Append(finger, Matrix4x4.TRS(new Vector3(x, -.052f, .012f),
-                    Quaternion.FromToRotation(Vector3.up, new Vector3(x * 2.2f, -1f, -.42f).normalized), Vector3.one));
+                float z = (i - 1) * .044f;
+                m.Digit(new Vector3(0f, root, z), new Vector3(-.005f, root - .045f, z * 1.12f),
+                        new Vector3(-.030f, root - .068f, z * 1.22f), .029f, .025f, 6, 10, PuppetSkinTexture.Hand);
             }
-            var thumb = new PuppetMesh();
-            thumb.Revolve(PuppetMesh.Bone(.034f, .030f, .026f, .002f, 3, 3), 10, new Vector2(1f, .92f), PuppetSkinTexture.Hand);
-            m.Append(thumb, Matrix4x4.TRS(new Vector3(-.058f, -.004f, .026f),
-                Quaternion.FromToRotation(Vector3.up, new Vector3(-.55f, -.62f, .56f).normalized), Vector3.one));
-
-            if (!mirror) return m.ToMesh("PuppetHandR");
-            var flipped = new PuppetMesh();
-            flipped.Append(m, Matrix4x4.Scale(new Vector3(-1f, 1f, 1f)));
-            return flipped.ToMesh("PuppetHandL");
+            m.Digit(new Vector3(0f, -.020f, .030f), new Vector3(-.010f, -.045f, .075f),
+                    new Vector3(-.032f, -.060f, .095f), .027f, .023f, 6, 10, PuppetSkinTexture.Hand);
+            return m;
         }
 
         /// <summary>A boot: an ankle lump and a long foot lump that overlap into one shape. Local origin is the point

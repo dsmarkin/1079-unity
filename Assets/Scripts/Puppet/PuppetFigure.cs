@@ -9,6 +9,8 @@ namespace Height1079.Puppet
     /// from a hand-drawn silhouette, and all of them are painted from one texture drawn in code by
     /// <see cref="PuppetSkinTexture"/> — a face with eyes and brows, shorts, socks, sleeves and the pack's straps are
     /// picture, not geometry. <see cref="PuppetSkin"/> turns that set once and every body in the scene shares it.
+    /// The arms are the exception: each is one tube from the shoulder to the fingertips, rebuilt every frame along
+    /// the line this file solves for it (<see cref="PuppetArm"/>), because an arm made of pieces read as sausages.
     ///
     /// Proportions follow the study of PEAK (docs/PHYSICS.md): a head about a quarter of the height and shaped like a
     /// drop, no neck at all, limbs that taper and carry no marked elbow or knee, big hands and boots, flat saturated
@@ -38,7 +40,8 @@ namespace Height1079.Puppet
     ///
     /// The legs are the point of all of it: the feet are planted in turn, the knee is solved with two bones, and the
     /// stride is measured in metres of ground rather than by a timer — so walking, climbing a grade and slipping all
-    /// look different without a single animation clip. Fourteen transforms, no skeleton and no skinning.</summary>
+    /// look different without a single animation clip. A handful of transforms, no skeleton and no skinning — and two
+    /// arms redrawn from scratch every frame.</summary>
     public sealed class PuppetFigure : MonoBehaviour
     {
         Puppet owner;
@@ -47,7 +50,7 @@ namespace Height1079.Puppet
         /// <summary>0…1 of "in the air with the legs tucked and the arms up". See where it is updated.</summary>
         float airPose;
         readonly Transform[] sleeve = new Transform[2], trouserUp = new Transform[2], trouserLow = new Transform[2];
-        readonly Transform[] armUp = new Transform[2], armLow = new Transform[2], hand = new Transform[2];
+        readonly PuppetArm[] arm = new PuppetArm[2];
         readonly Transform[] thigh = new Transform[2], shin = new Transform[2], boot = new Transform[2];
         Renderer[] parts = System.Array.Empty<Renderer>();
         bool visible = true;
@@ -164,9 +167,7 @@ namespace Height1079.Puppet
             head = Piece(PuppetSkin.Head, "Head");
             for (int s = 0; s < 2; s++)
             {
-                armUp[s] = Piece(PuppetSkin.UpperArm, "ArmUp" + s);
-                armLow[s] = Piece(PuppetSkin.Forearm, "ArmLow" + s);
-                hand[s] = Piece(s == 0 ? PuppetSkin.HandL : PuppetSkin.HandR, "Hand" + s);
+                arm[s] = new PuppetArm(root, "Arm" + s, s == 0 ? -1f : 1f, PuppetSkin.Skin);
                 thigh[s] = Piece(PuppetSkin.Thigh, "Thigh" + s);
                 shin[s] = Piece(PuppetSkin.Shin, "Shin" + s);
                 boot[s] = Piece(PuppetSkin.Boot, "Boot" + s);
@@ -195,6 +196,11 @@ namespace Height1079.Puppet
         }
 
         public bool Visible => visible;
+
+        void OnDestroy()
+        {
+            for (int s = 0; s < 2; s++) arm[s]?.Release();
+        }
 
         void Show()
         {
@@ -476,10 +482,13 @@ namespace Height1079.Puppet
                         wrist = Vector3.Lerp(wrist, shoulder + pose * new Vector3(
                             sign * .26f * scale, (upperArm + forearm) * .28f, .06f * scale), lift);
                 }
-                var elbow = Limb(armUp[s], armLow[s], shoulder, wrist, upperArm, forearm, pose * Vector3.back, UpperArm, Forearm);
-                hand[s].SetPositionAndRotation(wrist, Wrist(elbow, wrist, pose));
+                // the elbow is solved as for a leg, but no bones are laid on it: the arm is one tube through the
+                // three points, hand and all
+                var elbow = Joint(shoulder, wrist, upperArm, forearm, pose * Vector3.back);
+                arm[s].Pose(shoulder, elbow, wrist, Wrist(elbow, wrist, pose), scale);
                 // the sleeve sits on the shoulder and runs down the upper arm — same line, its own length
-                sleeve[s].SetPositionAndRotation(armUp[s].position, armUp[s].rotation);
+                var down = elbow - shoulder;
+                sleeve[s].SetPositionAndRotation(shoulder, down.sqrMagnitude > 1e-8f ? Quaternion.FromToRotation(Vector3.up, down.normalized) : Quaternion.identity);
             }
             posed = true;
         }
@@ -550,6 +559,16 @@ namespace Height1079.Puppet
         static Vector3 Limb(Transform upper, Transform lower, Vector3 from, Vector3 to, float a, float b,
                             Vector3 bendToward, float builtA, float builtB)
         {
+            var joint = Joint(from, to, a, b, bendToward);
+            Bone(upper, from, joint, builtA);
+            Bone(lower, joint, to, builtB);
+            return joint;
+        }
+
+        /// <summary>The joint alone — where the elbow or the knee ends up between <paramref name="from"/> and
+        /// <paramref name="to"/> for bones of lengths <paramref name="a"/> and <paramref name="b"/>.</summary>
+        static Vector3 Joint(Vector3 from, Vector3 to, float a, float b, Vector3 bendToward)
+        {
             var delta = to - from;
             float reach = a + b, near = Mathf.Min(Mathf.Abs(a - b) * 1.02f + .01f, reach * .9f);
             float d = Mathf.Clamp(delta.magnitude, near, reach * .999f);
@@ -558,10 +577,7 @@ namespace Height1079.Puppet
             float out_ = Mathf.Sqrt(Mathf.Max(0f, a * a - along * along));
             var side = Vector3.ProjectOnPlane(bendToward, dir);
             if (side.sqrMagnitude < 1e-6f) side = Vector3.ProjectOnPlane(Vector3.forward, dir);
-            var joint = from + dir * along + side.normalized * out_;
-            Bone(upper, from, joint, builtA);
-            Bone(lower, joint, to, builtB);
-            return joint;
+            return from + dir * along + side.normalized * out_;
         }
 
         /// <summary>Puts a bone mesh on the line from <paramref name="from"/> to <paramref name="to"/>. The mesh is
