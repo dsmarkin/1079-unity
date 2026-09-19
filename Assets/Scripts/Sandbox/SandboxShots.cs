@@ -87,6 +87,23 @@ namespace Height1079.Sandbox
             yield return Shoot(boot, body, "6-сугробы", fromSide, keepDriving: true);
             body.Drive(PuppetInput.Idle);
 
+            // caught at the top of a jump: the pose in the air is the whole point of the frame
+            boot.GoTo(0);
+            yield return new WaitForSeconds(1.2f);
+            var jumpFrom = new Vector3(2.8f, .5f, 2.4f);
+            float best = float.NegativeInfinity;
+            body.Drive(new PuppetInput { Look = Quaternion.identity, Jump = true });
+            yield return null;
+            for (float w = 0f; w < 1.2f; w += Time.deltaTime)
+            {
+                body.Drive(new PuppetInput { Look = Quaternion.identity });
+                Frame(boot, body, jumpFrom);
+                if (body.Torso.linearVelocity.y < 1.2f && body.Torso.position.y > best) break;
+                best = body.Torso.position.y;
+                yield return null;
+            }
+            yield return Shoot(boot, body, "7-прыжок", jumpFrom);
+
             Debug.Log("shots: папка " + Folder);
             yield return new WaitForSeconds(.4f);
             Application.Quit(0);

@@ -43,6 +43,8 @@ namespace Height1079.Puppet
         Puppet owner;
         Transform root, body, head;
         Transform shorts;
+        /// <summary>0…1 of "in the air with the legs tucked and the arms up". See where it is updated.</summary>
+        float airPose;
         readonly Transform[] sleeve = new Transform[2], sock = new Transform[2];
         readonly Transform[] armUp = new Transform[2], armLow = new Transform[2], hand = new Transform[2];
         readonly Transform[] thigh = new Transform[2], shin = new Transform[2], boot = new Transform[2];
@@ -97,7 +99,10 @@ namespace Height1079.Puppet
         const float DutyMin = .28f, DutyMax = .62f;
         /// <summary>How far the pelvis dips at a footfall, as a share of the step it is taking. The dip is not
         /// decoration: it is what lets a straight-ish leg reach a foot placed a quarter of a metre away.</summary>
-        const float BobShare = .21f;
+        /// <summary>Metres the pelvis drops into each footfall. It used to be a SHARE of the stride, which was
+        /// harmless at the old scurrying cycle and became a 23 cm pogo once the stride grew to two metres — the
+        /// shaking the playtest called judder. A person's pelvis moves a few centimetres however long the step is.</summary>
+        const float BobShare = .045f;
         /// <summary>How high the swinging foot is carried, metres: a walking foot clears the ground by a couple of
         /// centimetres and a running one is picked right up. It goes with the pace and not with the length of the
         /// step — see <c>pace</c> in <see cref="LateUpdate"/> — or a brisk walk comes out as a march.</summary>
@@ -272,7 +277,13 @@ namespace Height1079.Puppet
             // height. Taken from whichever leg is on the ground, it also falls out right for a run, where the hip is
             // carried high through the moment neither foot is down.
             float dip = Mathf.Max(Dip(Frac(phase), duty), Dip(Frac(phase + .5f), duty));
-            float bob = gait * Mathf.Max(half, backHit) * BobShare * dip;
+            float bob = gait * BobShare * scale * dip;
+
+            // The airborne pose is held, not sampled: taken straight off the climb rate it vanishes at the top of
+            // the arc, exactly where a jump is worth looking at. It rises with the launch and decays over a third of
+            // a second, so the tuck and the raised arms carry through the apex and ease out on the way down.
+            float wantAir = owner.Limp || owner.Grounded ? 0f : Mathf.Clamp01(rb.GetComponent<Rigidbody>() != null ? owner.Torso.linearVelocity.y / 2.6f : 0f);
+            airPose = wantAir > airPose ? wantAir : Mathf.MoveTowards(airPose, owner.Grounded || owner.Limp ? 0f : wantAir, dt / .34f);
 
             var hipPoint = rb.position + Vector3.down * (hipDrop + bob);
 
@@ -330,7 +341,13 @@ namespace Height1079.Puppet
                     // back has his feet through the floor.
                     down[s] = false;
                     var hang = owner.Limp ? pose * Vector3.down : Vector3.down;
-                    foot = hipJoint + pose * new Vector3(0f, 0f, -.04f * scale) + hang * (legLen * .93f);
+                    // rising: knees come up and out, the way anybody leaving the ground does it. Falling: they go
+                    // back down and reach for whatever is coming. Taken from the climb rate, so it reads on a jump,
+                    // on a drop off a ledge and on the top of an arc where the two meet.
+                    float spring = airPose;
+                    foot = hipJoint
+                         + pose * new Vector3(sign * .13f * spring * scale, 0f, (-.04f - .16f * spring) * scale)
+                         + hang * (legLen * (.93f - .30f * spring));
                 }
                 else if (striding)
                 {
@@ -437,10 +454,17 @@ namespace Height1079.Puppet
                     // swings the arms across the body and pushes both hands out a little to balance it.
                     float q = Frac(phase + (s == 0 ? 0f : .5f));
                     float drive = -Mathf.Cos(q * Mathf.PI * 2f) * Mathf.Lerp(.08f, .26f, stride) * gait;
+                    // Not hanging dead at the seams: the hands rest a little forward of the hips with the elbow
+                    // softly bent, which is where a person's arms actually are — arms straight down read as a doll.
                     wrist = shoulder + pose * new Vector3(
-                        (sign * (.09f + Mathf.Abs(lateral) * .06f * gait)) * scale + drive * lateral * .45f,
-                        -(upperArm + forearm) * .90f,
-                        drive * forward);
+                        (sign * (.10f + Mathf.Abs(lateral) * .06f * gait)) * scale + drive * lateral * .45f,
+                        -(upperArm + forearm) * .82f,
+                        (.085f * scale) + drive * forward);
+                    // and in the air they go up: fully by the top of a launch, back down as the body starts to fall
+                    float lift = afoot ? 0f : airPose;
+                    if (lift > 0f)
+                        wrist = Vector3.Lerp(wrist, shoulder + pose * new Vector3(
+                            sign * .30f * scale, (upperArm + forearm) * .72f, .02f * scale), lift);
                 }
                 var elbow = Limb(armUp[s], armLow[s], shoulder, wrist, upperArm, forearm, pose * Vector3.back, UpperArm, Forearm);
                 hand[s].SetPositionAndRotation(wrist, Wrist(elbow, wrist, pose));

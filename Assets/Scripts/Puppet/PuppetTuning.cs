@@ -130,7 +130,7 @@ namespace Height1079.Puppet
         /// is the thing that can be judged against the man: on a 1.62 m climber with a pack, 0.55 m is a hop that is
         /// plainly a jump and plainly not a superhero. The speed that reaches it follows from the scene's own gravity,
         /// so the jump keeps its size wherever it is used.</summary>
-        public float JumpHeight = .55f;
+        public float JumpHeight = 1.05f;
         /// <summary>Seconds a press of jump is remembered for. The key is read once a frame and the body steps at
         /// <see cref="PhysicsRate"/>: a frame that happens to contain no fixed step used to drop the press on the
         /// floor, which is exactly the "space does nothing" the sandbox showed. Remembering it also means a press made

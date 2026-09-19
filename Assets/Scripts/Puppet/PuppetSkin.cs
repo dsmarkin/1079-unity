@@ -61,9 +61,11 @@ namespace Height1079.Puppet
             UpperArm = Turn("PuppetUpperArm", PuppetMesh.Bone(.26f, .094f, Elbow, .04f), Slim, Vector2.one, PuppetSkinTexture.UpperArm);
             Forearm = Turn("PuppetForearm", PuppetMesh.Bone(.24f, Elbow, .062f, .02f, openStart: true), Slim, Vector2.one, PuppetSkinTexture.Forearm);
             // worn over the top of those, each ending in a visible hem
-            Sleeve = Turn("PuppetSleeve", PuppetMesh.Bone(.105f, .100f, .103f, .002f, 4, 3), Slim, Vector2.one, PuppetSkinTexture.UpperArm);
+            // Oversized on purpose: a sleeve that follows the arm is a painted-on stripe. This one stands well clear
+            // of a 9.4 cm arm and flares at the cuff, so the arm visibly comes OUT of it.
+            Sleeve = Turn("PuppetSleeve", PuppetMesh.Bone(.165f, .140f, .152f, .004f, 5, 3), Round, new Vector2(1f, .92f), PuppetSkinTexture.UpperArm);
             Shorts = MakeShorts();
-            Sock = Turn("PuppetSock", PuppetMesh.Bone(.185f, .090f, .085f, .008f, 5, 3), Slim, Vector2.one, PuppetSkinTexture.Shin);
+            Sock = Turn("PuppetSock", PuppetMesh.Bone(.205f, .124f, .116f, .010f, 5, 3), Slim + 2, Vector2.one, PuppetSkinTexture.Shin);
             HandR = MakeHand(false);
             HandL = MakeHand(true);
             Boot = MakeBoot();
@@ -99,12 +101,12 @@ namespace Height1079.Puppet
             var m = new PuppetMesh();
             m.Revolve(PuppetMesh.Spline(new[]
             {
-                new Vector2(.176f, .11f),      // waistband, just under the shirt
-                new Vector2(.196f, .045f),
-                new Vector2(.212f, -.03f),
-                new Vector2(.216f, -.082f),    // the hem itself
-                new Vector2(.198f, -.094f),    // and its underside, so the edge has thickness
-                new Vector2(.183f, -.086f),
+                new Vector2(.205f, .12f),      // waistband, just under the shirt
+                new Vector2(.238f, .04f),
+                new Vector2(.262f, -.045f),
+                new Vector2(.268f, -.115f),    // the hem itself, well clear of a 12.8 cm thigh
+                new Vector2(.243f, -.130f),    // and its underside, so the edge has thickness
+                new Vector2(.224f, -.120f),
             }, 4), Round, new Vector2(1f, .74f), PuppetSkinTexture.Torso);
             return m.ToMesh("PuppetShorts");
         }
@@ -172,20 +174,25 @@ namespace Height1079.Puppet
             var m = new PuppetMesh();
             m.Revolve(PuppetMesh.Spline(new[]
             {
-                new Vector2(0f, -.075f), new Vector2(.05f, -.068f), new Vector2(.075f, -.03f),
-                new Vector2(.08f, .02f), new Vector2(.06f, .06f), new Vector2(0f, .075f)
+                new Vector2(0f, -.078f), new Vector2(.056f, -.070f), new Vector2(.082f, -.03f),
+                new Vector2(.088f, .02f), new Vector2(.066f, .062f), new Vector2(0f, .078f)
             }, 4), Slim, new Vector2(1f, .52f), PuppetSkinTexture.Hand);
 
+            // Three fat stubs and a thumb. Four thin ones read as sticks glued to a cylinder; a cartoon hand is
+            // short, thick and curled, and the curl is what makes it a hand rather than a mitten with grooves.
             var finger = new PuppetMesh();
-            finger.Revolve(PuppetMesh.Bone(.045f, .022f, .019f, 0f, 3, 3), 9, new Vector2(1f, .85f), PuppetSkinTexture.Hand);
-            for (int i = 0; i < 4; i++)
+            finger.Revolve(PuppetMesh.Bone(.036f, .031f, .028f, .002f, 3, 3), 10, new Vector2(1f, .92f), PuppetSkinTexture.Hand);
+            for (int i = 0; i < 3; i++)
             {
-                float x = -.048f + i * .032f;
-                m.Append(finger, Matrix4x4.TRS(new Vector3(x, -.055f, .004f),
-                    Quaternion.FromToRotation(Vector3.up, new Vector3(x * 3f, -1f, .12f).normalized), Vector3.one));
+                float x = -.038f + i * .038f;
+                // curled in toward the palm: the fingers point down and back, not straight out
+                m.Append(finger, Matrix4x4.TRS(new Vector3(x, -.052f, .012f),
+                    Quaternion.FromToRotation(Vector3.up, new Vector3(x * 2.2f, -1f, -.42f).normalized), Vector3.one));
             }
-            m.Append(finger, Matrix4x4.TRS(new Vector3(-.062f, -.012f, .02f),
-                Quaternion.FromToRotation(Vector3.up, new Vector3(-.45f, -.80f, .40f).normalized), Vector3.one));
+            var thumb = new PuppetMesh();
+            thumb.Revolve(PuppetMesh.Bone(.034f, .030f, .026f, .002f, 3, 3), 10, new Vector2(1f, .92f), PuppetSkinTexture.Hand);
+            m.Append(thumb, Matrix4x4.TRS(new Vector3(-.058f, -.004f, .026f),
+                Quaternion.FromToRotation(Vector3.up, new Vector3(-.55f, -.62f, .56f).normalized), Vector3.one));
 
             if (!mirror) return m.ToMesh("PuppetHandR");
             var flipped = new PuppetMesh();
