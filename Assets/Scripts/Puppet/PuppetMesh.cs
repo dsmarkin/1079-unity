@@ -127,12 +127,18 @@ namespace Height1079.Puppet
 
         /// <summary>Writes the lists into a mesh that already exists — the way a part rebuilt every frame (an arm)
         /// gets to the screen without a new Mesh object each time. Only cleared first when the vertex count changed:
-        /// the old index list would point past the new vertices for the moment between the two calls.</summary>
+        /// the old index list would point past the new vertices for the moment between the two calls.
+        ///
+        /// The bounds are recalculated by hand at the end. Neither SetVertices nor SetTriangles was found to do it
+        /// on a mesh refilled this way, and a stale box only goes unnoticed while the part keeps roughly its shape
+        /// about its node — an arm hanging at the side. The same arm held up in front of the eye kept the box of
+        /// the hanging one, below the bottom of the picture, and was culled whole.</summary>
         public void Fill(Mesh m)
         {
             if (m.vertexCount != pos.Count) m.Clear(false);
             m.SetVertices(pos); m.SetNormals(nrm); m.SetUVs(0, uv); m.SetUVs(1, uv1);
-            m.SetTriangles(tri, 0, true);
+            m.SetTriangles(tri, 0, false);
+            m.RecalculateBounds();
         }
 
         /// <summary>One cross-section of a hand-placed sweep (<see cref="Sweep(List{Section}, Quaternion, int, Rect)"/>):

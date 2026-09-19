@@ -9,8 +9,9 @@ namespace Height1079.Sandbox
     /// and quits. The point is to be able to look at the figure without anybody having to sit at the machine:
     /// a build, six pictures, done.
     ///
-    /// The last two are the ones worth sending to somebody who asked what the sandbox looks like now: the view out of
-    /// the body's own eyes, and what the drifts do to a man walking through them.</summary>
+    /// The drift frames are the ones worth sending to somebody who asked what the sandbox looks like now: the view out
+    /// of the body's own eyes — standing, with the hands at rest, and mid-stride — and what the drifts do to a man
+    /// walking through them.</summary>
     public sealed class SandboxShots : MonoBehaviour
     {
         public static bool Requested
@@ -92,6 +93,8 @@ namespace Height1079.Sandbox
             boot.FirstPerson = true;
             boot.Eye.Yaw = 0f; boot.Eye.Pitch = 4f;
             yield return new WaitForSeconds(1f);
+            // standing first: the hands at rest, without the swing, is where their pose and symmetry can be read
+            yield return ShootHere(boot, body, "5a-от-первого-лица-стоя");
             yield return Walk(boot, body, 4.2f);
             yield return ShootHere(boot, body, "5-от-первого-лица", keepDriving: true);
 

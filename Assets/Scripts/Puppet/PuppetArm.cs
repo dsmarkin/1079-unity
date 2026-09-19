@@ -40,6 +40,9 @@ namespace Height1079.Puppet
         readonly List<PuppetMesh.Section> rings = new List<PuppetMesh.Section>(40);
         public readonly Mesh Mesh;
         public readonly Transform Node;
+        /// <summary>The arm's own renderer, so the first person can keep the arms on screen while the rest of the
+        /// figure is switched off (<see cref="PuppetFigure.ShowEyeArms"/>).</summary>
+        public readonly MeshRenderer Renderer;
         /// <summary>−1 for the left arm, +1 for the right: the fingers are mirrored for the left, so the thumb stays
         /// on the inside and the curl goes toward the body.</summary>
         readonly float side;
@@ -52,7 +55,8 @@ namespace Height1079.Puppet
             Mesh = new Mesh { name = name, hideFlags = HideFlags.HideAndDontSave };
             Mesh.MarkDynamic();
             go.AddComponent<MeshFilter>().sharedMesh = Mesh;
-            go.AddComponent<MeshRenderer>().sharedMaterial = skin;
+            Renderer = go.AddComponent<MeshRenderer>();
+            Renderer.sharedMaterial = skin;
             Node = go.transform;
         }
 

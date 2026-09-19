@@ -115,12 +115,14 @@ namespace Height1079.Sandbox
         /// to catch up with it.</summary>
         public void Snap() { snap = true; lastHalf = int.MinValue; }
 
-        /// <summary>Your own figure must not be in your own eye. <c>PuppetFigure.SetVisible</c> turns the drawn body
-        /// off and leaves the physics alone, the way the game hides its "Visual" child in first person.</summary>
+        /// <summary>Your own figure must not be in your own eye — but your own hands should be. <c>PuppetFigure.SetVisible</c>
+        /// turns the drawn body off and leaves the physics alone, the way the game hides its "Visual" child in first
+        /// person; <c>ShowEyeArms</c> keeps the two arms and hangs them off the eye (see <see cref="Aim"/>).</summary>
         void ShowFigure()
         {
             if (figure == null && body != null) figure = body.GetComponent<PuppetFigure>();
             figure?.SetVisible(!FirstPerson);
+            figure?.ShowEyeArms(FirstPerson);
         }
 
         public void Look(Vector2 delta)
@@ -185,6 +187,9 @@ namespace Height1079.Sandbox
             var eye = torso.position + Vector3.up * EyeUp
                     + Vector3.ProjectOnPlane(rot * Vector3.forward, Vector3.up).normalized * EyeForward;
             Cam.transform.SetPositionAndRotation(eye + Vector3.up * heave + drift, rot);
+            // the hands, off the eye as it is drawn this frame: hung off it in the figure's own LateUpdate they would
+            // be a frame behind and shiver
+            figure?.PoseFromEye(Cam.transform.position, rot, dt);
             snap = false;
         }
 

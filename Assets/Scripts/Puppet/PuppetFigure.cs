@@ -57,6 +57,18 @@ namespace Height1079.Puppet
         readonly Transform[] thigh = new Transform[2], shin = new Transform[2], boot = new Transform[2];
         Renderer[] parts = System.Array.Empty<Renderer>();
         bool visible = true;
+        /// <summary>The first person's own hands: the figure is off, the two arms stay on and are put in front of
+        /// the eye by <see cref="PoseFromEye"/> instead of at the body's sides. See there.</summary>
+        bool eyeArms;
+        /// <summary>What the last body-space pose worked out for the arms, kept for the eye's pose: the arm swing
+        /// per side (forward positive, already faded by the gait and sized by the stride), the direction of travel
+        /// in the body's frame, how far the jump pose is up, and the figure's scale.</summary>
+        readonly float[] swing = new float[2];
+        Vector2 stepSeen;
+        float armLift, figScale = 1f;
+        /// <summary>Where each hand actually is in front of the eye, chasing where it is wanted.</summary>
+        readonly Vector3[] eyeHand = new Vector3[2];
+        bool eyePosed;
 
         // ─── the figure, in metres ──────────────────────────────────────────────────────────────────────────────────
 
@@ -218,6 +230,23 @@ namespace Height1079.Puppet
 
         public bool Visible => visible;
 
+        /// <summary>Keep the arms on screen while the figure is hidden — the view from inside the head. What is shown
+        /// is the same two arms the body walks with, put where a person sees their own: forward and apart, low in
+        /// the frame, and swinging with the stride the way they swing at the body's sides. Only a hint of a body,
+        /// but the hint is what says the eye belongs to somebody who is walking rather than to a camera on rails.
+        /// While this is on, the body-space pose leaves the arms alone and whoever places the camera must call
+        /// <see cref="PoseFromEye"/> after it — the arms are hung off the eye, and hung off last frame's eye they
+        /// shiver.</summary>
+        public void ShowEyeArms(bool on)
+        {
+            if (eyeArms == on) return;
+            eyeArms = on;
+            eyePosed = false;
+            Show();
+        }
+
+        public bool EyeArms => eyeArms;
+
         void OnDestroy()
         {
             for (int s = 0; s < 2; s++) arm[s]?.Release();
@@ -226,6 +255,9 @@ namespace Height1079.Puppet
         void Show()
         {
             for (int i = 0; i < parts.Length; i++) if (parts[i] != null) parts[i].enabled = visible;
+            // the arm renderers are in `parts` too; they alone stay on for the eye
+            for (int s = 0; s < 2; s++)
+                if (arm[s] != null && arm[s].Renderer != null) arm[s].Renderer.enabled = visible || eyeArms;
         }
 
         Transform Piece(Mesh mesh, string name)
@@ -507,15 +539,17 @@ namespace Height1079.Puppet
                 float sign = s == 0 ? -1f : 1f;
                 var shoulder = hipPoint + pose * new Vector3(sign * ShoulderOut * scale, ShoulderUp * scale, .01f);
                 var physical = s == 0 ? owner.Left : owner.Right;
+                // An arm answers the leg on its own side: forward when that leg is back, on the same clock. The
+                // swing is the drift, not the pace — walking backwards swings it the other way, and a side-step
+                // swings the arms across the body and pushes both hands out a little to balance it.
+                float q = Frac(phase + (s == 0 ? 0f : .5f));
+                float drive = -Mathf.Cos(q * Mathf.PI * 2f) * Mathf.Lerp(.08f, .26f, stride) * gait;
+                // remembered for the eye's arms, which swing on the same clock from a different place
+                swing[s] = drive; stepSeen = step; armLift = afoot ? 0f : airPose; figScale = scale;
                 Vector3 wrist;
                 if (owner.HandsEnabled && physical != null) wrist = physical.transform.position;
                 else
                 {
-                    // An arm answers the leg on its own side: forward when that leg is back, on the same clock. The
-                    // swing is the drift, not the pace — walking backwards swings it the other way, and a side-step
-                    // swings the arms across the body and pushes both hands out a little to balance it.
-                    float q = Frac(phase + (s == 0 ? 0f : .5f));
-                    float drive = -Mathf.Cos(q * Mathf.PI * 2f) * Mathf.Lerp(.08f, .26f, stride) * gait;
                     // Not hanging dead at the seams: the hands rest a little forward of the hips with the elbow
                     // softly bent, which is where a person's arms actually are — arms straight down read as a doll.
                     wrist = shoulder + pose * new Vector3(
@@ -531,12 +565,103 @@ namespace Height1079.Puppet
                 // the elbow is solved as for a leg, but no bones are laid on it: the arm is one tube through the
                 // three points, hand and all
                 var elbow = Joint(shoulder, wrist, upperArm, forearm, pose * Vector3.back);
-                arm[s].Pose(shoulder, elbow, wrist, Wrist(elbow, wrist, pose), scale);
+                // seen from inside the head the arms hang off the eye instead (PoseFromEye), and a tube built here
+                // as well would flash at the body's sides on whichever frames it was built last
+                if (!eyeArms) arm[s].Pose(shoulder, elbow, wrist, Wrist(elbow, wrist, pose), scale);
                 // the upper arm as a bone, for the sleeve skinned to it: same line as the tube, rolled to the body
                 Bone(armUp[s], shoulder, elbow, UpperArm, pose * Vector3.forward, scale);
                 // the sleeve sits on the shoulder and runs down the upper arm — same line, its own length
             }
             posed = true;
+        }
+
+        // ─── the arms as the eye sees them ──────────────────────────────────────────────────────────────────────
+
+        /// <summary>Where the eye's shoulders and hands sit, in the eye's frame (x to the right, y up, z ahead) at
+        /// the built stature. The hands are held forward and apart, low in the picture — the pose of somebody
+        /// walking on snow with the arms out a little for balance, not somebody carrying a rifle. At the sandbox's
+        /// sixty degrees the frame at 0.40 m is 0.46 m tall and 0.74 m wide, so the two palms sit in the lower
+        /// corners with the forearms running out of the picture toward the elbows, which are outside it.
+        ///
+        /// The shoulders are not where the body's are. A hand 0.4 m in front of the eye is out of reach of a
+        /// shoulder 0.4 m below it, and a hand near enough to reach fills a quarter of the picture — the first
+        /// try, at 0.31 m, was two palms the size of dinner plates. So the shoulders are brought forward under the
+        /// eye instead; nothing above the elbow is ever in the picture, and the arm's length is what it was.</summary>
+        const float EyeShoulderOut = .20f, EyeShoulderDown = .30f, EyeShoulderAhead = .16f;
+        const float EyeHandOut = .28f, EyeHandDown = .22f, EyeHandAhead = .46f;
+        /// <summary>Which way the palms face, degrees out from straight down. Palm-down and a little out is what
+        /// turns the back of each hand toward an eye that is above and between them; a hand that is out to the
+        /// side and tilted the other way shows the eye its edge.</summary>
+        const float EyePalmOut = 30f;
+        /// <summary>How far, m, a hand may lag behind where the eye wants it. The lag is what makes the hands
+        /// yours rather than painted on the lens — they hang back a fraction when the head turns and bob against
+        /// the head's bob — and the cap keeps a fast turn from dragging them out of the picture.</summary>
+        const float EyeLag = .06f;
+
+        /// <summary>Puts the two arms in front of the eye. Called by whoever placed the camera, after placing it,
+        /// with the eye's position and rotation as drawn this frame; while <see cref="EyeArms"/> is off it does
+        /// nothing. The swing comes from the last body-space pose (same clock, same size), so the hands in the
+        /// picture answer the legs exactly as they do when watched from outside; a jump lifts them; with the physics
+        /// hands switched on each arm reaches for its own hand body instead, because that is what is gripping.</summary>
+        public void PoseFromEye(Vector3 eye, Quaternion look, float dt)
+        {
+            if (!eyeArms || owner == null) return;
+            float k = figScale;
+            float upperArm = UpperArm * k, forearm = Forearm * k;
+            for (int s = 0; s < 2; s++)
+            {
+                float sign = s == 0 ? -1f : 1f;
+                var shoulder = eye + look * new Vector3(sign * EyeShoulderOut * k, -EyeShoulderDown * k, EyeShoulderAhead * k);
+                var physical = s == 0 ? owner.Left : owner.Right;
+                Vector3 want;
+                if (owner.HandsEnabled && physical != null) want = physical.transform.position;
+                else
+                {
+                    float sw = swing[s];
+                    // forward and back with the stride, out a little on a side-step, and a hand swung forward
+                    // rises a little, the way a swinging arm does about the shoulder. A fraction of the body's
+                    // swing: the hands are half a metre from the lens, and the full 26 cm put one of them on it.
+                    var local = new Vector3(sign * EyeHandOut * k + sw * stepSeen.x * .30f,
+                                            -EyeHandDown * k + sw * stepSeen.y * .15f,
+                                            EyeHandAhead * k + sw * stepSeen.y * .30f);
+                    // and in the air they go up and out
+                    if (armLift > 0f)
+                        local = Vector3.Lerp(local, new Vector3(sign * .36f * k, .04f * k, .28f * k), armLift);
+                    want = eye + look * local;
+                }
+                if (!eyePosed) eyeHand[s] = want;
+                else
+                {
+                    eyeHand[s] = Vector3.Lerp(eyeHand[s], want, 1f - Mathf.Exp(-16f * dt));
+                    var off = eyeHand[s] - want;
+                    if (off.sqrMagnitude > EyeLag * EyeLag) eyeHand[s] = want + off.normalized * EyeLag;
+                }
+                var hand = eyeHand[s];
+                // the elbow goes down and out, below the bottom of the picture
+                var elbow = Joint(shoulder, hand, upperArm, forearm, look * new Vector3(sign * .6f, -1f, -.3f));
+                arm[s].Pose(shoulder, elbow, hand, EyeGrip(elbow, hand, look, sign), k);
+                Bone(armUp[s], shoulder, elbow, UpperArm, look * Vector3.forward, k);
+            }
+            eyePosed = true;
+        }
+
+        /// <summary>The hand's frame in front of the eye, built outright rather than rolled from <see cref="Wrist"/>.
+        /// That one sits the hand on the forearm with its front toward a frame's forward, which is right for an arm
+        /// hanging by the body and turns over on a forearm rising toward the eye (the look's forward, projected off
+        /// a forearm nearly along it, points down): thumbs outside, palms up. Here the frame is written down from
+        /// what is wanted — the grip's up is back along the forearm, as PuppetArm expects, its right is the thin
+        /// axis of the palm, and the palm side is <c>−sign·right</c> (the digits are drawn for a right hand whose
+        /// palm faces the body, and mirrored for the left), so the palm is pointed down and a little out and the
+        /// rest of the frame follows from it.</summary>
+        static Quaternion EyeGrip(Vector3 elbow, Vector3 hand, Quaternion look, float sign)
+        {
+            var along = elbow - hand;
+            var up = along.sqrMagnitude > 1e-8f ? along.normalized : look * Vector3.down;
+            float a = EyePalmOut * Mathf.Deg2Rad;
+            var palm = Vector3.ProjectOnPlane(look * new Vector3(sign * Mathf.Sin(a), -Mathf.Cos(a), 0f), up);
+            if (palm.sqrMagnitude < 1e-6f) palm = Vector3.ProjectOnPlane(look * Vector3.down, up);
+            var right = -sign * palm.normalized;
+            return Quaternion.LookRotation(Vector3.Cross(right, up), up);
         }
 
         /// <summary>How much the pelvis wants to be dropped by the leg whose cycle stands at <paramref name="q"/>: all
