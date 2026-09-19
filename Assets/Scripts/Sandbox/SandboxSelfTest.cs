@@ -327,6 +327,10 @@ namespace Height1079.Sandbox
             foreach (var r in parts)
             {
                 if (r == null) continue;
+                // the clothes are one skinned mesh with a hand-set box round it, generous on purpose so it is never
+                // culled mid-stride (PuppetFigure sets 2.8 m of it); measuring that box says a man is 2.4 m tall.
+                // The rigid pieces — head, hands, boots — are where the top and the soles actually are.
+                if (r is SkinnedMeshRenderer) continue;
                 if (!any) { box = r.bounds; any = true; }
                 else box.Encapsulate(r.bounds);
             }

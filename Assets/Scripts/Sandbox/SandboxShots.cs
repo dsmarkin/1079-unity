@@ -119,6 +119,16 @@ namespace Height1079.Sandbox
             }
             yield return Shoot(boot, body, "7-прыжок", jumpFrom);
 
+            // the two corners of the screen, from inside the head, with something on the bar to look at: an hour's
+            // worth of hunger and cold, a little sleep, a bar of chocolate eaten
+            boot.GoTo(0);
+            boot.FirstPerson = true;
+            var v = boot.Vitals.Condition;
+            v.Add(Height1079.Core.Bite.Hunger, 22f); v.Add(Height1079.Core.Bite.Cold, 14f); v.Add(Height1079.Core.Bite.Sleep, 6f);
+            body.Extra = 25f;
+            yield return new WaitForSeconds(1f);
+            yield return ShootHere(boot, body, "10-полоска-и-слоты");
+
             Debug.Log("shots: папка " + Folder);
             yield return new WaitForSeconds(.4f);
             Application.Quit(0);

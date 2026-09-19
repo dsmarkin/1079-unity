@@ -38,6 +38,17 @@ namespace Height1079.Puppet
 
         public float Stamina { get; private set; }
         public float StaminaFraction => Tuning.Stamina > 0f ? Mathf.Clamp01(Stamina / Tuning.Stamina) : 0f;
+        /// <summary>0…1 of the bar the body is allowed to fill. Hunger, cold and sleep bite pieces off the top of the
+        /// one bar (<c>Core.Condition</c>); whoever runs the body sets this from them, and rest never takes the bar
+        /// past it. 1 is a fed, warm, rested man.</summary>
+        public float Ceiling = 1f;
+        /// <summary>The top of the bar right now, in stamina units.</summary>
+        public float StaminaCap => Tuning.Stamina * Mathf.Clamp01(Ceiling);
+        /// <summary>Bonus strength on top of the bar — a bar of chocolate. Spent before the bar itself and never
+        /// recovered by resting: it is drawn as a piece stuck on the right end of the bar, and it goes as it is used.</summary>
+        public float Extra;
+        /// <summary>Everything the body can spend right now, bonus included.</summary>
+        public float Strength => Stamina + Extra;
         /// <summary>Empty hands: everything lets go and nothing closes until it is over.</summary>
         public bool Exhausted => exhaustUntil > Time.time;
         /// <summary>Tired hands hold worse — a grip taken on the last of the stamina tears off.</summary>
@@ -234,7 +245,8 @@ namespace Height1079.Puppet
             }
             else if (Hanging) { left.Release(); right.Release(); }
 
-            if (Limp && Grounded && Time.time > limpUntil && StaminaFraction > .25f) { Limp = false; Rough(false); }
+            // a quarter of what the bar may hold now, not of the whole bar: a man whose bar is mostly bitten off still gets up
+            if (Limp && Grounded && Time.time > limpUntil && Stamina >= StaminaCap * .25f) { Limp = false; Rough(false); }
 
             // the legs come back up to strength over LegRise seconds after they find the ground; off the ground, or
             // while the body is a sack, they have nothing to push against at all. A launch counts as off the ground
@@ -252,7 +264,7 @@ namespace Height1079.Puppet
                 // taken from the latch and not from this step's orders, so a press cannot fall between two frames.
                 // Nothing else here is allowed to swallow it quietly: the legs' own ramp does not gate it (a man
                 // jumps off legs that are still coming back), and the launch window is what stops it firing twice.
-                if (JumpWanted && Grounded && !Hanging && !launching && Stamina >= t.JumpCost) Launch(t);
+                if (JumpWanted && Grounded && !Hanging && !launching && Strength >= t.JumpCost) Launch(t);
             }
 
             Spend(drain, dt);
@@ -279,7 +291,7 @@ namespace Height1079.Puppet
             jumpAsked = -99f;               // one press, one jump: the latch is spent here
             legs = 0f;
             squash = 0f;                    // pushing off is not a moment to be sitting in the last landing's knees
-            Stamina -= t.JumpCost;
+            Pay(t.JumpCost);
             restTimer = 0f;
             Jumped?.Invoke(v);
         }
@@ -485,7 +497,7 @@ namespace Height1079.Puppet
             if (wish.sqrMagnitude > 1f) wish.Normalize();
             // mid-stagger the legs are somewhere else: the player still has a share of them, not all of them
             if (Stumbling) wish *= Mathf.Clamp01(t.TripHold);
-            bool running = input.Run && wish.sqrMagnitude > .01f && Grounded && !Hanging && Stamina > 1f;
+            bool running = input.Run && wish.sqrMagnitude > .01f && Grounded && !Hanging && Strength > 1f;
             float speed = running ? t.RunSpeed : t.WalkSpeed;
             if (running) drain += t.RunCost * dt;
 
@@ -521,16 +533,25 @@ namespace Height1079.Puppet
             }
         }
 
+        /// <summary>Take this much strength: the bonus goes first, then the bar.</summary>
+        void Pay(float cost)
+        {
+            float fromExtra = Mathf.Min(Mathf.Max(Extra, 0f), cost);
+            Extra -= fromExtra;
+            Stamina -= cost - fromExtra;
+        }
+
         void Spend(float drain, float dt)
         {
-            if (drain > 0f) { Stamina -= drain; restTimer = 0f; }
+            if (drain > 0f) { Pay(drain); restTimer = 0f; }
             else if (Grounded && !Hanging)
             {
                 restTimer += dt;
                 if (restTimer > Tuning.RestDelay) Stamina += Tuning.Recovery * dt;
             }
-            Stamina = Mathf.Clamp(Stamina, 0f, Tuning.Stamina);
-            if (Stamina <= 0f && !Exhausted)
+            Extra = Mathf.Clamp(Extra, 0f, Tuning.ExtraCap);
+            Stamina = Mathf.Clamp(Stamina, 0f, StaminaCap);
+            if (Stamina <= 0f && Extra <= 0f && !Exhausted)
             {
                 exhaustUntil = Time.time + Tuning.ExhaustLock;
                 left?.Release(); right?.Release();
