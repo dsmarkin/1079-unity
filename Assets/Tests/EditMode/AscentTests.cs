@@ -534,8 +534,13 @@ namespace Height1079.Tests
 
             // and the axe works worse the wrong way up
             Assert.Less(Ascent.SelfArrestChance(30f, Gear.IceAxe, Going.Down), Ascent.SelfArrestChance(30f, Gear.IceAxe, Going.Up));
+            // 1e-6 and not 1e-9: both sides are floats, and the two ways of getting there round differently — the
+            // method multiplies by DescentArrest inside and returns one float, the line below multiplies the
+            // returned float again. A single float step near 0.28 is about 3e-8, so a tolerance of 1e-9 was asking
+            // float arithmetic for double precision. .NET 8 happened to give the same answer both ways and Unity's
+            // Mono did not, so the test passed in dotnet and failed in the editor.
             Assert.AreEqual(Ascent.SelfArrestChance(30f, Gear.IceAxe) * Ascent.DescentArrest,
-                Ascent.SelfArrestChance(30f, Gear.IceAxe, Going.Down), 1e-9);
+                Ascent.SelfArrestChance(30f, Gear.IceAxe, Going.Down), 1e-6);
             Assert.AreEqual(0f, Ascent.SelfArrestChance(30f, Gear.None, Going.Down), 1e-9, "без ледоруба самозадержания нет и вниз");
 
             // the old two-argument calls are the ascent, unchanged
