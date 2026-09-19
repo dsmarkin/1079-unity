@@ -166,7 +166,7 @@ namespace Height1079.Puppet
         /// <summary>The boot's roll through a step, degrees, and the two points of the sole it turns on. Pitching a
         /// boot about its own origin drives the toe through the ground; pitched about the toe going off and about the
         /// heel coming down, the part touching the ground stays exactly where it was put.</summary>
-        const float HeelStrike = 13f, ToeOff = 22f, ToePivot = .12f, HeelPivot = .05f;
+        const float HeelStrike = 13f, ToeOff = 22f, ToePivot = .16f, HeelPivot = .07f;
 
         /// <summary>Where in the stride we are, 0…1 of a full cycle, advanced by metres of ground covered rather than
         /// by a clock: a body held against a wall stops stepping, and a body shoved along steps whether it meant to.</summary>

@@ -1,12 +1,34 @@
 using UnityEngine;
 
-namespace Height1079.Runtime
+namespace Height1079.Night
 {
-    /// <summary>Wind and blizzard. The server decides when a storm blows (NightSession.Storm); here it builds up and dies down
-    /// smoothly, gusts come and go, the forest bends (global values for the Height1079/TreeWind shader), driving snow streaks
-    /// past the camera and ground drift snakes over the snow. In a full gust of the blizzard you see a few metres.</summary>
+    /// <summary>Wind and blizzard. Whoever owns the night decides when a storm blows and says so through
+    /// <see cref="Want"/> (the game: <c>WeatherDriver</c> off the session; the sandbox: its run clock); here it builds
+    /// up and dies down smoothly, gusts come and go, the forest bends (global values for the Height1079/TreeWind
+    /// shader), driving snow streaks past the camera and ground drift snakes over the snow. In a full gust of the
+    /// blizzard you see a few metres.
+    ///
+    /// In its own assembly, with nothing of the session in it, so the sandbox blows the same snow the mountain does
+    /// instead of a copy of it.</summary>
     public sealed class Weather : MonoBehaviour
     {
+        public static Weather Instance { get; private set; }
+
+        // ── what the owner tells it, every frame ──
+        /// <summary>0 … 1, the blizzard the owner wants. The front takes <see cref="RiseSeconds"/> to arrive at 1 and
+        /// <see cref="FallSeconds"/> to die back to 0.</summary>
+        public float Want;
+        public float RiseSeconds = 25f, FallSeconds = 40f;
+        /// <summary>There is a night to blow through. Off, the air is still and nothing is emitted (the menu).</summary>
+        public bool Live;
+        /// <summary>The day's own wind, 0 … 1, where a day has one (the southern slope draws it from its seed); below
+        /// zero the blizzard cycle sets the wind by itself.</summary>
+        public float DayWind = -1f;
+        /// <summary>The listener is under canvas: no snow drives past the eye.</summary>
+        public bool Inside;
+        /// <summary>Where the ground is under the listener, for the drift; NaN puts it a man's height under the camera.</summary>
+        public float GroundY = float.NaN;
+
         /// <summary>0 calm night … 1 full blizzard (smoothed).</summary>
         public static float Storm { get; private set; }
         /// <summary>0 … 1, the current gust on top of the base wind.</summary>
@@ -23,15 +45,19 @@ namespace Height1079.Runtime
         float trackFill;
         float windTime, gustPhase, seed;
 
-        public static Weather Create()
+        /// <summary>Under <paramref name="parent"/> when given, so it dies with whatever owns it (the sandbox);
+        /// otherwise kept across scene loads the way the game keeps the rest of its night.</summary>
+        public static Weather Create(Transform parent = null)
         {
             var go = new GameObject("Weather", typeof(Weather));
-            DontDestroyOnLoad(go);
+            if (parent != null) go.transform.SetParent(parent, false);
+            else DontDestroyOnLoad(go);
             return go.GetComponent<Weather>();
         }
 
         void Awake()
         {
+            Instance = this;
             seed = Random.value * 50f;
             var flakes = Resources.Load<Material>("World/Materials/SnowFx/Snowflakes");
             var puff = Resources.Load<Material>("World/Materials/SnowFx/Smoke"); // soft round puff, lit
@@ -110,17 +136,19 @@ namespace Height1079.Runtime
             return ps;
         }
 
+        void OnDestroy()
+        {
+            if (Instance == this) Instance = null;
+            // a sandbox that has been left takes its weather with it; the numbers must not stay blowing
+            Storm = Gust = 0f; Wind = .15f;
+            Shader.SetGlobalVector(WindParams, new Vector4(.15f, 0f, windTime, 0));
+        }
+
         void Update()
         {
-            var s = NightSession.Instance;
-            var me = Bootstrap.LocalHiker;
-            // the night of 1959 has its own blizzard cycle; the mountain breaks its weather after noon by itself
-            // (NightSession.MountainStorm), and either of them drives the same driving snow
-            bool storming = s != null && (s.Storm.Value || s.MountainStorm.Value);
-            // the front takes ~25 s to arrive and ~40 s to die down
-            float want = storming ? 1f : 0f, rate = Time.deltaTime / (storming ? 25f : 40f);
-            // the demo reel has seconds, not minutes, to show the weather turn
-            if (DemoReel.StormWanted >= 0f) { want = DemoReel.StormWanted; rate = Time.deltaTime / 1.3f; }
+            // the front takes RiseSeconds to arrive and FallSeconds to die down
+            float want = Mathf.Clamp01(Want);
+            float rate = Time.deltaTime / Mathf.Max(want > Storm ? RiseSeconds : FallSeconds, .05f);
             Storm = Mathf.MoveTowards(Storm, want, rate);
 
             // gusts: Perlin swells, sharper and more often in a storm
@@ -128,13 +156,11 @@ namespace Height1079.Runtime
             float g = Mathf.PerlinNoise(seed, gustPhase);
             g = Mathf.Clamp01((g - Mathf.Lerp(.35f, .2f, Storm)) * Mathf.Lerp(1.6f, 2.2f, Storm));
             Gust = g * g * (3f - 2f * g);
-            // the demo reel has no session behind it, but its blizzard still has to blow
-            bool live = s != null || DemoReel.StormWanted >= 0f;
+            bool live = Live;
             Wind = !live ? .15f : Mathf.Clamp01(Mathf.Lerp(.22f, .75f, Storm) + Gust * Mathf.Lerp(.25f, .3f, Storm));
-            // on the southern slope the strength of the wind is a property of the day, not of the blizzard cycle: the
-            // host drew it once from the save's seed (MountainDay) and the gusts ride on top of it
-            float dayWind = MountainDay.WindShare;
-            if (live && dayWind >= 0f) Wind = Mathf.Clamp01(dayWind + Gust * Mathf.Lerp(.15f, .3f, Storm));
+            // where the strength of the wind is a property of the day (the southern slope draws it once from the
+            // save's seed), the gusts ride on top of it instead of on the blizzard cycle
+            if (live && DayWind >= 0f) Wind = Mathf.Clamp01(DayWind + Gust * Mathf.Lerp(.15f, .3f, Storm));
 
             float wander = (Mathf.PerlinNoise(seed + 7f, Time.time * .02f) - .5f) * 50f;
             var dir = Quaternion.Euler(0, wander, 0) * new Vector3(.7071f, 0, -.7071f);
@@ -151,7 +177,7 @@ namespace Height1079.Runtime
 
             var cam = Camera.main;
             if (cam == null) return;
-            bool inside = me != null && me.Crawling;
+            bool inside = Inside;
             float speed = Mathf.Lerp(3f, 16f, Wind) * (1f + .35f * Gust);
             var p = cam.transform.position;
 
@@ -164,7 +190,7 @@ namespace Height1079.Runtime
 
             float drifting = !live || inside ? 0f : Mathf.Clamp01(Wind * 1.4f - .3f) * (.5f + .5f * Gust);
             var de = drift.emission; de.rateOverTime = 420f * drifting;
-            float ground = me != null ? me.transform.position.y : p.y - 1.6f;
+            float ground = float.IsNaN(GroundY) ? p.y - 1.6f : GroundY;
             drift.transform.position = new Vector3(p.x, ground + .4f, p.z) - new Vector3(Direction.x, 0, Direction.y) * speed;
             var dv = drift.velocityOverLifetime;
             dv.x = new ParticleSystem.MinMaxCurve(Direction.x * speed * .7f, Direction.x * speed * 1.1f);

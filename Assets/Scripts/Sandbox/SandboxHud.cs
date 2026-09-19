@@ -373,9 +373,13 @@ namespace Height1079.Sandbox
             if (packPanel.gameObject.activeSelf != open) { packPanel.gameObject.SetActive(open); packShown = ""; }
             if (open && kit != null) RefreshPack(kit);
 
-            // the end of the day
+            // the end of the day — or of the night run, which has its own words for it
             bool dead = boot.Dead;
-            if (deathPanel.gameObject.activeSelf != dead) { deathPanel.gameObject.SetActive(dead); deathSince = Time.unscaledTime; }
+            if (deathPanel.gameObject.activeSelf != dead)
+            {
+                deathPanel.gameObject.SetActive(dead); deathSince = Time.unscaledTime;
+                deathTitle.text = boot.DeathTitle; deathLine.text = boot.DeathLine;
+            }
             if (dead)
             {
                 float since = Time.unscaledTime - deathSince;
@@ -472,18 +476,57 @@ namespace Height1079.Sandbox
 
         void OnGUI()
         {
-            if (!Panel) return;
             var boot = SandboxBoot.Instance;
             if (boot == null || boot.Body == null) return;
             Styles();
             var b = boot.Body;
             var t = boot.Tuning;
+            var hunt = boot.Hunt;
+
+            // ── the night run: its line top left while it runs, and the debrief in the middle when it is over ─────
+            if (hunt != null && hunt.Run != null)
+            {
+                GUILayout.BeginArea(new Rect(10, 10, 420, 52), GUI.skin.box);
+                GUILayout.Label(hunt.Status(), small);
+                GUILayout.EndArea();
+                if (hunt.Report != null)
+                {
+                    float w = 560f, h = 60f + 22f * (hunt.Report.Count + 1);
+                    GUILayout.BeginArea(new Rect((Screen.width - w) * .5f, (Screen.height - h) * .5f, w, h), GUI.skin.box);
+                    GUILayout.Label("Итог забега: " + hunt.Run.Outcome, head);
+                    foreach (var line in hunt.Report) GUILayout.Label(line, small);
+                    GUILayout.Label("N — ещё раз · протокол в панели F1", small);
+                    GUILayout.EndArea();
+                }
+            }
+            if (!Panel) return;
 
             GUILayout.BeginArea(new Rect(Screen.width - 340, 10, 330, Screen.height - 20), GUI.skin.box);
             GUILayout.Label("физика тела — правится вживую (F1 прячет)", head);
             GUILayout.Label($"стенд: {boot.StandName} · силы {b.Stamina:0}+{b.Extra:0} из {b.StaminaCap:0} · скорость {b.Torso.linearVelocity.magnitude:0.0} м/с · уклон {b.SlopeAngle:0}°", small);
             GUILayout.Label($"файл: {PuppetTuning.PathFor(t.Name)}", small);
             scroll = GUILayout.BeginScrollView(scroll);
+
+            // ── the night run ──
+            GUILayout.Label("ночь на площадке (N)", head);
+            if (hunt != null)
+            {
+                hunt.RunMinutes = Mathf.Round(Row("забег, минут", hunt.RunMinutes, 2f, 20f));
+                GUILayout.BeginHorizontal();
+                if (GUILayout.Button(hunt.Active ? "прервать (N)" : "начать (N)")) { if (hunt.Active) hunt.End(); else hunt.Begin(); }
+                if (hunt.Active && GUILayout.Button("+1 минута")) hunt.Skip(60f);
+                GUILayout.EndHorizontal();
+                if (hunt.Run != null)
+                {
+                    var m = hunt.Menk;
+                    GUILayout.Label($"часы {HuntRules.Clock(hunt.Run.Elapsed)} · пурга {hunt.Run.Storm:0.00} · видно {hunt.Night.Visibility:0} м", small);
+                    GUILayout.Label($"Менк: {m.Mode} ({m.Why}) · свет {m.WentToLight} · шум {m.WentToNoise} · следы {m.WentByTracks} · меток {hunt.Run.Tracks.Count}", small);
+                    int from = Mathf.Max(0, hunt.Run.Events.Count - 8);
+                    for (int i = from; i < hunt.Run.Events.Count; i++)
+                        GUILayout.Label(HuntRules.Clock(hunt.Run.Events[i].Time) + " — " + hunt.Run.Events[i].Text, small);
+                }
+            }
+
             GUILayout.Label("масса и сложение", head);
             t.TorsoMass = Row("масса тела, кг", t.TorsoMass, 30f, 140f);
             t.HandMass = Row("масса кисти, кг", t.HandMass, .5f, 12f);

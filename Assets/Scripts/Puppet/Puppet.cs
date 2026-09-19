@@ -37,6 +37,13 @@ namespace Height1079.Puppet
         /// by whoever knows the snow (the sandbox reads it off the trail map); the probe reaches further by it and
         /// the legs hold the body that much higher, so the feet, the hands and the eye all stand on the path.</summary>
         public float GroundLift;
+        /// <summary>Metres the ride height is down by right now for a crouch or a crawl (eased toward what the input
+        /// asks). The camera lowers its eye by a share of it; a figure drawn off the physics folds by itself.</summary>
+        public float Stance => stance;
+        /// <summary>Down in the snow — crouching or flat — far enough to count for hiding.</summary>
+        public bool Low => stance > .12f;
+        public bool Prone => stance > Tuning.CrouchDrop + .08f;
+        float stance;
         public bool Hanging => HandsEnabled
                             && ((left != null && left.Now == PuppetHand.State.Gripping)
                              || (right != null && right.Now == PuppetHand.State.Gripping));
@@ -198,7 +205,7 @@ namespace Height1079.Puppet
             Limp = false; Dead = false; limpUntil = 0f; exhaustUntil = 0f; fallSpeed = 0f; legs = 0f;
             // a body put down by hand has not fallen: the knees, the stand and the lean all start clean, and the
             // remembered velocity is zeroed too or the teleport itself reads as an acceleration and tips the torso
-            stumbleUntil = 0f; squash = 0f; rise = 1f; Tilt = 0f;
+            stumbleUntil = 0f; squash = 0f; rise = 1f; Tilt = 0f; stance = 0f;
             lastFlat = Vector3.zero; accel = Vector3.zero; StandUp = Vector3.up;
             // and it has not asked for anything either: a jump latched before a teleport must not fire after it
             jumpAsked = -99f; jumpClearUntil = 0f;
@@ -254,7 +261,11 @@ namespace Height1079.Puppet
             float dt = Time.fixedDeltaTime;
             var t = Tuning;
             Torso.mass = t.TorsoMass;
-            capsule.height = t.TorsoHeight; capsule.radius = t.TorsoRadius;
+            // a crouch or a crawl brings the ride height down and shortens the capsule with it; a body that has
+            // been knocked over is not crouching, it is lying, and comes back up standing
+            float wantDrop = Limp ? 0f : input.Prone ? t.ProneDrop : input.Crouch ? t.CrouchDrop : 0f;
+            stance = Mathf.MoveTowards(stance, wantDrop, dt * 1.6f);
+            capsule.height = Mathf.Max(t.TorsoRadius * 2f, t.TorsoHeight - stance * 1.2f); capsule.radius = t.TorsoRadius;
 
             Sense(t);
             Soften(t, dt);
@@ -291,7 +302,7 @@ namespace Height1079.Puppet
                 // one, so fifteen seconds of sprinting left a body that could still run and could not jump — a
                 // space bar that does nothing, and the player cannot see why. Now any strength at all is enough:
                 // what the body cannot pay for it does not get, and a tired man jumps lower (see Launch).
-                if (JumpWanted && Grounded && !Hanging && !launching && Strength > 0f) Launch(t);
+                if (JumpWanted && Grounded && !Hanging && !launching && Strength > 0f && stance < .1f) Launch(t);
             }
 
             Spend(drain, dt);
@@ -436,7 +447,7 @@ namespace Height1079.Puppet
             // a landing bends the knees, not the man: the ride height itself is pulled down by the impact and unfolds
             // again over SquashTime. The spring under it is underdamped, so the body settles back up through the
             // target instead of stepping onto it — that overshoot is the spring in a pair of legs.
-            float error = (t.HoverHeight - squash) - GroundDistance;
+            float error = (t.HoverHeight - squash - stance) - GroundDistance;
             float vy = Vector3.Dot(Torso.linearVelocity, Vector3.up);
             float a = Mathf.Clamp(error * t.LegSpring - vy * t.LegDamper, -t.LegMaxAccel, t.LegMaxAccel) * legs * rise;
             Torso.AddForce(Vector3.up * a, ForceMode.Acceleration);
@@ -531,8 +542,15 @@ namespace Height1079.Puppet
             if (wish.sqrMagnitude > 1f) wish.Normalize();
             // mid-stagger the legs are somewhere else: the player still has a share of them, not all of them
             if (Stumbling) wish *= Mathf.Clamp01(t.TripHold);
-            bool running = input.Run && wish.sqrMagnitude > .01f && Grounded && !Hanging && Strength > 1f;
+            bool running = input.Run && wish.sqrMagnitude > .01f && Grounded && !Hanging && Strength > 1f && stance <= .02f;
             float speed = running ? t.RunSpeed : t.WalkSpeed;
+            if (stance > .02f)
+            {
+                // down in the snow nobody runs: a crouch is a slow walk and a crawl is slower still
+                float low = Mathf.Clamp01(stance / Mathf.Max(t.CrouchDrop, .01f));
+                float lowSpeed = stance > t.CrouchDrop + .05f ? t.ProneSpeed : t.CrouchSpeed;
+                speed = Mathf.Lerp(t.WalkSpeed, lowSpeed, low);
+            }
             if (running) drain += t.RunCost * dt;
 
             if (Sliding && !Hanging)

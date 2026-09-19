@@ -90,6 +90,8 @@ namespace Height1079.Puppet
         static readonly Color Leather = new Color(.34f, .23f, .16f);
         static readonly Color LeatherDark = new Color(.25f, .17f, .12f);
         static readonly Color Sole = new Color(.80f, .76f, .67f);
+        static readonly Color Rubber = new Color(.16f, .15f, .14f);
+        static readonly Color Lace = new Color(.88f, .84f, .74f);
         static readonly Color Canvas = new Color(.30f, .33f, .21f);
         static readonly Color CanvasDark = new Color(.22f, .25f, .15f);
         static readonly Color Strap = new Color(.27f, .22f, .18f);
@@ -200,9 +202,7 @@ namespace Height1079.Puppet
             Band(ArmT, PuppetArm.HandV, 1f, Skin);
             Band(HandT, 0f, 1f, Skin);
 
-            Band(BootT, 0f, 1f, Leather);                           // boot: v = 0 is the sole, the outline starts there
-            Band(BootT, 0f, .17f, Sole);
-            Band(BootT, .84f, 1f, LeatherDark);                     // cuff
+            PaintBoot();
 
             // the hat: v = 0 inside the head, out round the fold and up to the pole. The fold is ribbed — a darker
             // band with the hat's own colour drawn through it in thin vertical lines
@@ -210,6 +210,61 @@ namespace Height1079.Puppet
             Band(HatT, PuppetSkin.HatFoldV0, PuppetSkin.HatFoldV1, WoolDark);
             Ribs(HatT, PuppetSkin.HatFoldV0, PuppetSkin.HatFoldV1, Wool);
             Band(PompomT, 0f, 1f, Fleece);
+        }
+
+        // ── the boot ───────────────────────────────────────────────────────────────────────────────────────────
+
+        /// <summary>The boot's tile holds two pieces (<see cref="PuppetSkin.MakeBoot"/>): the sole in the lower part —
+        /// black rubber with a cream midsole line just under the upper — and the upper above it: brown leather with
+        /// a darker toe cap round the front, a welt stitch along the bottom edge, a darker tongue up the front with a
+        /// column of eyelets each side of it and a cream lace zigzagging between them from the instep to the collar,
+        /// the collar itself darker and padded, and the inside of the mouth near black. u = 0.5 is the front of every
+        /// ring, so the laces go on the front of the boot and stay there. The v marks are asked of the boot's own
+        /// rings (<see cref="PuppetSkin.BootV"/>).</summary>
+        static void PaintBoot()
+        {
+            // the sole: v runs from the middle of the underside, out and up the wall, over the lip and in
+            float sole = PuppetSkin.BootSoleTile;
+            Band(BootT, 0f, sole, Rubber);
+            Band(BootT, sole * .49f, sole * .58f, Sole);            // the midsole line, on the wall just under the lip
+
+            // the upper, in its own v
+            float u0 = PuppetSkin.BootUpperTile, span = 1f - u0;
+            float V(float v) => u0 + v * span;
+            Band(BootT, u0, 1f, Leather);
+            float toe = PuppetSkin.BootV(2), lace0 = PuppetSkin.BootV(3), lace1 = PuppetSkin.BootV(9);
+            float collar0 = PuppetSkin.BootV(8), collar1 = PuppetSkin.BootV(11);
+            Patch(BootT, .34f, .66f, V(0f), V(toe), LeatherDark);   // the toe cap, round the front third
+            Band(BootT, V(0f), V(.018f), Sole);                       // the welt stitch
+            Patch(BootT, .44f, .56f, V(lace0), V(collar0), LeatherDark);   // the tongue
+            Band(BootT, V(collar0), V(collar1), LeatherDark);         // the padded collar
+            Band(BootT, V(collar0), V(collar0 + .012f), Sole);        // stitched to the shaft
+            Band(BootT, V(collar1), 1f, Ink);                         // the inside
+            // eyelets and the lace: five pairs from the instep up to under the collar
+            const int pairs = 5;
+            const float eye = .085f;
+            for (int k = 0; k < pairs; k++)
+            {
+                float v = Mathf.Lerp(lace0 + .02f, lace1 - .015f, k / (float)(pairs - 1));
+                float y = BootT.Y + BootT.H * V(v);
+                float xl = BootT.X + BootT.W * (.5f - eye), xr = BootT.X + BootT.W * (.5f + eye);
+                if (k + 1 < pairs)
+                {
+                    float y2 = BootT.Y + BootT.H * V(Mathf.Lerp(lace0 + .02f, lace1 - .015f, (k + 1) / (float)(pairs - 1)));
+                    Stroke(new Vector2(xl, y), new Vector2(xr, y2), 2f, 2f, Lace);
+                    Stroke(new Vector2(xr, y), new Vector2(xl, y2), 2f, 2f, Lace);
+                }
+                Oval(xl, y, 3.5f, 3.5f, Buckle); Oval(xr, y, 3.5f, 3.5f, Buckle);
+                Oval(xl, y, 1.5f, 1.5f, Ink); Oval(xr, y, 1.5f, 1.5f, Ink);
+            }
+        }
+
+        /// <summary>A rectangle of a tile in its own u and v.</summary>
+        static void Patch(Tile t, float u0, float u1, float v0, float v1, Color c)
+        {
+            int x0 = t.X + Mathf.RoundToInt(Mathf.Clamp01(u0) * t.W), x1 = t.X + Mathf.RoundToInt(Mathf.Clamp01(u1) * t.W);
+            int y0 = t.Y + Mathf.RoundToInt(Mathf.Clamp01(v0) * t.H), y1 = t.Y + Mathf.RoundToInt(Mathf.Clamp01(v1) * t.H);
+            Fill(x0, y0, Mathf.Max(x1 - x0, 1), Mathf.Max(y1 - y0, 1), c);
         }
 
         /// <summary>Thin vertical lines across a band: the ribbing of a knitted fold. Two texels every four, which

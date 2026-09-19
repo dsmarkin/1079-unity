@@ -154,6 +154,35 @@ namespace Height1079.Sandbox
             yield return new WaitForSeconds(3.4f);
             yield return ShootHere(boot, body, "14-конец-дня");
 
+            // ── the yard at night: the fire, the Menk in the beam, the wall of the blizzard ─────────────────────
+            // a short run, so the front arrives while the camera waits; the night takes four seconds to come down
+            boot.Hunt.Begin(90f);
+            boot.FirstPerson = true;
+            yield return new WaitForSeconds(5f);
+            body = boot.Body;           // Begin() puts a fresh body at the fire
+            boot.Eye.Yaw = 0f; boot.Eye.Pitch = 2f;
+            if (!boot.Hunt.Torch) boot.Hunt.ToggleTorch();
+            for (float w = 0f; w < .5f; w += Time.deltaTime) { boot.AimCamera(); yield return null; }
+            yield return ShootHere(boot, body, "15-ночь-костёр");
+            // the creature, lit by the torch from eight metres in front of it
+            var menk = boot.Hunt.Menk;
+            for (float w = 0f; w < .5f; w += Time.deltaTime)
+            {
+                var at = new Vector3(menk.X, .1f, menk.Z);
+                var ahead = Quaternion.Euler(0f, menk.Yaw, 0f) * Vector3.forward;
+                boot.Cam.transform.position = at + ahead * 8f + Vector3.up * 1.7f + Vector3.Cross(Vector3.up, ahead) * 2f;
+                boot.Cam.transform.LookAt(at + Vector3.up * 2.4f);
+                yield return null;
+            }
+            yield return new WaitForEndOfFrame();
+            yield return Capture(boot, body, "16-ночь-менк", false);
+            // the wall: the clock jumps to the last minute and the front builds
+            boot.Hunt.Skip(75f);
+            boot.PlaceAt(SandboxHuntYard.Spawn);
+            for (float w = 0f; w < 12f; w += Time.deltaTime) { boot.AimCamera(); yield return null; }
+            yield return ShootHere(boot, body, "17-пурга");
+            boot.Hunt.End();
+
             Debug.Log("shots: папка " + Folder);
             yield return new WaitForSeconds(.4f);
             Application.Quit(0);

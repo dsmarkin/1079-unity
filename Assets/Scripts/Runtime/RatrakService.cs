@@ -1,4 +1,5 @@
 using UnityEngine;
+using Height1079.Night;
 using UnityEngine.UI;
 using Height1079.Core;
 #if ENABLE_INPUT_SYSTEM

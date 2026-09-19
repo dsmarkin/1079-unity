@@ -1,7 +1,7 @@
 using UnityEngine;
 using UnityEngine.UI;
 
-namespace Height1079.Runtime
+namespace Height1079.Night
 {
     /// <summary>Screen film under the HUD: a heavy vignette that closes the edges of vision at night, fine moving grain
     /// (the eye straining in the dark) and a cold blue cast. No post-processing package needed.</summary>
@@ -14,10 +14,11 @@ namespace Height1079.Runtime
         float strength;
         float storm;
 
-        public static NightFilm Create()
+        public static NightFilm Create(Transform parent = null)
         {
             var go = new GameObject("NightFilm", typeof(Canvas), typeof(NightFilm));
-            DontDestroyOnLoad(go);
+            if (parent != null) go.transform.SetParent(parent, false);
+            else DontDestroyOnLoad(go);
             var canvas = go.GetComponent<Canvas>();
             canvas.renderMode = RenderMode.ScreenSpaceOverlay;
             canvas.sortingOrder = -10; // under the HUD
@@ -58,6 +59,8 @@ namespace Height1079.Runtime
 
         /// <summary>A blow: the edges go dark red and the view nearly blacks out, then clears.</summary>
         public void Flash(float strength) => flash = Mathf.Max(flash, strength);
+
+        void OnDestroy() { if (Instance == this) Instance = null; }
 
         void Update()
         {
