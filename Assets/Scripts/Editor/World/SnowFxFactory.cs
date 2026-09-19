@@ -1,22 +1,24 @@
 using System.IO;
 using UnityEditor;
 using UnityEngine;
+using Height1079.Snow;
 
 namespace Height1079.EditorTools.World
 {
     /// <summary>Snow effects library: soft flake sprites for the snowfall, boot prints and trodden-snow decals with fade levels (snow slowly fills them).
-    /// Materials are saved as assets so the transparent shader variants ship in builds. Runtime: Height1079.Runtime.SnowFx.</summary>
+    /// Materials are saved as assets so the transparent shader variants ship in builds. Runtime: Height1079.Runtime.SnowFx (the snowfall)
+    /// and Height1079.Snow.SnowPrints (the prints, shared with the sandbox).</summary>
     public static class SnowFxFactory
     {
-        public const int FadeLevels = 6;
+        public const int FadeLevels = SnowPrints.FadeLevels;
         const string Dir = WorldPaths.Generated + "/Materials/SnowFx";
 
         public static void Build()
         {
             Directory.CreateDirectory(Dir);
             var flakes = TextureFactory.Save("snow_flakes", Flakes(), true, TextureWrapMode.Clamp);
-            var print = TextureFactory.Save("footprint", Footprint(), true, TextureWrapMode.Clamp);
-            var trod = TextureFactory.Save("trodden_snow", Trodden(), true, TextureWrapMode.Clamp);
+            var print = TextureFactory.Save("footprint", SnowPrintArt.Footprint(), true, TextureWrapMode.Clamp);
+            var trod = TextureFactory.Save("trodden_snow", SnowPrintArt.Trodden(), true, TextureWrapMode.Clamp);
 
             ParticleFade("Snowflakes", flakes, new Color(1f, 1f, 1f, 1f), lit: true);
             ParticleFade("SnowPuff", flakes, new Color(.95f, .97f, 1f, .8f), lit: true);
@@ -114,20 +116,9 @@ namespace Height1079.EditorTools.World
             return t;
         }
 
-        /// <summary>Standard (lit) in Fade mode, so prints darken at night with the rest of the scene.</summary>
-        static Material LitFade(string name, Texture2D tex, Color c)
-        {
-            var m = new Material(Shader.Find("Standard")) { name = name, mainTexture = tex, color = c };
-            m.SetFloat("_Mode", 2); m.SetOverrideTag("RenderType", "Transparent");
-            m.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
-            m.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
-            m.SetInt("_ZWrite", 0);
-            m.DisableKeyword("_ALPHATEST_ON"); m.EnableKeyword("_ALPHABLEND_ON"); m.DisableKeyword("_ALPHAPREMULTIPLY_ON");
-            m.SetFloat("_Glossiness", .15f); m.SetFloat("_Metallic", 0);
-            m.renderQueue = 2990;
-            m.enableInstancing = true;
-            return Save(m, name);
-        }
+        /// <summary>Standard (lit) in Fade mode, so prints darken at night with the rest of the scene. The recipe is
+        /// <see cref="SnowPrintArt.LitFade"/>, which the run time also uses when these assets are missing.</summary>
+        static Material LitFade(string name, Texture2D tex, Color c) => Save(SnowPrintArt.LitFade(name, tex, c), name);
 
         /// <summary>2×2 atlas of snowflakes: soft round blob, slightly irregular clump, tiny crystal-ish star, blurred large flake.</summary>
         static Texture2D Flakes()
@@ -178,50 +169,6 @@ namespace Height1079.EditorTools.World
                     float n = .55f + .45f * Mathf.PerlinNoise(x * .07f + 3, y * .07f) * Mathf.PerlinNoise(x * .15f, y * .15f + 5) * 2f;
                     float a = Mathf.Clamp01(1 - r) ; a = a * a * (3 - 2 * a) * Mathf.Clamp01(n);
                     t.SetPixel(x, y, new Color(1, 1, 1, a));
-                }
-            t.Apply();
-            return t;
-        }
-
-        /// <summary>Boot print pressed into snow (toe up = +v): dark bluish shadow on the lit side, pale rim, soft edge.</summary>
-        static Texture2D Footprint()
-        {
-            const int W = 64, H = 128;
-            var t = new Texture2D(W, H, TextureFormat.RGBA32, false);
-            for (int y = 0; y < H; y++)
-                for (int x = 0; x < W; x++)
-                {
-                    float u = (x + .5f) / W * 2 - 1, v = (y + .5f) / H * 2 - 1;
-                    // sole: wider toe, narrow waist, heel
-                    float half = v > .05f ? .82f - .35f * Mathf.Pow((v - .05f) / .95f, 3) : v > -.35f ? .58f + .2f * (v + .35f) / .4f : .7f * Mathf.Sqrt(Mathf.Clamp01(1 - Mathf.Pow((v + .35f) / .65f, 2)));
-                    float lenMask = Mathf.Clamp01((1 - Mathf.Abs(v)) * 8f);
-                    float d = Mathf.Abs(u) / Mathf.Max(.05f, half);
-                    float inside = Mathf.Clamp01((1 - d) * 5f) * lenMask;
-                    float rim = Mathf.Clamp01(1 - Mathf.Abs(d - 1.05f) * 6f) * lenMask * .45f;
-                    float tread = .85f + .15f * Mathf.Sign(Mathf.Sin(v * 40f));
-                    float shade = Mathf.Lerp(.55f, .8f, (u + 1) * .5f) * tread;
-                    var c = new Color(shade * .86f, shade * .92f, shade, inside * .85f);
-                    if (rim > c.a) c = new Color(.97f, .98f, 1f, rim);
-                    t.SetPixel(x, y, c);
-                }
-            t.Apply();
-            return t;
-        }
-
-        /// <summary>Compacted, trodden snow: soft greyish-blue blob with churned texture.</summary>
-        static Texture2D Trodden()
-        {
-            const int S = 128;
-            var t = new Texture2D(S, S, TextureFormat.RGBA32, false);
-            for (int y = 0; y < S; y++)
-                for (int x = 0; x < S; x++)
-                {
-                    float u = (x + .5f) / S * 2 - 1, v = (y + .5f) / S * 2 - 1;
-                    float r = Mathf.Sqrt(u * u * 1.6f + v * v);
-                    float n = Mathf.PerlinNoise(x * .09f, y * .09f), n2 = Mathf.PerlinNoise(x * .3f + 11, y * .3f);
-                    float a = Mathf.Clamp01((1 - r) * 2.2f) * (.45f + .35f * n);
-                    float shade = .72f + .18f * n2;
-                    t.SetPixel(x, y, new Color(shade * .9f, shade * .95f, shade, a));
                 }
             t.Apply();
             return t;

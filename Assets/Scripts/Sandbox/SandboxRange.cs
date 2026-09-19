@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using UnityEngine;
+using Height1079.Snow;
 using Height1079.Puppet;
 
 namespace Height1079.Sandbox
@@ -44,7 +45,8 @@ namespace Height1079.Sandbox
         {
             Stands.Clear();
             Ramps.Clear();
-            SandboxTerrainSnow.ClearPrints();
+            SandboxTerrainSnow.ClearSkins();
+            SnowPrints.Instance?.Clear();
             // stone, not office grey: a warm dark rock, a colder ledge, bare ice that reads as ice at a glance,
             // and the ground the whole range stands on is snow
             rock = Mat("rock", new Color(.37f, .35f, .33f), .06f);
@@ -297,9 +299,12 @@ namespace Height1079.Sandbox
         /// is only ever looked at, never stood on, and the boots go through it the way they go into snow.</summary>
         static void Cap(string name, Vector3 top, Vector3 size)
         {
-            var go = Box(name, top + Vector3.up * .025f, new Vector3(size.x * .98f, .05f, size.z * .98f), snow);
+            var slab = new Bounds(top + Vector3.up * .025f, new Vector3(size.x * .98f, .05f, size.z * .98f));
+            var go = Box(name, slab.center, slab.size, snow);
             var c = go.GetComponent<Collider>();
             if (c != null) { c.enabled = false; Object.Destroy(c); }
+            // and the boots, the prints and the sound are told how deep this skin is (SandboxTerrainSnow.SinkAt)
+            SandboxTerrainSnow.Skin(slab);
         }
     }
 }

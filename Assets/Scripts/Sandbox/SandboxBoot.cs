@@ -4,6 +4,7 @@ using UnityEngine.SceneManagement;
 using UnityEngine.InputSystem;
 #endif
 using Height1079.Puppet;
+using Height1079.Snow;
 
 namespace Height1079.Sandbox
 {
@@ -97,6 +98,8 @@ namespace Height1079.Sandbox
             ApplySolver();
             Sky();
             SandboxRange.Build();
+            // the game's own prints, puffs and trail map (Height1079.Snow), under this object so they go when it goes
+            SnowPrints.Create(transform);
             Spawn();
             rig = gameObject.AddComponent<SandboxCameraRig>();
             rig.Setup(Cam);

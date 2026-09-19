@@ -27,9 +27,21 @@ namespace Height1079.Puppet
     /// its fingertips to float precision.</summary>
     public sealed class PuppetArm
     {
-        /// <summary>Radii along the arm, m, at the built stature. The shoulder matches the old upper arm and the
-        /// elbow the old joint, so the sleeve still stands clear of the arm inside it.</summary>
-        public const float ShoulderR = .094f, ElbowR = .074f, WristR = .056f, PalmR = .080f;
+        /// <summary>Radii along the arm, m, at the built stature. What is swept here is the SLEEVE, not the arm: a
+        /// padded jacket sleeve, thick at the shoulder and still thick at the wrist, that steps down onto a knitted
+        /// cuff (<see cref="CuffR"/>) just before the hand. The arm inside it is never drawn — the sleeve leaves the
+        /// jacket's shoulder, bends at the elbow and the hand comes out of the cuff, which is all a jacket shows.</summary>
+        public const float ShoulderR = .128f, ElbowR = .110f, WristR = .098f, PalmR = .080f;
+        /// <summary>The knitted cuff at the end of the sleeve, and the palm coming out of it.</summary>
+        public const float CuffR = .068f;
+        /// <summary>The atlas column the arm is painted on covers this many metres of tube, counted back from the
+        /// fingertips (see <see cref="PuppetMesh.Sweep(List{PuppetMesh.Section}, Quaternion, int, Rect, float)"/>);
+        /// the cuff is this tall. Where the hand starts and the cuff ends along that column, 0…1, is what the atlas
+        /// paints by — they are fixed distances from the end of the tube, so the cuff stays on the wrist however the
+        /// arm bends or reaches.</summary>
+        public const float ArmTile = .80f, Cuff = .04f;
+        public static float HandV => 1f - (PalmEnd + 2f * PalmHalf) / ArmTile;
+        public static float CuffV => 1f - (PalmEnd + 2f * PalmHalf + Cuff) / ArmTile;
         /// <summary>The palm is centred on the hand point the figure solves for, and runs this far either side of it
         /// along the forearm's line; beyond that a dome this long closes it, and the fingers come out of the dome.</summary>
         public const float PalmHalf = .055f, PalmEnd = .025f;
@@ -78,8 +90,8 @@ namespace Height1079.Puppet
             float fore = Mathf.Max(f.magnitude - half, .02f);                  // elbow to wrist
             float rS = ShoulderR * k, rE = ElbowR * k, rW = WristR * k, rP = PalmR * k;
             // how far either side of the elbow the corner is rounded over: a quadratic Bézier with legs d bends with
-            // a radius of about 0.7·d at 90°, so 11 cm of leg keeps the bend wider than the arm is thick
-            float d = Mathf.Min(.11f * k, lenU * .45f, fore * .45f);
+            // a radius of about 0.7·d at 90°; a sleeve this thick wants all the bend the forearm has room for
+            float d = Mathf.Min(.13f * k, lenU * .45f, fore * .40f);
             rings.Clear();
 
             // the shoulder: a dome buried in the torso, so the arm has no edge where it leaves the shirt
@@ -104,20 +116,25 @@ namespace Height1079.Puppet
                 float t = i / (float)bend;
                 rings.Add(new PuppetMesh.Section(PuppetMesh.Bezier(A, e, B, t), PuppetMesh.BezierTangent(A, e, B, t), Mathf.Lerp(rA, rB, t)));
             }
-            // forearm, straight, narrowing to the wrist
+            // forearm, straight, narrowing a little toward the cuff
+            float cuff = Mathf.Min(Cuff * k, fore * .4f), rC = CuffR * k;
             const int low = 5;
             for (int i = 1; i <= low; i++)
             {
-                float s = d + (fore - d) * i / low;
+                float s = d + (fore - cuff - d) * i / low;
                 rings.Add(new PuppetMesh.Section(e + u2 * s, u2, Lower(s / fore, rE, rW)));
             }
+            // the cuff: the sleeve steps down onto the knitted band in a centimetre, which is the edge of the cloth,
+            // and the band runs to the wrist
+            rings.Add(new PuppetMesh.Section(e + u2 * (fore - cuff + .01f * k), u2, rC));
+            rings.Add(new PuppetMesh.Section(e + u2 * fore, u2, rC));
             // the palm: the same tube, wider and flattened across
             var w = e + u2 * fore;
             const int palm = 7;
             for (int i = 1; i <= palm; i++)
             {
                 float t = i / (float)palm;
-                float r = Mathf.Lerp(rW, rP, Mathf.SmoothStep(0f, 1f, Mathf.Min(1f, t * 1.35f)));
+                float r = Mathf.Lerp(rC, rP, Mathf.SmoothStep(0f, 1f, Mathf.Min(1f, t * 1.35f)));
                 float thin = Mathf.Lerp(1f, PalmThin, Mathf.SmoothStep(0f, 1f, Mathf.Min(1f, t * 1.5f)));
                 rings.Add(new PuppetMesh.Section(w + u2 * (2f * half * t), u2, r, new Vector2(thin, 1f)));
             }
@@ -131,7 +148,7 @@ namespace Height1079.Puppet
             }
 
             buf.Clear();
-            buf.Sweep(rings, grip, PuppetSkin.Slim, PuppetSkinTexture.Forearm);
+            buf.Sweep(rings, grip, PuppetSkin.Slim, PuppetSkinTexture.Arm, ArmTile * k);
             buf.Append(digits ?? PuppetSkin.Digits, Matrix4x4.TRS(p, grip, new Vector3(side < 0f ? -k : k, k, k)));
             buf.Fill(Mesh);
             Node.SetPositionAndRotation(shoulder, Quaternion.identity);

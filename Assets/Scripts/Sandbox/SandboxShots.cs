@@ -61,6 +61,8 @@ namespace Height1079.Sandbox
             yield return new WaitForSeconds(1.2f);
             yield return Shoot(boot, body, "8-стоит-спереди", new Vector3(0f, .1f, 3.0f));
             Debug.Log($"shots: стопы {Stance(body):0.00} м врозь стоя");
+            // and from behind: the pack is the one thing on the body no other frame shows
+            yield return Shoot(boot, body, "10-стоит-сзади", new Vector3(.6f, .3f, -2.8f));
             // walking back south, toward the camera: north of here is the ramp stand, and a camera three metres
             // ahead of a body walking north ends up inside it
             var south = Quaternion.Euler(0f, 180f, 0f);
