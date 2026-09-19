@@ -143,15 +143,18 @@ namespace Height1079.Sandbox
             bool first = boot.FirstPerson;
             if (show)
             {
-                // held the way the game holds it: along the look from inside the head, and where the body faces,
-                // tipped a little down, from outside. In the fist that is drawn, whichever of the two the eye is in.
-                var rot = first && boot.Eye != null ? boot.Eye.LookRotation * Quaternion.Euler(2f, -4f, 0f)
+                // Held the way the game holds it: along the look from inside the head, and where the body faces,
+                // tipped a little down, from outside — in the fist that is drawn, whichever of the two the eye is in.
+                // From inside the head the tube is turned in and down a little, so its side shows and not just a
+                // lens seen end-on, and it is pushed out ahead of the fingers: held on its middle the whole tube
+                // sat inside the sculpted hand and the picture showed nothing. From outside the fist closes near
+                // the tail and the head stands clear of the fingertips.
+                var rot = first && boot.Eye != null ? boot.Eye.LookRotation * Quaternion.Euler(8f, -12f, 0f)
                                                     : body.Facing * Quaternion.Euler(12f, 0f, 0f);
                 Vector3 at;
                 if (figure != null && figure.Hand(1, out var hand, out _)) at = hand;
                 else at = boot.Cam.transform.TransformPoint(new Vector3(.2f, -.2f, .42f));
-                // the enamel band, two centimetres behind the tube's origin, is what the fist closes on
-                torch.SetPositionAndRotation(at + rot * Vector3.forward * .02f, rot);
+                torch.SetPositionAndRotation(at + rot * Vector3.forward * (first ? .16f : .09f), rot);
             }
 
             bool on = show && TorchOn;
