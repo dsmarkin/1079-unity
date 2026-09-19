@@ -231,7 +231,7 @@ namespace Height1079.Runtime
             }
             // the physics sandbox: the body, a test range and every number it is made of, with no world, no night and
             // no network in the way (docs/PHYSICS.md). Coming back from it rebuilds the game from scratch.
-            ButtonUi("Sandbox", card, new Vector2(32, -630), new Vector2(376, 36), "ПЕСОЧНИЦА · ФИЗИКА ТЕЛА",
+            ButtonUi("Sandbox", card, new Vector2(32, -630), new Vector2(376, 36), "ПЕСОЧНИЦА",
                 new Color(.24f, .2f, .3f), Ink, Bootstrap.OpenSandbox).GetComponentInChildren<Text>().fontSize = 13;
             SetPlace(World.Current);
             status = Label("Status", card, new Vector2(32, -674), new Vector2(380, 40), 12, new Color(.69f, .76f, .78f));
