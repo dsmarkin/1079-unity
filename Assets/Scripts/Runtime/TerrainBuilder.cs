@@ -28,9 +28,12 @@ namespace Height1079.Runtime
             var terrain = go.GetComponent<Terrain>();
             var mat = Resources.Load<Material>("World/Materials/Terrain");
             if (mat != null) terrain.materialTemplate = mat;
-            // one instanced mesh for all 4 096 patches of the height map instead of 4 096 draws, and the height read
-            // in the vertex shader
-            terrain.drawInstanced = true;
+            // Instancing would draw all 4 096 patches of the height map as one mesh instead of 4 096, and it works in
+            // the editor — but the built player has no instanced variant of Nature/Terrain/Standard (nothing in
+            // Resources references it, and Unity strips what nothing references: CLAUDE.md §4). The terrain then
+            // renders with no textures at all — a white plain with trees standing on it. Turning this back on means
+            // first getting that variant into the build and checking it IN THE BUILD (docs/BACKLOG.md PF.4).
+            terrain.drawInstanced = false;
             terrain.heightmapPixelError = World.IsElbrus ? 6f : 3f;
             // the full four-layer splat, and how far it reaches. It used to run to 2.2 km because the base map behind
             // it is one texel to twelve metres on a 12.3 km terrain and the distance turned to mush; the base map is
