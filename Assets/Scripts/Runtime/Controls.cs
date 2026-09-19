@@ -73,6 +73,13 @@ namespace Height1079.Runtime
 #endif
             );
 
+        /// <summary>F10: the settings sheet — quality, render scale, vsync. Works in the menu and in the night.</summary>
+        public static bool Settings => Pressed(KeyCode.F10
+#if ENABLE_INPUT_SYSTEM
+            , Key.F10
+#endif
+            );
+
         /// <summary>F4: watch the Menk (camera beside it). F5 (host): wake it now.</summary>
         public static bool MenkWatch => LegacyDown(KeyCode.F4)
 #if ENABLE_INPUT_SYSTEM

@@ -76,11 +76,17 @@ namespace Height1079.Core
         public string AsString(string fallback = "") => Kind == JsonKind.String ? text : fallback;
 
         public bool Flag(string key, bool fallback = false) => this[key].AsBool(fallback);
-        public double Num(string key, double fallback = 0) => this[key].AsNumber(fallback);
-        public float Float(string key, float fallback = 0f) => (float)this[key].AsNumber(fallback);
+        public double Num(string key, double fallback = 0) => Finite(this[key].AsNumber(fallback), fallback);
+        public float Float(string key, float fallback = 0f) => (float)Finite(this[key].AsNumber(fallback), fallback);
+
+        /// <summary>Belt and braces for the parser's own check: a number that a float cannot hold comes back as the
+        /// fallback rather than as an infinity, whoever built this value.</summary>
+        static double Finite(double v, double fallback)
+            => double.IsNaN(v) || double.IsInfinity(v) || v > float.MaxValue || v < -float.MaxValue ? fallback : v;
+
         public int Int(string key, int fallback = 0)
         {
-            double v = this[key].AsNumber(fallback);
+            double v = Finite(this[key].AsNumber(fallback), fallback);
             return v >= int.MaxValue ? int.MaxValue : v <= int.MinValue ? int.MinValue : (int)Math.Round(v);
         }
         public string Str(string key, string fallback = "") => this[key].AsString(fallback);
@@ -226,15 +232,22 @@ namespace Height1079.Core
             while (i < s.Length && (s[i] == ' ' || s[i] == '\t' || s[i] == '\n' || s[i] == '\r')) i++;
         }
 
-        static JsonValue ParseValue(string s, ref int i)
+        /// <summary>How deep a document may nest. The parser is recursive, and a file of forty thousand opening
+        /// brackets would otherwise take the stack with it — a <c>StackOverflowException</c> is the one exception
+        /// .NET does not let anybody catch, so <see cref="TryParse"/> could not have saved us. Nothing this game
+        /// writes nests past five.</summary>
+        public const int MaxDepth = 64;
+
+        static JsonValue ParseValue(string s, ref int i, int depth = 0)
         {
             SkipSpace(s, ref i);
             if (i >= s.Length) throw new FormatException("unexpected end");
+            if (depth > MaxDepth) throw new FormatException("nested deeper than " + MaxDepth + " at " + i);
             char c = s[i];
             switch (c)
             {
-                case '{': return ParseObject(s, ref i);
-                case '[': return ParseArray(s, ref i);
+                case '{': return ParseObject(s, ref i, depth);
+                case '[': return ParseArray(s, ref i, depth);
                 case '"': return Of(ParseString(s, ref i));
                 case 't': Literal(s, ref i, "true"); return Of(true);
                 case 'f': Literal(s, ref i, "false"); return Of(false);
@@ -250,7 +263,7 @@ namespace Height1079.Core
             i += word.Length;
         }
 
-        static JsonValue ParseObject(string s, ref int i)
+        static JsonValue ParseObject(string s, ref int i, int depth = 0)
         {
             var o = Object();
             i++;                                            // {
@@ -264,7 +277,7 @@ namespace Height1079.Core
                 SkipSpace(s, ref i);
                 if (i >= s.Length || s[i] != ':') throw new FormatException("':' expected at " + i);
                 i++;
-                o.Set(key, ParseValue(s, ref i));
+                o.Set(key, ParseValue(s, ref i, depth + 1));
                 SkipSpace(s, ref i);
                 if (i >= s.Length) throw new FormatException("unexpected end in object");
                 if (s[i] == ',') { i++; continue; }
@@ -273,7 +286,7 @@ namespace Height1079.Core
             }
         }
 
-        static JsonValue ParseArray(string s, ref int i)
+        static JsonValue ParseArray(string s, ref int i, int depth = 0)
         {
             var a = Array();
             i++;                                            // [
@@ -281,7 +294,7 @@ namespace Height1079.Core
             if (i < s.Length && s[i] == ']') { i++; return a; }
             while (true)
             {
-                a.Add(ParseValue(s, ref i));
+                a.Add(ParseValue(s, ref i, depth + 1));
                 SkipSpace(s, ref i);
                 if (i >= s.Length) throw new FormatException("unexpected end in array");
                 if (s[i] == ',') { i++; continue; }
@@ -331,6 +344,10 @@ namespace Height1079.Core
             if (i == start) throw new FormatException("number expected at " + start);
             if (!double.TryParse(s.Substring(start, i - start), NumberStyles.Float, CultureInfo.InvariantCulture, out var v))
                 throw new FormatException("bad number at " + start);
+            // «1e999» parses on .NET to Infinity rather than failing, and one infinite coordinate in a save is a NaN
+            // in a Rigidbody, which nothing recovers from. A file with such a number is corrupt, and corrupt is a
+            // thing this parser already knows how to say.
+            if (double.IsNaN(v) || double.IsInfinity(v)) throw new FormatException("number out of range at " + start);
             return v;
         }
     }

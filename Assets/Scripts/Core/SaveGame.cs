@@ -207,6 +207,8 @@ namespace Height1079.Core
 
         /// <summary>Reads a save. Returns null when the file is from a newer schema than this build knows, which is
         /// the one case where guessing would be worse than not offering the slot at all.</summary>
+        static float Clamp(float v, float lo, float hi) => v < lo ? lo : v > hi ? hi : v;
+
         public static SaveGame FromJson(JsonValue root)
         {
             if (root == null || root.Kind != JsonKind.Object) return null;
@@ -226,12 +228,15 @@ namespace Height1079.Core
             save.SavedUtc = ParseStamp(root.Str("saved"));
             save.Date = ParseDate(root.Str("date"), save.SavedUtc.Date);
 
+            // the camp is a place to stand the party on at load: a coordinate from outside the map would spawn them
+            // off the terrain, where there is no ground to sample and the fall never ends
             var camp = root["camp"];
-            save.CampX = camp.Float("x");
-            save.CampY = camp.Float("y");
-            save.CampZ = camp.Float("z");
-            save.CampYaw = camp.Float("yaw");
-            save.CampEle = camp.Float("ele", camp.Float("y"));
+            float half = save.Place == Place.Elbrus ? Elbrus.Half : HeightField.Half;
+            save.CampX = Clamp(camp.Float("x"), -half, half);
+            save.CampY = Clamp(camp.Float("y"), -1000f, 10000f);
+            save.CampZ = Clamp(camp.Float("z"), -half, half);
+            save.CampYaw = Clamp(camp.Float("yaw"), -3600f, 3600f);
+            save.CampEle = Clamp(camp.Float("ele", camp.Float("y")), -1000f, 10000f);
             save.Burner = camp.Flag("burner");
             // a save from before huts could be slept in has no flag and always meant a tent
             save.Tent = camp.Flag("tent", true);

@@ -378,6 +378,16 @@ namespace Height1079.Runtime
                 run.Record($"Утро {save.Date:dd.MM}, {AscentRoute.Clock(AscentRoute.RunStartHour)}. {MountainDay.Verdict}");
             }
 
+            // Nobody slept: everybody here has already had their night in this camp. Writing anyway used to put the
+            // evening clock into a file called «ночёвка» — continuing from it gave the minutes that were left of the
+            // day — and every repeat pushed the good morning save out of the five slots the store keeps.
+            if (!slept && Climb.On)
+            {
+                run.Record($"{save.Where}: здесь уже ночевали. До следующей ночи — новый лагерь.");
+                CampNoteRpc(Say("Здесь уже ночевали. Следующая ночь — в новом лагере."), RpcTarget.ClientsAndHost);
+                return;
+            }
+
             string path = Saves.Write(save);
             loaded = save;
             run.Record(path != null
@@ -491,6 +501,7 @@ namespace Height1079.Runtime
             return cut;
         }
 
+        /// <summary>A line for the player that is neither a save nor a refusal of one — «здесь уже ночевали».</summary>
         [Rpc(SendTo.SpecifiedInParams)]
         void CampNoteRpc(FixedString512Bytes text, RpcParams rpc) => Note(text.ToString());
 

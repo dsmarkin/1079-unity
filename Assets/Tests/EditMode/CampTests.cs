@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Text;
 using NUnit.Framework;
 using Height1079.Core;
 
@@ -342,6 +343,41 @@ namespace Height1079.Tests
             Assert.DoesNotThrow(() => SaveGame.Parse("{\"schema\":1,\"climbers\":\"нет\"}"));
             Assert.DoesNotThrow(() => SaveGame.Parse("{\"schema\":1,\"camp\":7,\"climbers\":[3,{\"key\":\"\"}]}"));
             Assert.AreEqual(0, SaveGame.Parse("{\"schema\":1,\"climbers\":\"нет\"}").Climbers.Count);
+        }
+
+        [Test]
+        public void ASaveWithImpossibleNumbersIsRefusedOrClamped()
+        {
+            // «1e999» is Infinity on .NET, not a parse failure, and an infinite camp coordinate used to become a NaN
+            // in a Rigidbody at load — the one state a player cannot get out of
+            Assert.IsNull(SaveGame.Parse("{\"schema\":1,\"place\":\"elbrus\",\"elapsed\":1e999}"),
+                "число вне диапазона делает файл нечитаемым, а не бесконечным");
+            Assert.IsNull(JsonValue.TryParse("{\"x\":-1e999}"));
+
+            // and a coordinate that is merely absurd is pulled back onto the map
+            var far = SaveGame.Parse("{\"schema\":1,\"place\":\"elbrus\",\"camp\":{\"x\":9e30,\"y\":-9e30,\"z\":123456}}");
+            Assert.IsNotNull(far);
+            Assert.LessOrEqual(Math.Abs(far.CampX), Elbrus.Half);
+            Assert.LessOrEqual(Math.Abs(far.CampZ), Elbrus.Half);
+            Assert.GreaterOrEqual(far.CampY, -1000f);
+        }
+
+        [Test]
+        public void ADeeplyNestedFileIsRefusedInsteadOfTakingTheStack()
+        {
+            // a StackOverflowException is the one exception .NET never lets anybody catch, and the menu reads every
+            // file in the folder on the way in
+            var deep = new StringBuilder();
+            for (int i = 0; i < 5000; i++) deep.Append('[');
+            Assert.IsNull(JsonValue.TryParse(deep.ToString()));
+            Assert.IsNull(SaveGame.Parse("{\"schema\":1,\"climbers\":" + deep + "}"));
+
+            // and a document that nests within reason still reads
+            var fine = new StringBuilder();
+            for (int i = 0; i < 20; i++) fine.Append('[');
+            fine.Append('1');
+            for (int i = 0; i < 20; i++) fine.Append(']');
+            Assert.IsNotNull(JsonValue.TryParse(fine.ToString()));
         }
 
         [Test]

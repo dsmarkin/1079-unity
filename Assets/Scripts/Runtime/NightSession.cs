@@ -37,6 +37,8 @@ namespace Height1079.Runtime
         HeightField dem;
         double lastTick;
         int sentEvents;
+        /// <summary>How many lines of the protocol a late guest is told about. The host keeps all of them.</summary>
+        const int ProtocolTail = 120;
         const double TickSeconds = .25;
 
         public NightRun Run => run;
@@ -91,9 +93,12 @@ namespace Height1079.Runtime
             // a continued run starts at the tent, not at the bottom of the ropeway
             CampSpawn(p);
             if (hiker != null) hiker.TeleportServer(p.X, p.Z);
-            // Late joiners get the protocol so far.
+            // Late joiners get the protocol so far — the tail of it. One reliable message per line, all in the same
+            // frame, and a nine-hour ascent has hundreds of lines: that overruns the transport's send queue and the
+            // guest is dropped before he has seen the mountain. Nobody reads further back than this anyway.
             PacksClientJoined(clientId);
-            for (int i = 0; i < sentEvents; i++) EventRpc(run.Events[i].Time, run.Events[i].Text, RpcTarget.Single(clientId, RpcTargetUse.Temp));
+            int from = Mathf.Max(0, sentEvents - ProtocolTail);
+            for (int i = from; i < sentEvents; i++) EventRpc(run.Events[i].Time, run.Events[i].Text, RpcTarget.Single(clientId, RpcTargetUse.Temp));
         }
 
         void OnClientDisconnected(ulong clientId)

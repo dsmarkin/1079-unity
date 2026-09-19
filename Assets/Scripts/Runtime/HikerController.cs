@@ -135,7 +135,8 @@ namespace Height1079.Runtime
             // the group came up the Auspiya on skis and camped on them; the southern slope of Elbrus is walked and ridden
             if (IsServer) Mode.Value = (byte)(Height1079.Core.World.IsElbrus ? Travel.Foot : Travel.Skis);
             if (!IsOwner) return;
-            Name.Value = new FixedString64Bytes(Bootstrap.PlayerName);
+            // trimmed to what the fixed string can hold: this used to throw here, before the camera below existed
+            Name.Value = new FixedString64Bytes(Bootstrap.CleanName(Bootstrap.PlayerName));
             head = new GameObject("Head").transform; head.SetParent(transform, false); head.localPosition = new Vector3(0, 1.72f, 0);
             cam = Camera.main != null ? Camera.main : new GameObject("Main Camera", typeof(Camera), typeof(AudioListener)).GetComponent<Camera>();
             cam.tag = "MainCamera"; cam.nearClipPlane = .1f; cam.farClipPlane = 4500f; cam.fieldOfView = 60f;
@@ -143,7 +144,7 @@ namespace Height1079.Runtime
             float goalZ = Height1079.Core.World.IsElbrus ? Elbrus.WestSummit.Z : WorldData.Tent.Z;
             yaw = Mathf.Atan2(transform.position.x - goalX, transform.position.z - goalZ) * Mathf.Rad2Deg + 180f;
             SetCursor(true);
-            if (IsServer) NightSession.Instance?.RenameServer(OwnerClientId, DisplayName); else NameRpc(Bootstrap.PlayerName);
+            if (IsServer) NightSession.Instance?.RenameServer(OwnerClientId, DisplayName); else NameRpc(Bootstrap.CleanName(Bootstrap.PlayerName));
         }
 
         /// <summary>If the night already knows this participant (player object spawned after the session), place it on its spawn point.</summary>
@@ -191,6 +192,8 @@ namespace Height1079.Runtime
             if (transform.position.y < g - 3f) Place(new Vector3(x, g + .05f, z));
         }
 
+        static bool SettingsUi => Bootstrap.Hud != null && Bootstrap.Hud.SettingsShown;
+
         void SetCursor(bool locked)
         {
             Cursor.lockState = locked ? CursorLockMode.Locked : CursorLockMode.None;
@@ -203,13 +206,16 @@ namespace Height1079.Runtime
             var session = NightSession.Instance;
             bool finished = session != null && session.MyOutcome != Outcome.None;
             if (Controls.Pause) { paused = true; SetCursor(false); }
-            if (!paused && !finished && !Backpacks.UiOpen && Input.GetMouseButtonDown(0) && Cursor.lockState != CursorLockMode.Locked) SetCursor(true);
+            if (!paused && !finished && !Backpacks.UiOpen && !SettingsUi && Input.GetMouseButtonDown(0) && Cursor.lockState != CursorLockMode.Locked) SetCursor(true);
             if (paused && Input.GetMouseButtonDown(0) && !Bootstrap.PointerOverUi()) { paused = false; SetCursor(true); }
             if (Controls.ToggleView) firstPerson = !firstPerson;
             if (!paused && !finished) { equipment.HandleInput(); Backpacks.HandleInput(this); skis.HandleInput(); climb.HandleInput(); Camps.HandleInput(this); Programmes.HandleInput(this); }
-            if (Backpacks.UiOpen != packUi)
+            // a window that wants to be clicked needs the pointer back: the rucksack, and the settings sheet (F10),
+            // which is worth opening precisely where the game is slow
+            bool ui = Backpacks.UiOpen || SettingsUi;
+            if (ui != packUi)
             {
-                packUi = Backpacks.UiOpen;
+                packUi = ui;
                 if (!paused && !finished) SetCursor(!packUi);
             }
             if (finished && Cursor.lockState == CursorLockMode.Locked) SetCursor(false);
@@ -304,6 +310,9 @@ namespace Height1079.Runtime
                 if (climb != null && Height1079.Core.World.IsElbrus) climb.Sample(Vector3.zero);
                 return;
             }
+            // the flag says we are in a cabin but there is no cabin: it was destroyed under us. Take the state off, or
+            // the host goes on treating us as a passenger — no dice, no gate, no cold (LeaveRide).
+            if (Riding.Value) LeaveRide(transform.position);
             EnsurePlaced();
             UpdateLowSpace();
             var session = NightSession.Instance;
@@ -550,16 +559,24 @@ namespace Height1079.Runtime
             capsule.enabled = false;
         }
 
-        /// <summary>Owner only: step out onto the given point.</summary>
+        /// <summary>Owner only: step out onto the given point.
+        ///
+        /// The state comes off first and unconditionally. <see cref="Ride"/> is the cabin's transform, and Unity's
+        /// fake null makes it read as null the moment that object is destroyed — a rebuilt ropeway, a place switch, a
+        /// despawn. This used to return on that, leaving <see cref="Riding"/> true for ever: the host reads that flag
+        /// and stops rolling the dice, checking the gate and counting the cold, and the body stays kinematic with its
+        /// capsule off. A passenger of a cabin that no longer exists was invulnerable and airborne.</summary>
         public void LeaveRide(Vector3 pos)
         {
-            if (!IsOwner || Ride == null) return;
+            if (!IsOwner) return;
+            bool had = Ride != null;
             Ride = null;
-            Riding.Value = false;
+            if (Riding.Value) Riding.Value = false;
             body.isKinematic = false;
             body.interpolation = RigidbodyInterpolation.Interpolate;
             capsule.enabled = true;
-            Place(pos);
+            // only a real dismount says where to stand; a cabin that vanished under us leaves us where we are
+            if (had) Place(pos);
         }
 
         /// <summary>Owner only: a blow throws the hiker, knocks them down for <paramref name="stun"/> seconds and shakes the view.</summary>

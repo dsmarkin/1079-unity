@@ -14,21 +14,46 @@ namespace Height1079.Runtime
     {
         public static HeightField Dem { get; private set; }
         public static string PlayerName = "Путник";
+
+        /// <summary>A name the rest of the game can hold. Two things bite here and both are one line to prevent:
+        /// <c>FixedString64Bytes</c> throws above 61 <b>bytes</b> while the menu field counts <b>characters</b>, so
+        /// twenty-one Cyrillic letters plus an emoji used to throw inside OnNetworkSpawn — before the camera was
+        /// made, leaving a null camera and an exception every frame; and the party packet is joined with ';' and
+        /// '|', so a name containing either made every client's parse of it fail four times a second.</summary>
+        public static string CleanName(string name)
+        {
+            if (string.IsNullOrWhiteSpace(name)) return "Путник";
+            var clean = name.Trim().Replace(';', ' ').Replace('|', ' ').Replace('\n', ' ').Replace('\r', ' ');
+            while (clean.Length > 0 && System.Text.Encoding.UTF8.GetByteCount(clean) > 60)
+                clean = clean.Substring(0, clean.Length - 1);
+            clean = clean.Trim();
+            return clean.Length == 0 ? "Путник" : clean;
+        }
         public static bool AutoKindle;
         /// <summary>HUD button: keep working with the axe or the saw (the same as holding E).</summary>
         public static bool AutoWork;
         /// <summary>Set by the optional Steam assembly; null when the game runs with plain Unity Transport.</summary>
         public static ILobbyProvider Lobby;
         public static HudController Hud { get; private set; }
+        /// <summary>Our own hiker. Fifteen systems read this every frame — the HUD several times — so the component
+        /// is looked up once per player object and then held: the property used to run GetComponent on every call.</summary>
         public static HikerController LocalHiker
         {
             get
             {
                 var nm = NetworkManager.Singleton;
-                if (nm == null || nm.LocalClient == null || nm.LocalClient.PlayerObject == null) return null;
-                return nm.LocalClient.PlayerObject.GetComponent<HikerController>();
+                var obj = nm != null && nm.LocalClient != null ? nm.LocalClient.PlayerObject : null;
+                if (obj == null) { mineObject = null; mine = null; return null; }
+                if (!ReferenceEquals(obj, mineObject) || mine == null)
+                {
+                    mineObject = obj;
+                    mine = obj.GetComponent<HikerController>();
+                }
+                return mine;
             }
         }
+        static NetworkObject mineObject;
+        static HikerController mine;
 
         /// <summary>0 at dusk, 1 in full night: drives light, fog, film and the forest sounds.</summary>
         public static float Darkness { get; private set; }
@@ -43,10 +68,9 @@ namespace Height1079.Runtime
         static void Boot()
         {
             if (Object.FindFirstObjectByType<NetworkManager>() != null) return;
-            Application.targetFrameRate = 120;
-            // the night is lit by a handful of small lights (torches, fire, stove): keep them per-pixel with shadows close by
-            QualitySettings.pixelLightCount = Mathf.Max(QualitySettings.pixelLightCount, 6);
-            QualitySettings.shadowDistance = Mathf.Max(QualitySettings.shadowDistance, 45f);
+            // every knob that trades looks for frames, remembered between runs (Quality). It used to be two lines of
+            // Mathf.Max here, which meant the game could raise the machine's quality level but never lower it.
+            Quality.Apply();
             LoadPlace();
             BuildNetwork();
             Hud = HudController.Create();
@@ -69,19 +93,34 @@ namespace Height1079.Runtime
         {
             if (place == World.Current && placeObjects.Count > 0) return;
             if (NetworkManager.Singleton != null && (NetworkManager.Singleton.IsListening || NetworkManager.Singleton.IsConnectedClient)) return;
+            // the height grid first. Loading it is the one step here that can fail — a world the editor never
+            // generated — and it used to be taken after the old place had already been torn down and World.Current
+            // moved, which left the new mountain standing on the old one's heights.
+            var was = World.Current;
             World.Current = place;
+            HeightField dem;
+            try { dem = TerrainBuilder.LoadDem(); }
+            catch (System.IO.FileNotFoundException e)
+            {
+                World.Current = was;
+                Debug.LogError("1079: " + e.Message);
+                return;
+            }
             foreach (var go in placeObjects) if (go != null) Object.Destroy(go);
             placeObjects.Clear();
             foreach (var go in placeExtras) if (go != null) Object.Destroy(go);
             placeExtras.Clear();
             Forest.Forget();
-            LoadPlace();
+            LoadPlace(dem);
         }
 
         /// <summary>Loads the height grid of the active place, builds its world and points the menu camera at it.</summary>
-        static void LoadPlace()
+        static void LoadPlace(HeightField loaded = null)
         {
-            Dem = TerrainBuilder.LoadDem();
+            Dem = loaded ?? TerrainBuilder.LoadDem();
+            // shadows, grass and per-pixel lights are set per place: six pixel lights is a night number, and the day
+            // was paying for it (Quality)
+            Quality.Apply();
             var before = new HashSet<GameObject>(SceneManager.GetActiveScene().GetRootGameObjects());
             BuildWorld();
             foreach (var go in SceneManager.GetActiveScene().GetRootGameObjects())
@@ -192,7 +231,7 @@ namespace Height1079.Runtime
 
         public static void Host(string name)
         {
-            PlayerName = string.IsNullOrWhiteSpace(name) ? "Путник" : name.Trim();
+            PlayerName = CleanName(name);
             var transport = network.GetComponent<UnityTransport>(); network.NetworkConfig.NetworkTransport = transport;
             transport.SetConnectionData("0.0.0.0", 7777, "0.0.0.0");
             if (network.StartHost()) Hud.ShowMenu(false); else Hud.SetStatus("Не удалось открыть порт 7777.");
@@ -218,7 +257,7 @@ namespace Height1079.Runtime
 
         public static void Join(string name, string address)
         {
-            PlayerName = string.IsNullOrWhiteSpace(name) ? "Путник" : name.Trim();
+            PlayerName = CleanName(name);
             var transport = network.GetComponent<UnityTransport>(); network.NetworkConfig.NetworkTransport = transport;
             transport.SetConnectionData(string.IsNullOrWhiteSpace(address) ? "127.0.0.1" : address.Trim(), 7777);
             if (network.StartClient()) { Hud.ShowMenu(false); Hud.SetStatus("Подключаемся…"); } else Hud.SetStatus("Не удалось подключиться.");

@@ -28,19 +28,46 @@ namespace Height1079.Runtime
             var terrain = go.GetComponent<Terrain>();
             var mat = Resources.Load<Material>("World/Materials/Terrain");
             if (mat != null) terrain.materialTemplate = mat;
-            terrain.drawInstanced = false;
+            // one instanced mesh for all 4 096 patches of the height map instead of 4 096 draws, and the height read
+            // in the vertex shader
+            terrain.drawInstanced = true;
             terrain.heightmapPixelError = World.IsElbrus ? 6f : 3f;
-            terrain.basemapDistance = World.IsElbrus ? 2200f : 350f;
-            terrain.treeDistance = World.IsElbrus ? 900f : 1400f;
+            // the full four-layer splat, and how far it reaches. It used to run to 2.2 km because the base map behind
+            // it is one texel to twelve metres on a 12.3 km terrain and the distance turned to mush; the base map is
+            // 2048 now (ElbrusImporter.BaseMapRes), so the expensive shader can stop where it is actually looked at.
+            terrain.basemapDistance = World.IsElbrus ? 650f : 350f;
             terrain.treeMaximumFullLODCount = 400;
             terrain.treeLODBiasMultiplier = 1f;
             terrain.drawTreesAndFoliage = true;
-            // grass on the Azau meadows: a short draw distance, it is only there where the ground is green anyway
-            terrain.detailObjectDistance = World.IsElbrus ? 95f : 60f;
-            terrain.detailObjectDensity = 1f;
-            terrain.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.TwoSided;
+            // a terrain that casts its shadow two-sided is rasterised twice into every cascade, and it is the largest
+            // mesh in the frame. An honest height field has no thin walls to leak light through.
+            terrain.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.On;
+            ApplyQuality(terrain);
+            // one subscription, whichever terrain is current: -= on a handler that is not subscribed does nothing,
+            // and a place switch leaves the old terrain destroyed behind us
+            Quality.Changed -= OnQualityChanged;
+            Quality.Changed += OnQualityChanged;
+            live = terrain;
             if (World.IsElbrus) ReportGround(data);
             return terrain;
+        }
+
+        /// <summary>The terrain this session is drawing, so a change of settings reaches it without a restart.</summary>
+        static Terrain live;
+
+        static void OnQualityChanged()
+        {
+            if (live == null) { Quality.Changed -= OnQualityChanged; live = null; return; }
+            ApplyQuality(live);
+        }
+
+        /// <summary>The three distances the player pays for, straight from <see cref="Quality"/>. Grass is the one
+        /// that decides the frame rate on the Azau meadow: it is the only place in the game that has any.</summary>
+        static void ApplyQuality(Terrain terrain)
+        {
+            terrain.treeDistance = Quality.TreeDistance(World.IsElbrus);
+            terrain.detailObjectDistance = Quality.DetailDistance;
+            terrain.detailObjectDensity = Quality.DetailDensity;
         }
 
         /// <summary>What the terrain thinks is under the visitor's feet at Azau. The southern slope has no snow at 2 350 m,

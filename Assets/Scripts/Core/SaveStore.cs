@@ -76,8 +76,11 @@ namespace Height1079.Core
                     w.Write(save.Text);
                     w.Flush();
                 }
-                if (File.Exists(path)) File.Delete(path);
-                File.Move(tmp, path);
+                // no window in which the slot has no file at all — which is what delete-then-move used to open, and
+                // what this class promises it never does. File.Replace swaps the contents in one step; the three-
+                // argument File.Move that would do the same is .NET Standard 2.1 and Unity's Mono is 2.0.
+                if (File.Exists(path)) File.Replace(tmp, path, null);
+                else File.Move(tmp, path);
                 Prune(dir, save.Place);
                 return path;
             }

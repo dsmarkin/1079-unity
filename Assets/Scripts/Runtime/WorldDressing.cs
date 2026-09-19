@@ -28,7 +28,25 @@ namespace Height1079.Runtime
             float uphill = TerrainBuilder.Height(dem, t.X - dx * 1.1f, t.Z - dz * 1.1f);
             var rot = Quaternion.LookRotation(new Vector3(ex, 0, ez), Vector3.up);
             var tent = Spawn("Sites/Site_Tent_1959", new Vector3(t.X, uphill - .05f, t.Z), rot, sites);
-            if (tent != null && Vector3.Dot(rot * Vector3.right, new Vector3(dx, 0, dz)) < 0) tent.transform.localScale = new Vector3(-1, 1, 1);
+            // the cuts belong on the downslope side, and which side that is depends on the ground: the tent is
+            // mirrored when it is not. PhysX cannot hold a collider on a negatively scaled object — it says so in the
+            // player log and forces the box positive — so the box (symmetric in x, centred on the ridge, so a mirror
+            // does not move it at all) goes onto a child whose own mirror cancels the parent's.
+            if (tent != null && Vector3.Dot(rot * Vector3.right, new Vector3(dx, 0, dz)) < 0)
+            {
+                var box = tent.GetComponent<BoxCollider>();
+                if (box != null)
+                {
+                    var holder = new GameObject("Solid");
+                    holder.transform.SetParent(tent.transform, false);
+                    holder.transform.localScale = new Vector3(-1, 1, 1);
+                    var copy = holder.AddComponent<BoxCollider>();
+                    copy.center = box.center;
+                    copy.size = box.size;
+                    Object.Destroy(box);
+                }
+                tent.transform.localScale = new Vector3(-1, 1, 1);
+            }
 
             // night camp of 31 Jan as on the morning of 1 Feb: tent with its entrance toward the fire, kitchen, labaz being dug
             var l = WorldData.Labaz;

@@ -69,7 +69,10 @@ namespace Height1079.EditorTools.World
             data.terrainLayers = layers;
             data.alphamapResolution = Alpha;
             data.SetAlphamaps(0, 0, splat);
-            data.baseMapResolution = 1024;
+            // 2048 on a 12.3 km terrain is six metres to a texel instead of twelve. That is what lets the runtime stop
+            // the expensive four-layer splat at 650 m instead of 2.2 km (TerrainBuilder.Build) without the distance
+            // turning to mush: the base map is what is seen beyond it.
+            data.baseMapResolution = 2048;
             Report(data, "после SetAlphamaps");
 
             EditorUtility.DisplayProgressBar("1079 Эльбрус", "Сосновый лес Баксана и валуны", .85f);

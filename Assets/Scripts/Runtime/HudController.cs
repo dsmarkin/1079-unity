@@ -28,6 +28,7 @@ namespace Height1079.Runtime
         float workStarted, workNeeded;
         WorkKind workKind;
         Text debug;
+        float debugNext;
         // navigation
         RectTransform miniRoot, miniMap, miniArrow, bigRoot, bigMark;
         RawImage miniImage, bigImage;
@@ -72,6 +73,7 @@ namespace Height1079.Runtime
             BuildPack();
             BuildPlan();
             BuildProtocol();
+            BuildSettings();
             ShowMenu(true);
         }
 
@@ -193,7 +195,10 @@ namespace Height1079.Runtime
             PanelImage(menu.GetComponent<RectTransform>(), new Color(.07f, .14f, .18f, .92f));
             var card = Centered("Card", menu.transform, new Vector2(440, 700));
             PanelImage(card, new Color(.05f, .1f, .14f, .85f));
-            kicker = Label("Kicker", card, new Vector2(32, -30), new Vector2(380, 20), 12, new Color(.71f, .79f, .81f));
+            kicker = Label("Kicker", card, new Vector2(32, -30), new Vector2(256, 20), 12, new Color(.71f, .79f, .81f));
+            // the quality knobs, reachable before a night starts as well as inside one (F10)
+            ButtonUi("Settings", card, new Vector2(300, -32), new Vector2(108, 26), "НАСТРОЙКИ",
+                new Color(.13f, .23f, .27f), Ink, () => ShowSettings(!SettingsShown)).GetComponentInChildren<Text>().fontSize = 12;
             Label("Title", card, new Vector2(32, -60), new Vector2(380, 90), 84, Ink, TextAnchor.UpperLeft, FontStyle.Bold).text = "1079";
             Label("Sub", card, new Vector2(34, -150), new Vector2(380, 24), 15, Ink).text = "В Ы С О Т А";
             lede = Label("Lede", card, new Vector2(32, -190), new Vector2(380, 60), 15, new Color(.74f, .8f, .83f));
@@ -766,6 +771,7 @@ namespace Height1079.Runtime
         public void ShowMenu(bool on)
         {
             menu.SetActive(on); hud.SetActive(!on); protocol.SetActive(false); protocolShown = false; shownEvents = 0; events.text = "";
+            if (settingsCard != null) settingsCard.gameObject.SetActive(false);
             ResetPlan();
             // coming back from a run there may be a save that was not there when the menu was last up
             if (on) RefreshContinue();
@@ -785,14 +791,20 @@ namespace Height1079.Runtime
 
         void Update()
         {
+            // the settings sheet answers F10 in the menu too, so it comes before the early return
+            TickSettings();
             var s = NightSession.Instance;
             var me = Bootstrap.LocalHiker;
             if (menu.activeSelf || s == null || me == null) return;
             float x = me.transform.position.x, z = me.transform.position.z;
-            if (debug != null && Camera.main != null)
+            // the debug strip is fifteen substitutions and two height samples, and because the fps in it changes every
+            // frame it used to mark the whole canvas dirty every frame with it. Four times a second is as fast as a
+            // number can be read anyway.
+            fps = Mathf.Lerp(fps, 1f / Mathf.Max(Time.unscaledDeltaTime, 1e-4f), .05f);
+            if (debug != null && Camera.main != null && Time.unscaledTime >= debugNext)
             {
+                debugNext = Time.unscaledTime + .25f;
                 var c = Camera.main.transform.position;
-                fps = Mathf.Lerp(fps, 1f / Mathf.Max(Time.unscaledDeltaTime, 1e-4f), .05f);
                 debug.text = $"{fps:0} fps · cam {c.x:0},{c.y:0},{c.z:0} · ground under cam {TerrainBuilder.Height(Bootstrap.Dem, c.x, c.z):0} · me {x:0},{me.transform.position.y:0},{z:0} · ground {TerrainBuilder.Height(Bootstrap.Dem, x, z):0} · fog {RenderSettings.fogDensity:0.0000} · v {me.Speed:0.0} · keys {Controls.Debug} · {(me.FirstPerson ? "1st" : "3rd")} · grounded {me.Grounded}";
             }
             clock.text = World.IsElbrus ? $"{me.transform.position.y:0} м" : SurvivalRules.NightTime(s.Elapsed.Value);
@@ -840,8 +852,12 @@ namespace Height1079.Runtime
                     : "Ночь комнаты продолжается: " + string.Join(", ", others.ConvertAll(p => $"{p.name} — {(p.outcome != Outcome.None ? SurvivalRules.Describe(p.outcome).Title.ToLowerInvariant() : p.online ? "ещё на склоне" : "без связи")}")) + ".";
                 if (shownEvents != s.Events.Count)
                 {
+                    // the last two hundred lines, not all of them: one uGUI Text is capped at 65 535 vertices, and a
+                    // long night walks straight into that and then logs an error every frame instead of drawing
                     var eb = new StringBuilder();
-                    for (int i = 0; i < s.Events.Count; i++) eb.Append(i + 1).Append(". ").Append(SurvivalRules.NightTime(s.Events[i].Time)).Append(" — ").Append(s.Events[i].Text).Append('\n');
+                    int from = Mathf.Max(0, s.Events.Count - 200);
+                    if (from > 0) eb.Append("… раньше — ещё ").Append(from).Append(" записей\n");
+                    for (int i = from; i < s.Events.Count; i++) eb.Append(i + 1).Append(". ").Append(SurvivalRules.NightTime(s.Events[i].Time)).Append(" — ").Append(s.Events[i].Text).Append('\n');
                     events.text = eb.ToString(); shownEvents = s.Events.Count;
                 }
             }
