@@ -114,10 +114,15 @@ namespace Height1079.Runtime
             || Down(Key.F3)
 #endif
             ;
-        /// <summary>Эльбрус: сесть в кабину, кресло или ратрак и выйти из них. E, дубль F10 (буквы не доходят при автоматизации).</summary>
-        public static bool Board => LegacyDown(KeyCode.E) || LegacyDown(KeyCode.F10)
+        /// <summary>Эльбрус: сесть в кабину, кресло или ратрак и выйти из них. E, дубль Enter (буквы не доходят при
+        /// автоматизации).
+        ///
+        /// Дубль был на F10 — и это была настоящая поломка, а не неудобство: F10 с тех пор открывает лист настроек
+        /// (<see cref="Settings"/>), так что одно нажатие у станции делало два дела сразу — поднимало лист и сажало
+        /// в кабину, а на ходу ещё и высаживало из неё посреди пролёта. Enter свободен и человеку понятен.</summary>
+        public static bool Board => LegacyDown(KeyCode.E) || LegacyDown(KeyCode.Return) || LegacyDown(KeyCode.KeypadEnter)
 #if ENABLE_INPUT_SYSTEM
-            || Down(Key.E) || Down(Key.F10)
+            || Down(Key.E) || Down(Key.Enter) || Down(Key.NumpadEnter)
 #endif
             ;
         /// <summary>Эльбрус: ускорить время, пока едешь (F11; F8 и F9 крутят взгляд).</summary>
