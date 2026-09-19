@@ -44,9 +44,9 @@ namespace Height1079.Puppet
         public static float CuffV => 1f - (PalmEnd + 2f * PalmHalf + Cuff) / ArmTile;
         /// <summary>The palm is centred on the hand point the figure solves for, and runs this far either side of it
         /// along the forearm's line; beyond that a dome this long closes it, and the fingers come out of the dome.</summary>
-        public const float PalmHalf = .055f, PalmEnd = .025f;
+        public const float PalmHalf = .055f, PalmEnd = .012f;
         /// <summary>How thin the palm is across against how wide: a hand is a flat thing.</summary>
-        public const float PalmThin = .55f;
+        public const float PalmThin = .50f;
 
         readonly PuppetMesh buf = new PuppetMesh();
         readonly List<PuppetMesh.Section> rings = new List<PuppetMesh.Section>(40);

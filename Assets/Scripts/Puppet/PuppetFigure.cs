@@ -610,11 +610,11 @@ namespace Height1079.Puppet
         /// try, at 0.31 m, was two palms the size of dinner plates. So the shoulders are brought forward under the
         /// eye instead; nothing above the elbow is ever in the picture, and the arm's length is what it was.</summary>
         const float EyeShoulderOut = .20f, EyeShoulderDown = .34f, EyeShoulderAhead = .16f;
-        const float EyeHandOut = .28f, EyeHandDown = .23f, EyeHandAhead = .46f;
+        const float EyeHandOut = .28f, EyeHandDown = .20f, EyeHandAhead = .46f;
         /// <summary>Which way the palms face: toward each other, tipped this many degrees down. Palms flat down
         /// showed the eye four fingers laid out toward the horizon; a hand carried with the palm in and the fingers
         /// loosely closed is seen from the thumb side, the way a person sees their own hands walking.</summary>
-        const float EyePalmDown = 35f;
+        const float EyePalmDown = 60f;
         /// <summary>How far, m, a hand may lag behind where the eye wants it. The lag is what makes the hands
         /// yours rather than painted on the lens — they hang back a fraction when the head turns and bob against
         /// the head's bob — and the cap keeps a fast turn from dragging them out of the picture.</summary>
