@@ -188,6 +188,8 @@ namespace Height1079.Puppet
         public float Recovery = 20f, RestDelay = .6f;
         /// <summary>Seconds the hands refuse to close after they have been emptied.</summary>
         public float ExhaustLock = 1.4f;
+        /// <summary>The most bonus strength (<c>Puppet.Extra</c>) food can pile on top of the bar.</summary>
+        public float ExtraCap = 50f;
 
         // ─── solver ─────────────────────────────────────────────────────────────────────────────────────────────────
         /// <summary>Physics steps per second. Joints holding 70 kg need more than the default fifty.</summary>

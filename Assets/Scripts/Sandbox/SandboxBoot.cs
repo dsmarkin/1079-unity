@@ -20,6 +20,8 @@ namespace Height1079.Sandbox
         public Puppet.Puppet Body { get; private set; }
         public PuppetTuning Tuning = new PuppetTuning();
         public Camera Cam { get; private set; }
+        /// <summary>Hunger, cold and sleep, biting the one bar (<see cref="SandboxVitals"/>).</summary>
+        public SandboxVitals Vitals { get; private set; }
 
         SandboxCameraRig rig;
         bool cursorFree;
@@ -104,9 +106,10 @@ namespace Height1079.Sandbox
             rig = gameObject.AddComponent<SandboxCameraRig>();
             rig.Setup(Cam);
             rig.Bind(Body);
+            Vitals = gameObject.AddComponent<SandboxVitals>();
             gameObject.AddComponent<SandboxHud>();
-            // the panel's list of keys is written into the HUD and does not know about these yet; say them once
-            SandboxHud.Say("V, F7, F3 — вид (сейчас от первого лица) · F10 — покачивание головы · Tab, 0 — стенды, включая сугробы");
+            // the keys are not written on the screen any more; say the two worth knowing once
+            SandboxHud.Say("F1 — настройки тела · E — съесть шоколадку · V — вид · Tab — следующий стенд · F9 — в меню");
             Cursor.lockState = CursorLockMode.Locked; Cursor.visible = false;
             // `-selftest` drives the body by script and quits: the only way to check physics in a batch build
             if (SandboxSelfTest.Requested) gameObject.AddComponent<SandboxSelfTest>();
@@ -201,6 +204,7 @@ namespace Height1079.Sandbox
 #if ENABLE_INPUT_SYSTEM
             if (Down(Key.Escape)) { cursorFree = !cursorFree; Cursor.lockState = cursorFree ? CursorLockMode.None : CursorLockMode.Locked; Cursor.visible = cursorFree; }
             if (Down(Key.F1)) SandboxHud.Panel = !SandboxHud.Panel;
+            if (Down(Key.E)) Vitals.Eat();
             if (Down(Key.F2)) Spawn();
             // the game's key for this is V, read by physical position (a Russian layout has no V where V is), with F7
             // as the spare that reaches the game under automation. F3 was the sandbox's own and stays.
