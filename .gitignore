@@ -36,3 +36,6 @@ Assets/Scenes.meta
 Tools/terrain/__pycache__/
 Tools/terrain/*.bin
 Tools/terrain/*.npy
+
+# Unity meta files are deliberately not stored: everything generated lives locally (CLAUDE.md §7)
+*.meta
