@@ -22,6 +22,11 @@ namespace Height1079.Core
         // the folded sheet a guide hands out on the first evening (see Programme). It weighs nothing, it does nothing
         // and it is the whole tutorial of the game: nine days, twenty-two lines and the reason for every one of them.
         ProgrammeSheet,
+        // the tube flashlight on two round cells (docs/ITEMS.md). In the night game it is not a thing in the rucksack
+        // but one of the three things always at hand (Runtime.Equipment); in the sandbox it is an item like any
+        // other, carried in a slot, and this id is what the sandbox's kit calls it. Appended, as every new item is:
+        // the number goes over the network and into saves.
+        Flashlight,
     }
 
     public enum ItemKind : byte { Food, Gear, Clothes, Fuel }
@@ -140,6 +145,8 @@ namespace Height1079.Core
             new ItemSpec(ItemId.Burner, "Горелка с газом", .6f, 1.5f, ItemKind.Gear),
             // one sheet of paper folded in four: the programme of the ascent, handed out with the rucksack
             new ItemSpec(ItemId.ProgrammeSheet, "Программа восхождения (лист)", .02f, .05f, ItemKind.Gear),
+            // nickel tube, two cells inside: about the weight of the cells
+            new ItemSpec(ItemId.Flashlight, "Фонарик", .35f, .6f, ItemKind.Gear),
         };
 
         public static ItemSpec Spec(ItemId id) => (int)id < specs.Length ? specs[(int)id] : specs[0];

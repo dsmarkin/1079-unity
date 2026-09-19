@@ -1,7 +1,16 @@
 {
   "name": "Height1079.Runtime",
   "rootNamespace": "Height1079.Runtime",
-  "references": ["Height1079.Core", "Unity.Netcode.Runtime", "Unity.Collections", "Unity.Networking.Transport", "glTFast", "Unity.InputSystem", "Height1079.Snow"],
+  "references": [
+    "Height1079.Core",
+    "Unity.Netcode.Runtime",
+    "Unity.Collections",
+    "Unity.Networking.Transport",
+    "glTFast",
+    "Unity.InputSystem",
+    "Height1079.Snow",
+    "Height1079.Torchlight"
+  ],
   "includePlatforms": [],
   "excludePlatforms": [],
   "allowUnsafeCode": false,

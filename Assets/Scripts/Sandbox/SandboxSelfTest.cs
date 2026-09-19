@@ -224,6 +224,31 @@ namespace Height1079.Sandbox
                 $"поднялся на {lifted:0.00} м при заданных {t.JumpHeight:0.00} м");
             Check(body.Grounded && !body.Limp, "после прыжка снова на ногах", $"опора {body.GroundDistance:0.00} м");
 
+            // ── 10a. a tired man still jumps ───────────────────────────────────────────────────────────────────────
+            // The bar bitten down to three of a hundred: a run is still allowed (it holds down to one) and the jump
+            // used to cost eight outright, so this was the body that could run and could not jump — a space bar
+            // that did nothing. Now it jumps what it can pay for, which is lower.
+            body.Ceiling = .03f;
+            yield return new WaitForSeconds(.6f);          // the clamp brings the bar down to the ceiling
+            float tiredY = body.Torso.position.y;
+            float tiredStrength = body.Strength;
+            body.Drive(new PuppetInput { Look = Quaternion.identity, Jump = true });
+            yield return null;
+            float tiredApex = tiredY;
+            for (float w = 0f; w < 1.5f; w += Time.deltaTime)
+            {
+                body.Drive(new PuppetInput { Look = Quaternion.identity });
+                tiredApex = Mathf.Max(tiredApex, body.Torso.position.y);
+                yield return null;
+            }
+            body.Drive(PuppetInput.Idle);
+            body.Ceiling = 1f;
+            float tiredLift = tiredApex - tiredY;
+            Check(tiredStrength < t.JumpCost, "полоска откушена ниже цены прыжка", $"сил {tiredStrength:0.0} при цене {t.JumpCost:0}");
+            Check(tiredLift > t.JumpHeight * .35f, "уставшее тело всё равно прыгает", $"поднялось на {tiredLift:0.00} м");
+            Check(tiredLift < lifted, "но ниже, чем со свежими силами", $"{tiredLift:0.00} против {lifted:0.00} м");
+            yield return new WaitForSeconds(1.2f);
+
             // ── 11. the body faces the camera, never the sticks ────────────────────────────────────────────────────
             // A man asked to walk left keeps looking where the player looks and goes sideways; he does not swing round
             // to face his own feet. That is a fact about the physics and not about the drawing, so it can be measured:

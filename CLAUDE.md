@@ -83,6 +83,8 @@ Assets/
     Snow/      Height1079.Snow     — снег под ногами, общий для игры и песочницы: SnowPrints (отпечатки, утоптанный снег,
                                      облачка, карта троп и правило глубины), SnowPrintArt (картинки отпечатков). Только UnityEngine.
     Puppet/    Height1079.Puppet   — новое тело по образцу PEAK (капсула на пружине ног, фигура, одежда), пока живёт в песочнице.
+    Torchlight/ Height1079.Torchlight — луч фонаря (TorchBeam: свет, кука рефлектора, батарея и мерцание), общий для Equipment
+                                     игры и фонарика песочницы. Только UnityEngine.
     Sandbox/   Height1079.Sandbox  — песочница: полигон, снежное поле, камера и звук шагов для Puppet. Не видит Runtime.
     Steam/     Height1079.Steam    — лобби Steam, компилируется только с define STEAM_FACEPUNCH.
   Tests/EditMode/                  — NUnit. CoreTests/CampaignTests/PrologueTests — только Core; MenkTests — Runtime (только в Unity).
@@ -121,6 +123,7 @@ docs/   — дизайн и данные (см. README).
 - **Пустой мир в сборке.** Первая сборка после правки скриптов приносила плеер, в котором большой `TextAsset` пуст: игра стартует с дефолтным небом, в `player.log` — `Mismatched serialization in the builtin class 'TextAsset'`. Перед сборкой `ProjectSetup.EnsureData` переимпортирует все `Assets/Resources/**/*.bytes` и сверяет размер с файлом на диске.
 - **Сборка всегда полная** (`BuildOptions.CleanBuildCache`), это около полуминуты, и идёт в два прохода: первая сессия Unity (`ProjectSetup.Prepare`) генерирует мир, вторая собирает плеер.
 - **Процесс Unity на проект один.** Пока редактор открыт, batch-скрипты не запустятся.
+- **Имя сборки не должно совпадать с типом ядра.** Сборка `Height1079.Gear` ломала Runtime: там `Gear` — enum из `Core/Ascent.cs`, а пространство имён-сосед побеждает `using Height1079.Core`. Прежде чем заводить сборку, проверь `grep -rn "enum X\|class X" Assets/Scripts/Core`.
 - **Тесты с UnityEngine в dotnet не собираются.** Новый тест, которому нужен Runtime или UnityEngine, добавь в `Exclude` в `Tools/CoreTests/CoreTests.csproj`.
 
 ## 5. Как работаем вместе (коммиты)

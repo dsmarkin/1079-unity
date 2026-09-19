@@ -1,4 +1,6 @@
+using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.EventSystems;
 using UnityEngine.UI;
 using Height1079.Core;
 using Height1079.Puppet;
@@ -9,8 +11,10 @@ namespace Height1079.Sandbox
     ///
     /// Bottom left, one bar of strength. The pale part is what the body has; hunger, cold and sleep are pieces bitten
     /// off its right end, each in its own colour with its name over it; a bar of chocolate sticks a green piece on
-    /// past the end, and that piece goes first. Bottom right, three hands' worth of slots and the rucksack. All of
-    /// it is drawn from code on a canvas, no assets.
+    /// past the end, and that piece goes first. Bottom right, three slots and the rucksack: the slots show what is
+    /// in them and which one is in the hands, Tab opens the rucksack as a list you click things out of and back
+    /// into (<see cref="SandboxGear"/>, <see cref="Kit"/>). When the bar has been eaten to nothing the screen goes
+    /// dark and offers a new day. All of it is drawn from code on a canvas, no assets.
     ///
     /// The panel of every number the body is made of is still here, but off the screen: F1 brings it up. It is a
     /// tool for finding the feel of the body, not a thing the player looks at.</summary>
@@ -29,6 +33,9 @@ namespace Height1079.Sandbox
         static readonly Color RimColour = new Color(1f, 1f, 1f, .92f);
         static readonly Color Cream = new Color(.98f, .94f, .80f);
         static readonly Color Bonus = new Color(.56f, .86f, .40f);
+        /// <summary>The rim of the slot that is in the hands, and of the rucksack while it is open.</summary>
+        static readonly Color Chosen = new Color(1f, .90f, .55f, 1f);
+        static readonly Color Ink = new Color(.12f, .10f, .08f);
         static Color BiteColour(Bite b)
         {
             switch (b)
@@ -56,8 +63,26 @@ namespace Height1079.Sandbox
         RectTransform extraFrame, extraFill;
         Text toast;
 
-        // ── the slots ───────────────────────────────────────────────────────────────────────────────────────────────
+        // ── the slots and the rucksack ──────────────────────────────────────────────────────────────────────────────
         const float Slot = 76f, SlotGap = 10f, PackGap = 26f;
+        readonly RectTransform[] slotFrames = new RectTransform[Kit.Slots];
+        readonly Image[] slotRims = new Image[Kit.Slots], slotBacks = new Image[Kit.Slots];
+        readonly Text[] slotNames = new Text[Kit.Slots];
+        readonly Button[] slotButtons = new Button[Kit.Slots];
+        Image packRim;
+        /// <summary>The rucksack window (Tab): a list of what is inside, rebuilt when the contents change.</summary>
+        const float PackW = 380f, RowH = 26f;
+        RectTransform packPanel, packRows;
+        Text packTitle, packLoad, packHint;
+        readonly List<GameObject> packRowObjects = new List<GameObject>();
+        string packShown = "";
+
+        // ── the end of the day ──────────────────────────────────────────────────────────────────────────────────────
+        RectTransform deathPanel;
+        Image deathShade, deathButtonImage;
+        Text deathTitle, deathLine, deathButtonText;
+        Button deathButton;
+        float deathSince = -1f;
 
         void Start()
         {
@@ -65,7 +90,7 @@ namespace Height1079.Sandbox
             var boot = SandboxBoot.Instance;
             // drawn by the sandbox camera, not as an overlay: the overlay never reaches a camera render, and the
             // shot script photographs the range through the camera, so this is the only way the bar is in the picture
-            canvas = new GameObject("HUD", typeof(Canvas), typeof(CanvasScaler)).GetComponent<Canvas>();
+            canvas = new GameObject("HUD", typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster)).GetComponent<Canvas>();
             canvas.transform.SetParent(transform, false);
             canvas.renderMode = RenderMode.ScreenSpaceCamera;
             canvas.worldCamera = boot.Cam;
@@ -76,9 +101,18 @@ namespace Height1079.Sandbox
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
             scaler.referenceResolution = new Vector2(1600, 900);
             scaler.matchWidthOrHeight = .5f;
+            // the rucksack's rows and the end-of-day button are buttons, and buttons want an event system. The
+            // same one the game's HUD makes; the project handles both input backends, so the standard module clicks.
+            if (FindFirstObjectByType<EventSystem>() == null)
+            {
+                var es = new GameObject("EventSystem", typeof(EventSystem), typeof(StandaloneInputModule));
+                es.transform.SetParent(transform, false);
+            }
             BuildBar();
             BuildSlots();
+            BuildPack();
             toast = Label("toast", canvas.transform, new Vector2(.5f, 1f), new Vector2(0f, -22f), new Vector2(900f, 24f), 14, new Color(1f, 1f, 1f, .85f), TextAnchor.MiddleCenter);
+            BuildDeath();       // last, so it is drawn over everything
         }
 
         void BuildBar()
@@ -123,15 +157,29 @@ namespace Height1079.Sandbox
         void BuildSlots()
         {
             // three slots, right to left, then the rucksack further left
-            for (int i = 0; i < 3; i++)
+            for (int i = 0; i < Kit.Slots; i++)
             {
                 float x = -Margin - Slot - (2 - i) * (Slot + SlotGap);
-                var slot = SlotFrame("slot-" + (i + 1), new Vector2(x, Margin));
+                var slot = SlotFrame("slot-" + (i + 1), new Vector2(x, Margin), out slotRims[i], out slotBacks[i]);
+                slotFrames[i] = slot;
                 var n = Label("n", slot, new Vector2(0f, 1f), new Vector2(8f, -5f), new Vector2(20f, 16f), 12, new Color(1f, 1f, 1f, .6f), TextAnchor.UpperLeft, FontStyle.Bold);
                 n.rectTransform.pivot = new Vector2(0f, 1f);
                 n.text = (i + 1).ToString();
+                // what is in it, by name: there are no pictures of things yet, and a name in two lines reads fine
+                slotNames[i] = Label("item", slot, new Vector2(.5f, 0f), new Vector2(0f, 6f), new Vector2(Slot - 10f, 36f), 11, Color.white, TextAnchor.LowerCenter, FontStyle.Bold);
+                slotNames[i].rectTransform.pivot = new Vector2(.5f, 0f);
+                slotNames[i].horizontalOverflow = HorizontalWrapMode.Wrap;
+                slotNames[i].text = "";
+                // with the rucksack open the slot is a button: click, and its thing goes back into the sack
+                int index = i;
+                slotRims[i].raycastTarget = true;
+                slotButtons[i] = slot.gameObject.AddComponent<Button>();
+                slotButtons[i].targetGraphic = slotRims[i];
+                slotButtons[i].transition = Selectable.Transition.None;
+                slotButtons[i].onClick.AddListener(() => OnSlotClicked(index));
+                slotButtons[i].interactable = false;
             }
-            var pack = SlotFrame("pack", new Vector2(-Margin - Slot - 3f * (Slot + SlotGap) - PackGap + SlotGap, Margin));
+            var pack = SlotFrame("pack", new Vector2(-Margin - Slot - 3f * (Slot + SlotGap) - PackGap + SlotGap, Margin), out packRim, out _);
             // the rucksack, drawn: a body with a flap over it and a strap either side
             var body = Rect("body", pack, new Vector2(.5f, .5f), new Vector2(0f, -4f), new Vector2(30f, 36f));
             body.pivot = new Vector2(.5f, .5f);
@@ -143,16 +191,137 @@ namespace Height1079.Sandbox
             strapL.pivot = new Vector2(.5f, .5f); Rounded(strapL, new Color(1f, 1f, 1f, .35f), 2.5f);
             var strapR = Rect("strap-r", pack, new Vector2(.5f, .5f), new Vector2(19f, -2f), new Vector2(5f, 26f));
             strapR.pivot = new Vector2(.5f, .5f); Rounded(strapR, new Color(1f, 1f, 1f, .35f), 2.5f);
+            // a click on the rucksack is Tab
+            packRim.raycastTarget = true;
+            var open = pack.gameObject.AddComponent<Button>();
+            open.targetGraphic = packRim;
+            open.transition = Selectable.Transition.None;
+            open.onClick.AddListener(() => SandboxBoot.Instance?.TogglePack());
         }
 
-        RectTransform SlotFrame(string name, Vector2 pos)
+        RectTransform SlotFrame(string name, Vector2 pos, out Image rim, out Image back)
         {
             var slot = Rect(name, canvas.transform, new Vector2(1f, 0f), pos, new Vector2(Slot, Slot));
             slot.pivot = new Vector2(0f, 0f);
-            Rounded(slot, RimColour, 12f);
-            var back = Rect("back", slot, Vector2.zero, new Vector2(Rim, Rim), new Vector2(Slot - 2f * Rim, Slot - 2f * Rim));
-            Rounded(back, new Color(0f, 0f, 0f, .55f), 12f - Rim);
+            rim = Rounded(slot, RimColour, 12f);
+            var inner = Rect("back", slot, Vector2.zero, new Vector2(Rim, Rim), new Vector2(Slot - 2f * Rim, Slot - 2f * Rim));
+            back = Rounded(inner, new Color(0f, 0f, 0f, .55f), 12f - Rim);
             return slot;
+        }
+
+        /// <summary>The rucksack window. Anchored to the right, above the slots, so the two read as one thing: the
+        /// sack, and what is at hand under it.</summary>
+        void BuildPack()
+        {
+            packPanel = Rect("rucksack", canvas.transform, new Vector2(1f, .5f), new Vector2(-Margin, 40f), new Vector2(PackW, 400f));
+            Rounded(packPanel, RimColour, 14f);
+            var back = Rect("back", packPanel, Vector2.zero, new Vector2(Rim, Rim), Vector2.zero);
+            back.anchorMax = Vector2.one; back.offsetMin = new Vector2(Rim, Rim); back.offsetMax = new Vector2(-Rim, -Rim);
+            Rounded(back, new Color(0f, 0f, 0f, .80f), 14f - Rim);
+            packTitle = Label("title", packPanel, new Vector2(0f, 1f), new Vector2(18f, -14f), new Vector2(PackW - 36f, 24f), 18, Cream, TextAnchor.UpperLeft, FontStyle.Bold);
+            packTitle.text = "Ваш рюкзак";
+            packLoad = Label("load", packPanel, new Vector2(0f, 1f), new Vector2(18f, -40f), new Vector2(PackW - 36f, 18f), 12, new Color(1f, 1f, 1f, .7f), TextAnchor.UpperLeft);
+            packRows = Rect("rows", packPanel, new Vector2(0f, 1f), new Vector2(14f, -66f), new Vector2(PackW - 28f, 0f));
+            packHint = Label("hint", packPanel, new Vector2(.5f, 0f), new Vector2(0f, 10f), new Vector2(PackW - 30f, 32f), 11, new Color(1f, 1f, 1f, .6f), TextAnchor.LowerCenter);
+            packHint.horizontalOverflow = HorizontalWrapMode.Wrap;
+            packHint.text = "клик по вещи — в свободный слот · клик по слоту внизу — обратно в рюкзак · Tab — закрыть";
+            packPanel.gameObject.SetActive(false);
+        }
+
+        void RefreshPack(Kit kit)
+        {
+            packLoad.text = $"{kit.Pack.Litres:0.#} из {Backpack.CapacityLitres:0} л · {kit.Pack.Kg:0.0} кг · всего с руками {kit.Kg:0.0} кг";
+            var sb = new System.Text.StringBuilder();
+            foreach (var s in kit.Pack.Contents) sb.Append((int)s.Id).Append(':').Append(s.Amount).Append(':').Append(s.Wet).Append(';');
+            string sig = sb.ToString();
+            if (sig == packShown) return;
+            packShown = sig;
+            foreach (var go in packRowObjects) Destroy(go);
+            packRowObjects.Clear();
+            int n = kit.Pack.Contents.Count;
+            for (int i = 0; i < n; i++)
+            {
+                var item = kit.Pack.Contents[i];
+                var row = Rect("row-" + i, packRows, new Vector2(0f, 1f), new Vector2(0f, -i * RowH), new Vector2(PackW - 28f, RowH - 3f));
+                var bg = Rounded(row, new Color(1f, 1f, 1f, .22f), 6f);
+                bg.raycastTarget = true;
+                var b = row.gameObject.AddComponent<Button>();
+                b.targetGraphic = bg;
+                // the tint is multiplied onto the graphic and clamps at white, so the row is drawn pale and dimmed
+                // at rest, then let up to full under the mouse
+                var c = b.colors;
+                c.normalColor = new Color(.5f, .5f, .5f, 1f); c.selectedColor = c.normalColor;
+                c.highlightedColor = Color.white; c.pressedColor = new Color(1f, .95f, .8f, 1f);
+                c.fadeDuration = .08f;
+                b.colors = c;
+                int index = i;
+                b.onClick.AddListener(() => OnPackRowClicked(index));
+                var name = Label("name", row, new Vector2(0f, .5f), new Vector2(10f, 0f), new Vector2(PackW - 120f, RowH), 13, Color.white, TextAnchor.MiddleLeft);
+                name.text = item.Describe();
+                var kg = Label("kg", row, new Vector2(1f, .5f), new Vector2(-10f, 0f), new Vector2(80f, RowH), 12, new Color(1f, 1f, 1f, .65f), TextAnchor.MiddleRight);
+                kg.text = $"{item.Kg:0.0} кг";
+                packRowObjects.Add(row.gameObject);
+            }
+            if (n == 0)
+            {
+                var empty = Label("empty", packRows, new Vector2(0f, 1f), new Vector2(10f, 0f), new Vector2(PackW - 40f, RowH), 13, new Color(1f, 1f, 1f, .5f), TextAnchor.MiddleLeft);
+                empty.text = "пусто";
+                packRowObjects.Add(empty.gameObject);
+                n = 1;
+            }
+            packPanel.sizeDelta = new Vector2(PackW, Mathf.Min(66f + n * RowH + 48f, 820f));
+        }
+
+        void OnSlotClicked(int i)
+        {
+            var boot = SandboxBoot.Instance;
+            if (boot == null || boot.Gear == null || !boot.PackOpen) return;
+            var kit = boot.Gear.Kit;
+            if (kit.Slot(i).IsEmpty) { Say("слот " + (i + 1) + " пуст: щёлкни по вещи в рюкзаке, чтобы взять её сюда"); return; }
+            string name = kit.Slot(i).Describe();
+            if (kit.Stow(i)) Say(name + " — в рюкзак");
+            else Say("в рюкзаке нет места для: " + name);
+        }
+
+        void OnPackRowClicked(int index)
+        {
+            var boot = SandboxBoot.Instance;
+            if (boot == null || boot.Gear == null || !boot.PackOpen) return;
+            var kit = boot.Gear.Kit;
+            if (index < 0 || index >= kit.Pack.Contents.Count) return;
+            string name = kit.Pack.Contents[index].Describe();
+            int free = kit.FreeSlot();
+            if (free == Kit.Nothing) { Say("все три слота заняты: щёлкни по слоту, чтобы убрать вещь в рюкзак"); return; }
+            if (kit.Draw(index, free)) Say(name + " — в слот " + (free + 1));
+        }
+
+        /// <summary>The screen at the end of the day: dark, three words, and one button. It comes up over a couple
+        /// of seconds — the body has just gone down, and the words should arrive after the fall, not with it.</summary>
+        void BuildDeath()
+        {
+            deathPanel = Rect("end", canvas.transform, Vector2.zero, Vector2.zero, Vector2.zero);
+            deathPanel.anchorMin = Vector2.zero; deathPanel.anchorMax = Vector2.one;
+            deathPanel.offsetMin = Vector2.zero; deathPanel.offsetMax = Vector2.zero;
+            deathShade = Flat(deathPanel, new Color(0f, 0f, 0f, 0f));
+            deathShade.raycastTarget = true;        // takes every click, so nothing under it is clicked through it
+            deathTitle = Label("title", deathPanel, new Vector2(.5f, .5f), new Vector2(0f, 64f), new Vector2(1000f, 60f), 42, Cream, TextAnchor.MiddleCenter, FontStyle.Bold);
+            deathTitle.text = "СИЛ НЕ ОСТАЛОСЬ";
+            deathLine = Label("line", deathPanel, new Vector2(.5f, .5f), new Vector2(0f, 16f), new Vector2(1000f, 40f), 16, new Color(1f, 1f, 1f, .85f), TextAnchor.MiddleCenter);
+            deathLine.text = "Голод, холод и сон съели всю полоску. Тело легло в снег.";
+            var btn = Rect("again", deathPanel, new Vector2(.5f, .5f), new Vector2(0f, -52f), new Vector2(320f, 50f));
+            deathButtonImage = Rounded(btn, Cream, 25f);
+            deathButtonImage.raycastTarget = true;
+            deathButton = btn.gameObject.AddComponent<Button>();
+            deathButton.targetGraphic = deathButtonImage;
+            var c = deathButton.colors;
+            c.normalColor = new Color(.92f, .92f, .92f, 1f); c.selectedColor = c.normalColor;
+            c.highlightedColor = Color.white; c.pressedColor = new Color(.8f, .8f, .8f, 1f);
+            deathButton.colors = c;
+            deathButton.onClick.AddListener(() => SandboxBoot.Instance?.Restart());
+            deathButtonText = Label("text", btn, new Vector2(.5f, .5f), Vector2.zero, new Vector2(320f, 50f), 18, Ink, TextAnchor.MiddleCenter, FontStyle.Bold);
+            deathButtonText.text = "НАЧАТЬ ЗАНОВО";
+            Destroy(deathButtonText.GetComponent<Shadow>());       // dark words on a pale button want no dark edge
+            deathPanel.gameObject.SetActive(false);
         }
 
         void LateUpdate()
@@ -185,7 +354,49 @@ namespace Height1079.Sandbox
             if (extraFrame.gameObject.activeSelf != any) extraFrame.gameObject.SetActive(any);
             if (any) extraFrame.sizeDelta = new Vector2(Mathf.Max(extra + 2f * (Rim + 1f), BarH), BarH);
 
+            // the slots: their names, and which one is in the hands
+            var gear = boot.Gear;
+            var kit = gear != null ? gear.Kit : null;
+            bool open = boot.PackOpen && !boot.Dead;
+            for (int i = 0; i < Kit.Slots; i++)
+            {
+                var item = kit != null ? kit.Slot(i) : ItemStack.Empty;
+                string name = item.IsEmpty ? "" : ShortName(item);
+                if (!item.IsEmpty && item.Id == ItemId.Flashlight && gear.TorchOn) name += "\n· свет ·";
+                if (slotNames[i].text != name) slotNames[i].text = name;
+                bool held = kit != null && kit.Selected == i;
+                slotRims[i].color = held ? Chosen : RimColour;
+                slotBacks[i].color = held ? new Color(.30f, .24f, .10f, .78f) : new Color(0f, 0f, 0f, .55f);
+                slotButtons[i].interactable = open;
+            }
+            packRim.color = open ? Chosen : RimColour;
+            if (packPanel.gameObject.activeSelf != open) { packPanel.gameObject.SetActive(open); packShown = ""; }
+            if (open && kit != null) RefreshPack(kit);
+
+            // the end of the day
+            bool dead = boot.Dead;
+            if (deathPanel.gameObject.activeSelf != dead) { deathPanel.gameObject.SetActive(dead); deathSince = Time.unscaledTime; }
+            if (dead)
+            {
+                float since = Time.unscaledTime - deathSince;
+                deathShade.color = new Color(0f, 0f, 0f, Mathf.SmoothStep(0f, .86f, Mathf.Clamp01(since / 2.2f)));
+                float words = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01((since - 1.2f) / 1f));
+                deathTitle.color = new Color(Cream.r, Cream.g, Cream.b, words);
+                deathLine.color = new Color(1f, 1f, 1f, .85f * words);
+                deathButtonImage.color = new Color(Cream.r, Cream.g, Cream.b, words);
+                deathButtonText.color = new Color(Ink.r, Ink.g, Ink.b, words);
+                deathButton.interactable = words > .5f;
+            }
+
             toast.text = Time.unscaledTime < messageUntil ? message : "";
+        }
+
+        /// <summary>The name a slot has room for: the catalogue's name without the note in brackets.</summary>
+        static string ShortName(ItemStack item)
+        {
+            string s = item.Describe();
+            int i = s.IndexOf(" (");
+            return i > 0 ? s.Substring(0, i) : s;
         }
 
         // ── building blocks ─────────────────────────────────────────────────────────────────────────────────────────
@@ -382,6 +593,7 @@ namespace Height1079.Sandbox
             if (GUILayout.Button("сброс к заводским")) { SandboxBoot.Instance.Tuning = new PuppetTuning { Name = "sandbox" }; SandboxBoot.Instance.ApplySolver(); SandboxBoot.Instance.Spawn(); }
             GUILayout.EndHorizontal();
             GUILayout.Space(6);
+            GUILayout.Label("стенды (F11 — следующий, F12 — предыдущий)", head);
             for (int i = 0; i < SandboxRange.Stands.Count; i++)
                 if (GUILayout.Button(SandboxRange.Stands[i].Name)) SandboxBoot.Instance.GoTo(i);
 
