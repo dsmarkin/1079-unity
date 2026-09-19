@@ -108,6 +108,9 @@ namespace Height1079.Runtime
             // frame, and a nine-hour ascent has hundreds of lines: that overruns the transport's send queue and the
             // guest is dropped before he has seen the mountain. Nobody reads further back than this anyway.
             PacksClientJoined(clientId);
+            // The roster is sent on change now, so a guest would otherwise wait for the next join or death to learn
+            // who is on the slope. Adding him changes the string anyway — this makes it not depend on that.
+            sentNames = default;
             int from = Mathf.Max(0, sentEvents - ProtocolTail);
             for (int i = from; i < sentEvents; i++) EventRpc(run.Events[i].Time, run.Events[i].Text, RpcTarget.Single(clientId, RpcTargetUse.Temp));
         }
@@ -116,6 +119,10 @@ namespace Height1079.Runtime
         {
             run.SetOffline(Token(clientId), Time.timeAsDouble);
             PacksClientLeft(clientId);
+            // the profile, the rescue slip and the «has read the forecast» flag are filled straight from RPCs and
+            // never wait for an ascent tick, so a client who arrived, said who he was and left again would otherwise
+            // stay in those three for the rest of the session — and a reused client id would inherit him
+            ForgetClient(clientId);
         }
 
         /// <summary>Called by the server once a player object has its name; keeps the protocol readable.</summary>
@@ -133,6 +140,9 @@ namespace Height1079.Runtime
 
         void TickMenk()
         {
+            // No Menk, no work: on Elbrus there is none, and the loop below was walking every client with a
+            // GetComponent and a dictionary lookup each frame to fill a list nobody would read
+            if (menk == null) return;
             seen.Clear();
             foreach (var kv in NetworkManager.ConnectedClients)
             {
@@ -145,12 +155,14 @@ namespace Height1079.Runtime
                     Torch = light, Dynamo = hiker.TorchKind.Value == 1, Alive = p.Online && p.Outcome == Outcome.None
                 });
             }
-            if (menk == null) return;
             if (run.Outcome == Outcome.None) menk.Tick(Time.deltaTime, run.Elapsed, Weather.Storm, seen);
-            MenkPos.Value = menk.Pos;
-            MenkYaw.Value = menk.Yaw;
-            MenkState.Value = (byte)menk.Mode;
-            MenkBlows.Value = menk.TentBlows;
+            // A NetworkVariable written every frame is sent on every network tick. Ten centimetres and a degree are
+            // below what anybody can see on a creature in the dark at thirty metres, and the view interpolates
+            // between what it is given anyway (MenkView).
+            if ((MenkPos.Value - menk.Pos).sqrMagnitude > .01f) MenkPos.Value = menk.Pos;
+            if (Mathf.Abs(Mathf.DeltaAngle(MenkYaw.Value, menk.Yaw)) > 1f) MenkYaw.Value = menk.Yaw;
+            if (MenkState.Value != (byte)menk.Mode) MenkState.Value = (byte)menk.Mode;
+            if (MenkBlows.Value != menk.TentBlows) MenkBlows.Value = menk.TentBlows;
         }
 
         [Rpc(SendTo.SpecifiedInParams)]
@@ -190,25 +202,40 @@ namespace Height1079.Runtime
             RoomOutcome.Value = (int)run.Outcome;
             for (; sentEvents < run.Events.Count; sentEvents++) EventRpc(run.Events[sentEvents].Time, run.Events[sentEvents].Text, RpcTarget.ClientsAndHost);
 
+            // The roster used to ride along in every personal packet: half a kilobyte of names to every client four
+            // times a second, and on the receiving end a Split of it into strings just as often — for a list that
+            // changes when somebody joins, leaves or dies. It goes out on its own now, to everybody, and only when
+            // it is not the same as the last one.
             var names = new FixedString512Bytes();
             foreach (var p in run.Players.Values)
             {
                 if (names.Length > 0) names.Append('|');
                 names.Append(new FixedString128Bytes($"{p.Token};{p.Name};{(int)p.Outcome};{(p.Online ? 1 : 0)}"));
             }
+            if (!names.Equals(sentNames)) { sentNames = names; PartyRpc(names, RpcTarget.ClientsAndHost); }
+
             foreach (var kv in NetworkManager.ConnectedClients)
             {
                 if (!run.Players.TryGetValue(Token(kv.Key), out var p)) continue;
                 var k = run.Kindling(p.Token, now);
-                PersonalRpc(p.Heat, p.Hands, p.Clarity, p.Exposure, (int)p.Outcome, k?.progress ?? 0f, k?.needed ?? 0f, names, RpcTarget.Single(kv.Key, RpcTargetUse.Temp));
+                PersonalRpc(p.Heat, p.Hands, p.Clarity, p.Exposure, (int)p.Outcome, k?.progress ?? 0f, k?.needed ?? 0f, RpcTarget.Single(kv.Key, RpcTargetUse.Temp));
             }
         }
+        FixedString512Bytes sentNames;
 
         [Rpc(SendTo.SpecifiedInParams)]
-        void PersonalRpc(float heat, float hands, float clarity, float exposure, int outcome, float kindleProgress, float kindleNeeded, FixedString512Bytes party, RpcParams rpc)
+        void PersonalRpc(float heat, float hands, float clarity, float exposure, int outcome, float kindleProgress, float kindleNeeded, RpcParams rpc)
         {
             Heat = heat; Hands = hands; Clarity = clarity; Exposure = exposure; MyOutcome = (Outcome)outcome;
             KindleProgress = kindleProgress; KindleNeeded = kindleNeeded;
+        }
+
+        /// <summary>Who is on the slope, sent when it changes and not four times a second. A name with a ';' or a
+        /// '|' in it would break the packet, so <see cref="Bootstrap.CleanName"/> takes those out before a name ever
+        /// gets here — and a field that still fails to parse is skipped rather than throwing every tick.</summary>
+        [Rpc(SendTo.SpecifiedInParams)]
+        void PartyRpc(FixedString512Bytes party, RpcParams rpc)
+        {
             Party.Clear();
             string me = Token(NetworkManager.LocalClientId);
             foreach (var entry in party.ToString().Split('|'))
@@ -216,7 +243,8 @@ namespace Height1079.Runtime
                 if (entry.Length == 0) continue;
                 var f = entry.Split(';');
                 if (f.Length < 4) continue;
-                Party.Add((f[1], (Outcome)int.Parse(f[2]), f[3] == "1", f[0] == me));
+                if (!int.TryParse(f[2], out int outcome)) continue;
+                Party.Add((f[1], (Outcome)outcome, f[3] == "1", f[0] == me));
             }
         }
 

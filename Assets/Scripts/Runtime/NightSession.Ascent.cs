@@ -643,19 +643,27 @@ namespace Height1079.Runtime
 
         void PruneClimb()
         {
-            if (climbers.Count <= NetworkManager.ConnectedClients.Count) return;
+            // No count guard here. There used to be one — «fewer climbers than clients, nothing to do» — and it let
+            // through the one case that matters: somebody leaves and somebody else joins between two ticks, the two
+            // counts match again, and the dead id stays in ten dictionaries for ever. Walking the keys is a dozen
+            // comparisons four times a second.
             climbGone.Clear();
             foreach (var id in climbers.Keys) if (!NetworkManager.ConnectedClients.ContainsKey(id)) climbGone.Add(id);
-            foreach (var id in climbGone)
-            {
-                climbers.Remove(id); climbWere.Remove(id); gateSafe.Remove(id);
-                droppedAt.Remove(id); climbJobs.Remove(id); sortieSent.Remove(id);
-                wasRiding.Remove(id); strength.Remove(id);
-                wereEle.Remove(id); going.Remove(id); carriedTo.Remove(id);
-                wanderSide.Remove(id); wanderUntil.Remove(id);
-                PlanClientLeft(id);
-                CampsClientLeft(id);
-            }
+            foreach (var id in climbGone) ForgetClient(id);
+        }
+
+        /// <summary>Everything the host keeps about one participant, in one place. Called from
+        /// <see cref="PruneClimb"/> and, for the state that is filled straight from RPCs and never waits for a tick,
+        /// from <see cref="OnClientDisconnected"/>.</summary>
+        void ForgetClient(ulong id)
+        {
+            climbers.Remove(id); climbWere.Remove(id); gateSafe.Remove(id);
+            droppedAt.Remove(id); climbJobs.Remove(id); sortieSent.Remove(id);
+            wasRiding.Remove(id); strength.Remove(id);
+            wereEle.Remove(id); going.Remove(id); carriedTo.Remove(id);
+            wanderSide.Remove(id); wanderUntil.Remove(id);
+            PlanClientLeft(id);
+            CampsClientLeft(id);
         }
     }
 }

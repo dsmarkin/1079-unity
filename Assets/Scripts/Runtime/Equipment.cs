@@ -90,7 +90,10 @@ namespace Height1079.Runtime
                 Dynamo = Mathf.Clamp01(Dynamo + (squeeze ? DynamoWind : -DynamoRunDown) * Time.deltaTime);
                 bool lit = holding && Dynamo > .02f;
                 if (hiker.TorchOn.Value != lit) hiker.TorchOn.Value = lit;
-                byte lv = (byte)Mathf.RoundToInt(Dynamo * 255f);
+                // The dynamo moves faster than the frame rate — 1.4 a second winding, 0.35 running down — so a byte
+                // of 0…255 changed every single frame and the variable went out on every network tick all the while
+                // the thing was lit. Sixteen steps is finer than the beam it drives.
+                byte lv = (byte)(Mathf.Clamp(Mathf.RoundToInt(Dynamo * 15f), 0, 15) * 17);
                 if (hiker.TorchLevel.Value != lv) hiker.TorchLevel.Value = lv;
                 return;
             }

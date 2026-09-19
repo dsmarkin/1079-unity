@@ -37,9 +37,17 @@ namespace Height1079.Core
         public static HeightField FromR16(byte[] raw, float min, float max, int resolution, float step)
         {
             if (raw == null || raw.Length != resolution * resolution * 2) throw new InvalidDataException($"height raster must hold {resolution}² uint16 values");
-            var h = new float[resolution * resolution];
+            int n = resolution * resolution;
+            var h = new float[n];
             float scale = (max - min) / 65535f;
-            for (int i = 0; i < h.Length; i++) h[i] = min + (raw[2 * i] | raw[2 * i + 1] << 8) * scale;
+            // Two indexed byte reads, a shift and an or, four million times, twice a session — and again on every
+            // change of place. One block copy into a ushort[] and then a plain multiply is the same arithmetic with
+            // the bounds checks and the byte shuffling taken out. Elbrus is 2049² = 4.2 M values.
+            var words = new ushort[n];
+            Buffer.BlockCopy(raw, 0, words, 0, n * 2);
+            if (!BitConverter.IsLittleEndian)
+                for (int i = 0; i < n; i++) words[i] = (ushort)((words[i] >> 8) | (words[i] << 8));
+            for (int i = 0; i < n; i++) h[i] = min + words[i] * scale;
             return new HeightField(h, resolution, step);
         }
 
