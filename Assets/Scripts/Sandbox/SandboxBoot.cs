@@ -204,7 +204,7 @@ namespace Height1079.Sandbox
             if (Down(Key.V) || Down(Key.F7) || Down(Key.F3))
             {
                 rig.Toggle();
-                SandboxHud.Say(rig.FirstPerson ? "вид от первого лица (V, F7, F3)" : "вид со стороны (V, F7, F3)");
+                SandboxHud.Say(rig.FirstPerson ? "вид от первого лица (V, F7, F3)" : "вид со стороны (V, F7, F3): стоя — камера ходит вокруг тела, шаг — тело идёт за камерой");
             }
             if (Down(Key.F10))
             {
@@ -241,6 +241,9 @@ namespace Height1079.Sandbox
             {
                 Move = Vector2.ClampMagnitude(move, 1f),
                 Look = rig.LookRotation,
+                // from outside, the camera goes round a standing body without turning it; from inside the head the
+                // eye is the body and turns it standing still, the way the game's own first person does
+                FreeLook = !rig.FirstPerson,
                 Run = Held(Key.LeftShift) || Held(Key.RightShift),
                 Jump = Down(Key.Space),
                 GrabLeft = grabL,

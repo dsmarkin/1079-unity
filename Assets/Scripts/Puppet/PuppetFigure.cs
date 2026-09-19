@@ -31,7 +31,8 @@ namespace Height1079.Puppet
     /// rises again over the standing leg, which is what buys the leg enough reach to take a long step at all.
     ///
     /// <b>The body does not turn to face its own feet.</b> It faces where the player looks — <see cref="Puppet.Facing"/>
-    /// is the capsule's own heading and the capsule is turned by the camera and nothing else — and the feet go wherever
+    /// is the capsule's own heading and the capsule is turned by the camera and nothing else (a camera outside the body
+    /// may leave a standing man where he is until his next step: <see cref="PuppetInput.FreeLook"/>) — and the feet go wherever
     /// <see cref="Puppet.Drift"/> says the body is drifting in its own frame. Sideways that comes out as a side-step:
     /// the legs open and close, the boots turn out, the hips lead a little and the shoulders stay on the target.
     ///

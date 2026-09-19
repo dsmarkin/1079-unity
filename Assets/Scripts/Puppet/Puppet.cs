@@ -67,7 +67,9 @@ namespace Height1079.Puppet
         /// <see cref="LookRotation"/>; no part of this body has ever turned toward the direction of travel). So a
         /// figure posed from this keeps looking where the player looks while the feet go wherever the sticks send
         /// them — sideways for a side-step, backwards for a retreat — which is how PEAK reads, and it is a fact about
-        /// the physics rather than a trick in the drawing.
+        /// the physics rather than a trick in the drawing. The one licence is <see cref="PuppetInput.FreeLook"/>: a
+        /// camera outside the body may go round a man who is standing still without turning him, and he turns to it
+        /// on his next step (<see cref="HoldingHeading"/>).
         ///
         /// While <see cref="Limp"/> the capsule is lying down and this is only the yaw it fell with: draw a fallen
         /// body from the rigidbody's own rotation, not from here.</summary>
@@ -75,6 +77,12 @@ namespace Height1079.Puppet
         /// <summary>The same heading in degrees about the world vertical — for readouts and for tests that want to
         /// assert the body did <em>not</em> turn.</summary>
         public float FacingYaw { get; private set; }
+        /// <summary>The look has gone off somewhere and the body, standing still under a <see cref="PuppetInput.FreeLook"/>,
+        /// has not followed it. False whenever the body is being turned to the look — which from inside the head is always.</summary>
+        public bool HoldingHeading { get; private set; }
+        /// <summary>The heading the turn is holding, flat and unit length — the last look the body was turned to, or
+        /// the way it was standing when the look was first let go of. Zero until the first step of physics.</summary>
+        Vector3 heldForward;
         /// <summary>Where the body is actually travelling, in its own frame, m/s: x to its right, y straight ahead.
         /// A side-step is all x, walking backwards is a negative y, and the length of it is the pace. This is the
         /// whole of what a figure needs in order to plant the feet sideways instead of turning to face the way it is
@@ -173,6 +181,8 @@ namespace Height1079.Puppet
             // and it has not asked for anything either: a jump latched before a teleport must not fire after it
             jumpAsked = -99f; jumpClearUntil = 0f;
             Facing = Quaternion.identity; FacingYaw = 0f; Drift = Vector2.zero;
+            heldForward = Vector3.zero; HoldingHeading = false;
+            heldForward = Vector3.zero; HoldingHeading = false;
             Rough(false);
             Stamina = Tuning.Stamina;
             if (left != null) left.transform.position = position;
@@ -418,7 +428,8 @@ namespace Height1079.Puppet
         }
 
         /// <summary>Standing up and facing the way the player looks. Two PD controllers on the same rigidbody: one
-        /// rights the body, one turns it. Hanging, the body is allowed to swing — only the yaw is kept.
+        /// rights the body, one turns it. Hanging, the body is allowed to swing — only the yaw is kept. Standing
+        /// still under a camera that is outside it (<see cref="PuppetInput.FreeLook"/>) the yaw is kept where it was.
         ///
         /// What it rights <em>to</em> is not the vertical but <see cref="StandUp"/>, the vertical tilted into whatever
         /// the body is accelerating toward. The lean therefore lives in the physics: the torso really is pitched over
@@ -444,11 +455,23 @@ namespace Height1079.Puppet
             // way, and pressing back makes it walk backwards. Nothing downstream may turn the body toward its
             // velocity either; what it is doing relative to its heading is published as Facing and Drift.
             //
+            // The one thing that may come between the look and the body is a camera outside it (FreeLook): a man who
+            // is standing still is not turned by somebody walking round him with a camera, and he turns to where it
+            // looks on his next step. What he holds meanwhile is the last heading he was turned to — a target, not
+            // "no torque": with the turn switched off a nudge from the world would set him spinning. The hands, the
+            // feet gone from under him and the sticks all turn him regardless: a body hanging off a hold or steering
+            // a slide has to face the way it is being pointed, and from inside the head FreeLook is never set.
+            //
             // The turn is measured about the world vertical, never about the leaned one: yaw taken about a tilted
             // axis feeds the lean back into itself and the body starts to corkscrew out of a turn.
-            var want = Vector3.ProjectOnPlane(LookRotation * Vector3.forward, Vector3.up);
-            if (want.sqrMagnitude < 1e-4f) return;
+            var look = Vector3.ProjectOnPlane(LookRotation * Vector3.forward, Vector3.up);
             var flat = Vector3.ProjectOnPlane(transform.forward, Vector3.up);
+            bool chase = !input.FreeLook || input.Move.sqrMagnitude > .01f || Hanging || Sliding;
+            if (chase && look.sqrMagnitude > 1e-4f) heldForward = look.normalized;
+            else if (heldForward.sqrMagnitude < 1e-4f && flat.sqrMagnitude > 1e-4f) heldForward = flat.normalized;
+            HoldingHeading = !chase;
+            var want = heldForward;
+            if (want.sqrMagnitude < 1e-4f) return;
             float yawErr = Vector3.SignedAngle(flat, want, Vector3.up) * Mathf.Deg2Rad;
             float yawRate = Vector3.Dot(Torso.angularVelocity, Vector3.up);
             Torso.AddTorque(Vector3.up * (yawErr * t.TurnSpring * authority - yawRate * t.TurnDamper), ForceMode.Acceleration);

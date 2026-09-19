@@ -250,6 +250,44 @@ namespace Height1079.Sandbox
             Check(sideDrift < -t.WalkSpeed * .6f && aheadDrift < t.WalkSpeed * .35f, "снос читается как боковой",
                 $"Drift вбок {sideDrift:0.0}, вперёд не больше {aheadDrift:0.0} м/с");
 
+            // ── 11b. from outside, the camera goes round a standing body; the first step turns it ─────────────────
+            // Third person (FreeLook): a man who is doing nothing is not turned by the camera going round him, and
+            // his first step turns him to where it looks and takes him off that way. First person never asks for
+            // this, so the body under the eye turns with the look standing still, as it always did.
+            body.Place(new Vector3(0f, 1.2f, -10f));
+            yield return new WaitForSeconds(1f);
+            var aside = Quaternion.Euler(0f, 120f, 0f);
+            float kept = body.FacingYaw;
+            for (float w = 0f; w < 1.5f; w += Time.deltaTime)
+            {
+                body.Drive(new PuppetInput { Look = aside, FreeLook = true });
+                yield return null;
+            }
+            float stood = Mathf.Abs(Mathf.DeltaAngle(kept, body.FacingYaw));
+            Check(stood < 8f && body.HoldingHeading, "стоя, тело не крутится за камерой со стороны",
+                $"камера ушла на 120°, корпус — на {stood:0}°");
+            var turnFrom = body.Torso.position;
+            for (float w = 0f; w < 2f; w += Time.deltaTime)
+            {
+                body.Drive(new PuppetInput { Move = new Vector2(0f, 1f), Look = aside, FreeLook = true });
+                yield return null;
+            }
+            float turned = Mathf.Abs(Mathf.DeltaAngle(120f, body.FacingYaw));
+            var wentOff = Flat(body.Torso.position - turnFrom);
+            var lookWay = aside * Vector3.forward;
+            Check(turned < 12f && !body.HoldingHeading, "первый шаг разворачивает тело за камерой",
+                $"корпус в {turned:0}° от взгляда");
+            Check(wentOff.magnitude > 2f && Vector3.Angle(wentOff, lookWay) < 25f, "и уводит туда, куда смотрит камера",
+                $"прошёл {wentOff.magnitude:0.0} м, отклонение от взгляда {Vector3.Angle(wentOff, lookWay):0}°");
+            for (float w = 0f; w < 1.5f; w += Time.deltaTime)
+            {
+                body.Drive(new PuppetInput { Look = Quaternion.identity });
+                yield return null;
+            }
+            body.Drive(PuppetInput.Idle);
+            float inside = Mathf.Abs(Mathf.DeltaAngle(0f, body.FacingYaw));
+            Check(inside < 8f, "изнутри головы взгляд поворачивает тело и стоя", $"корпус в {inside:0}° от взгляда");
+
             // ── 12. the stature both halves of the body are cut to ─────────────────────────────────────────────────
             // The figure's bones and the physics ride height are one number seen twice (PuppetTuning.StandHeight), and
             // they live in different files. This is the check that says they still agree — measured off the renderers,

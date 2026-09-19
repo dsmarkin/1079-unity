@@ -16,6 +16,11 @@ namespace Height1079.Puppet
         public bool GrabLeft, GrabRight;
         /// <summary>Pulling up on whatever is held.</summary>
         public bool PullUp;
+        /// <summary>The look is allowed to wander off the body. While this is set and the body is standing still on
+        /// its feet, it keeps the heading it has and the camera goes round it; the moment the sticks move, or the
+        /// hands take hold, or the feet go from under it, it turns to the look as it always did. A camera outside the
+        /// body sets this. From inside the head the eye <em>is</em> the body, and it must stay off.</summary>
+        public bool FreeLook;
 
         public static PuppetInput Idle => new PuppetInput { Look = Quaternion.identity };
     }
