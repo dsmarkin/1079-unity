@@ -42,6 +42,7 @@ Git LFS не нужен: бинарные исходники (рельеф, те
 ```bash
 # быстрые тесты ядра (без Unity, ~10 с)
 cd Tools/CoreTests && dotnet run            # ждём: "# pass N fail 0"
+cd Tools/CoreTests && dotnet run -p:NoElbrus=true   # то же без локации Эльбруса (см. docs/ELBRUS.md)
 
 # полная проверка: компиляция + генерация + EditMode-тесты (Unity закрыт)
 Tools/mac/check.command                      # macOS → unity-check.log, unity-tests.xml
@@ -100,7 +101,13 @@ bash Tools/mac/errand-install.sh remove   # снять
 Assets/
   Scripts/
     Core/      Height1079.Core     — правила без UnityEngine: NightRun (ночь, исходы), SurvivalRules, WorldData (кадр мира, высоты,
-                                     места событий), Sites (исторические константы), Campaign/Prologue (пролог). Гоняется в dotnet.
+                                     места событий), Sites (исторические константы), Campaign/Prologue (пролог),
+                                     ILocation + Locations (договор локации и реестр), KholatLocation, World (обёртка над активной
+                                     локацией). Гоняется в dotnet.
+    Core/Elbrus/ Height1079.Elbrus.Core — Эльбрус: Elbrus (география), Ascent*/Programme*/Camp/Forecast/Lodging/Rescue/Rental/
+                                     Refreshments/Ropeway, сейвы (SaveGame, SaveStore) и ElbrusLocation. Без движка, видит только
+                                     Core. Необязательный слой: defineConstraints ["!HEIGHT1079_NO_ELBRUS"] — по умолчанию в сборке,
+                                     с этим define выпадает (docs/ELBRUS.md).
     Runtime/   Height1079.Runtime  — игра: Bootstrap (строит всё из кода при старте), HikerController (игрок, камера),
                                      Equipment (компас, фонари), NightSession (сеть, хост считает ночь), HudController (uGUI из кода),
                                      SnowFx/SnowTrail (снег, следы), Weather (ветер, пурга), Ambience + Synth (синтез звука),
@@ -121,7 +128,9 @@ Assets/
                                      (SandboxHunt*, SandboxNight — docs/SANDBOX.md) на правилах Core/Hunt.cs. Видит Core, Snow,
                                      Puppet, Night; не видит Runtime.
     Steam/     Height1079.Steam    — лобби Steam, компилируется только с define STEAM_FACEPUNCH.
-  Tests/EditMode/                  — NUnit. CoreTests/CampaignTests/PrologueTests — только Core; MenkTests — Runtime (только в Unity).
+  Tests/EditMode/                  — NUnit, сборка Height1079.Tests. CoreTests/CampaignTests/PrologueTests/LocationTests — только Core;
+                                     MenkTests — Runtime (только в Unity).
+  Tests/EditMode/Elbrus/           — Height1079.Elbrus.Tests: тесты Эльбруса, тот же define-констрейнт "!HEIGHT1079_NO_ELBRUS".
   Data/                            — рельеф, полог, деревья, камни, ручьи (Tools/terrain), elbrus/ — рельеф и маски Эльбруса,
                                      модель путника hiker-v1.glb.
   Art/Shaders/                     — TreeWind.shader (качание деревьев).
@@ -138,7 +147,8 @@ docs/   — дизайн и данные (см. README).
 - **Авторитет у хоста.** `NightSession` (NetworkBehaviour) на сервере ведёт `NightRun` и `MenkBrain`, а клиентам отдаёт `NetworkVariable` и RPC. Клиентские эффекты (снег, звук, анимация) опираются только на эти значения. Игрок пишет свои переменные сам (owner-writable): что держит, фонарь, направление взгляда.
 - **Core не зависит от движка.** В `Assets/Scripts/Core` нельзя `using UnityEngine`. Новые правила пиши здесь и покрывай тестами: они пойдут и в Unity, и в `dotnet`.
 - **Кадр мира:** x — восток, **z — север**, y — метры над уровнем моря, 1 единица = 1 м. Высота земли — `World.Ground` / `TerrainBuilder.Height`.
-- **Две локации.** `World.Current` (Core) выбирается в меню до старта сессии и больше не меняется: от неё зависят кадр, сетка высот, ассет террейна и сценарий `NightRun`. Холатчахль — 4,1 км на сетке 2 м, Эльбрус — 12,3 км на сетке 6 м (`docs/ELBRUS.md`). Новый код, который берёт `WorldData.*`, должен спросить себя, что он делает на Эльбрусе.
+- **Две локации, и общий код их не различает.** `World.Current` (Core) выбирается в меню до старта сессии и больше не меняется: от неё зависят кадр, сетка высот, ассет террейна и сценарий `NightRun`. Холатчахль — 4,1 км на сетке 2 м, Эльбрус — 12,3 км на сетке 6 м (`docs/ELBRUS.md`). Спрашивай не «это Эльбрус?», а активную локацию: `World.*` и `Locations.Active` отвечают через `ILocation`. Новый код, который берёт `WorldData.*` (это Холатчахль), должен спросить себя, что он делает на Эльбрусе.
+- **Эльбрус — необязательный слой.** Он в сборке по умолчанию, но живёт в своих сборках за `defineConstraints` `["!HEIGHT1079_NO_ELBRUS"]` (как Steam за `STEAM_FACEPUNCH`). Правило простое: ядро и общий код не должны знать о нём ничего, кроме члена перечисления `Place.Elbrus` (его требует формат сейва). Проверка — `dotnet run -p:NoElbrus=true`: ядро обязано собираться и проходить тесты без локации.
 - **Что нужно и игре, и песочнице, кладём в общую сборку**, а не копируем. Песочница (`Sandbox`) намеренно не видит `Runtime` (сеть, мир, сессия), поэтому общий код — снег под ногами, погода и звук, тело — живёт в своих сборках (`Snow`, `Night`, `Puppet`), на которые ссылаются обе. Правила без движка — в `Core` (например, `Hunt.cs`: чувства Менка на площадке).
 - **Звук синтезируется** (`Synth.cs`), сэмплов в репозитории нет. Новый звук добавляй функцией в `Synth`.
 - **Сторонние ассеты** кладём в `Assets/Art/ThirdParty/<источник>/`, в `SOURCES.json` пишем автора, ссылку и лицензию. Только CC0 или CC-BY, авторов CC-BY указываем в титрах. Фабрика должна работать и без скана: у каждой модели есть процедурная замена (`PlaceScan` / `SketchfabModel` возвращают null).
@@ -169,6 +179,7 @@ docs/   — дизайн и данные (см. README).
 2. **Небольшая правка** (опечатка, настройка, одна система): можно коммитить прямо в `main`. **Крупная фича**: ветка `feature/<коротко>` и Pull Request в `main`. Второй человек (или его агент) смотрит PR, влить может любой.
 3. Перед push:
    - `cd Tools/CoreTests && dotnet run` — обязательно, `fail 0`;
+   - `dotnet run -p:NoElbrus=true` — если трогал `Core` или `Core/Elbrus`, тоже `fail 0`;
    - `check`-скрипт — если трогал Unity-код, `failed="0"`;
    - сборка и игра — если менял то, что видно или слышно. Проверь в *сборке* и напиши в коммите, что проверил;
    - `git pull --rebase origin main`, затем `git push`. **Никогда не делай `push --force` в `main`.**
