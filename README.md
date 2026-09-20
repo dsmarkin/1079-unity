@@ -105,6 +105,7 @@
 | [docs/SCRIPT.md](docs/SCRIPT.md) | посценный сценарий |
 | [docs/PHYSICS.md](docs/PHYSICS.md) | физика тела: песочница, разбор механики PEAK, что повторимо |
 | [docs/SANDBOX.md](docs/SANDBOX.md) | песочница как игра: бриф петли «забрал — спрятался — унёс», площадка, Менк на свет/шум/следы, пурга-стена, что сделано |
+| [docs/ART.md](docs/ART.md) | графика: стиль, конвейер ассетов Blender → Unity, роли, приёмка по кадрам и чеклисту |
 | [docs/BACKLOG.md](docs/BACKLOG.md) | бэклог механик |
 | `Assets/Art/ThirdParty/PolyHaven/SOURCES.json` | происхождение и лицензии сторонних ассетов (Poly Haven, CC0) |
 
