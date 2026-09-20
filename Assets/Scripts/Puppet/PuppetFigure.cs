@@ -76,6 +76,12 @@ namespace Height1079.Puppet
         readonly Vector3[] handAt = new Vector3[2];
         readonly Quaternion[] handGrip = { Quaternion.identity, Quaternion.identity };
         bool handsKnown;
+        /// <summary>The pose as solved this frame, for whatever wears it (<see cref="PuppetSkeleton"/>).</summary>
+        PuppetPose solved;
+        /// <summary>A skinned model from a file worn over this pose, once <see cref="Wear"/> has bound one, and
+        /// whether it is the figure being shown (<see cref="WearModel"/>): the sculpted parts hide while it is.</summary>
+        PuppetSkeleton skeleton;
+        bool worn;
 
         /// <summary>The hand as drawn this frame: 0 left, 1 right. <paramref name="grip"/> is the palm's frame —
         /// its up runs back along the forearm, its right is the thin axis of the palm. False until the figure has
@@ -84,6 +90,8 @@ namespace Height1079.Puppet
         {
             side = Mathf.Clamp(side, 0, 1);
             at = handAt[side]; grip = handGrip[side];
+            // with a model worn its hand is the one on the screen, and a thing carried belongs in that one
+            if (Worn && !eyeArms && skeleton.HandPoint(side, out var model)) at = model;
             return handsKnown;
         }
 
@@ -264,6 +272,44 @@ namespace Height1079.Puppet
 
         public bool EyeArms => eyeArms;
 
+        /// <summary>The pose solved this frame, world space, read-only: what a worn model is posed from.</summary>
+        public PuppetPose Pose => solved;
+        /// <summary>A model has been bound with <see cref="Wear"/>.</summary>
+        public bool HasModel => skeleton != null;
+        /// <summary>A model is bound and is the figure being shown; the sculpted parts are hidden while it is.</summary>
+        public bool Worn => skeleton != null && worn;
+        /// <summary>What the bound model's skeleton reported, for a panel.</summary>
+        public string ModelReport => skeleton != null ? skeleton.Report : "";
+
+        /// <summary>Bind a skinned model from a file. Its bones are mapped by name and, while it is shown
+        /// (<paramref name="show"/> now, <see cref="WearModel"/> later), posed from this figure's solve every frame
+        /// (<see cref="PuppetSkeleton"/>) with the sculpted parts hidden; the physics and the arms the eye sees in
+        /// first person stay exactly what they were. False — reason in the log, the model left where it was — when
+        /// it has no hips or legs to speak of; the figure then carries on as it is. A model already bound is
+        /// destroyed first.</summary>
+        public bool Wear(Transform modelRoot, bool show = true)
+        {
+            if (owner == null || root == null || modelRoot == null) return false;
+            var sk = new PuppetSkeleton();
+            if (!sk.Bind(modelRoot, root, owner.Tuning.StandHeight)) return false;
+            if (skeleton != null && skeleton.Root != null) PuppetRig.Kill(skeleton.Root.gameObject);
+            skeleton = sk;
+            worn = show;
+            if (worn && solved.Valid) skeleton.Apply(in solved, owner.Tuning.StandHeight);
+            Show();
+            return true;
+        }
+
+        /// <summary>Show the bound model (true) or the sculpted figure (false). Nothing happens without a model.</summary>
+        public void WearModel(bool on)
+        {
+            if (skeleton == null || worn == on) return;
+            worn = on;
+            // posed before it is shown, so it never spends a frame in the pose it was hidden in
+            if (on && solved.Valid && owner != null) skeleton.Apply(in solved, owner.Tuning.StandHeight);
+            Show();
+        }
+
         void OnDestroy()
         {
             for (int s = 0; s < 2; s++) arm[s]?.Release();
@@ -271,10 +317,12 @@ namespace Height1079.Puppet
 
         void Show()
         {
-            for (int i = 0; i < parts.Length; i++) if (parts[i] != null) parts[i].enabled = visible;
+            bool sculpted = visible && !Worn;
+            for (int i = 0; i < parts.Length; i++) if (parts[i] != null) parts[i].enabled = sculpted;
             // the arm renderers are in `parts` too; they alone stay on for the eye
             for (int s = 0; s < 2; s++)
-                if (arm[s] != null && arm[s].Renderer != null) arm[s].Renderer.enabled = visible || eyeArms;
+                if (arm[s] != null && arm[s].Renderer != null) arm[s].Renderer.enabled = sculpted || eyeArms;
+            skeleton?.SetVisible(visible && worn);
         }
 
         Transform Piece(Mesh mesh, string name)
@@ -315,10 +363,14 @@ namespace Height1079.Puppet
                 body.localScale = uni; head.localScale = uni;
                 for (int s = 0; s < 2; s++) boot[s].localScale = uni;
             }
-            float thighLen = ThighLen * scale, shinLen = ShinLen * scale;
-            float legLen = thighLen + shinLen, legMax = legLen * .985f;
-            float upperArm = UpperArm * scale, forearm = Forearm * scale;
-            float hipDrop = t.HoverHeight - PelvisRide * scale;   // pelvis below the capsule's centre
+            // A worn model is solved for its own build (PuppetSkeleton measures it): its hip and shoulder joints,
+            // its bone lengths, where its pelvis rides over its soles and how high its ankles sit. Aimed along
+            // segments solved for those, its bones end exactly at the solved joints — the feet land, nothing
+            // stretches, and a model with longer legs than the sculpted figure's does not walk in a crouch.
+            bool model = Worn;
+            var build = model ? skeleton.Proportions : default;
+            model = model && build.Valid;
+            float hipDrop = t.HoverHeight - (model ? build.PelvisRide : PelvisRide * scale);   // pelvis below the capsule's centre
 
             // ── the ground, and the body's heading over it ─────────────────────────────────────────────────────────
             float ride = float.IsInfinity(owner.GroundDistance) ? t.HoverHeight : owner.GroundDistance;
@@ -406,7 +458,9 @@ namespace Height1079.Puppet
 
             // ── legs ───────────────────────────────────────────────────────────────────────────────────────────────
             var dirWorld = look * new Vector3(step.x, 0f, step.y);        // where the feet are going, in the world
-            var soleBase = groundPoint + Vector3.up * (SoleUp * scale);
+            // where the ankle — the leg's target — sits over the ground: the boot's origin, or the model's ankle joint
+            float soleUp = model ? build.AnkleUp : SoleUp * scale;
+            var soleBase = groundPoint + Vector3.up * soleUp;
             // The track is a real width, not a share of the drawn body: it is the one number of the stance the player
             // of the sandbox turns by hand, and a slider that read in metres and then got scaled would lie.
             float footOut = t.StanceWidth * .5f;
@@ -425,7 +479,9 @@ namespace Height1079.Puppet
             for (int s = 0; s < 2; s++)
             {
                 float sign = s == 0 ? -1f : 1f;
-                var hipJoint = hipPoint + pose * new Vector3(sign * HipOut * scale, -HipSag * scale, 0f);
+                float thighLen = model ? build.Thigh(s) : ThighLen * scale, shinLen = model ? build.Shin(s) : ShinLen * scale;
+                float legLen = thighLen + shinLen, legMax = legLen * .985f;
+                var hipJoint = hipPoint + pose * (model ? build.Hip(s) : new Vector3(sign * HipOut * scale, -HipSag * scale, 0f));
                 // this foot's line on the ground, and this footfall's wander off it
                 var track = level * new Vector3(sign * footOut + scatter[s].x, 0f, scatter[s].y);
                 var home = OnGround(soleBase, track, normal);
@@ -526,35 +582,49 @@ namespace Height1079.Puppet
                 // solver stretch the shin keeps the boot on the end of the leg on broken ground and in a stumble.
                 var reach = foot - hipJoint;
                 if (reach.sqrMagnitude > legMax * legMax) foot = hipJoint + reach.normalized * legMax;
+                last[s] = foot;
+
+                // The boot is turned out by the stance (PuppetTuning.ToeOut), turns further into a side-step — hard
+                // on the leading foot, barely on the trailing one — and rolls heel to toe through the stance. It is
+                // pitched about the part of the sole that is on the ground, so the toe never goes through it — and
+                // the ankle, which is the leg's target, rises with the roll the way an ankle does when the heel
+                // comes up, so that a model's foot pitched about its own ankle joint keeps its toe on the ground too.
+                float yaw = sign * t.ToeOut + (afoot ? gait * lateral * (sign * lateral > 0f ? 26f : 12f) : 0f);
+                var flat = afoot ? level * Quaternion.AngleAxis(yaw, Vector3.up) : pose;
+                var pivot = new Vector3(0f, 0f, (pitch > 0f ? ToePivot : -HeelPivot) * scale);
+                var bootRot = flat * Quaternion.Euler(pitch, 0f, 0f);
+                var ankle = foot + flat * pivot - bootRot * pivot;
 
                 // The knee bends the way the toe points, not dead ahead: turned out with the boot, a standing leg
                 // reads as a leg and not as a piston. Two straight knees pointing forward on a broad track was the
                 // "robot on parade" the wider stance alone did not cure.
                 var kneeWay = pose * (Quaternion.AngleAxis(sign * t.ToeOut, Vector3.up) * Vector3.forward);
                 // the trouser leg is skinned to these two bones, so the cloth bends with the knee and stretches
-                // with the bone inside it
-                Limb(thigh[s], shin[s], hipJoint, foot, thighLen, shinLen, kneeWay, ThighLen, ShinLen, pose * Vector3.forward, scale);
-                // the trouser legs ride the two bones they cover, so the cloth bends with the knee
-                // same line AND same stretch as the bone inside: a trouser leg that keeps its built length while the
-                // bone is scaled hangs past the boot, and the figure measures a head taller than it is
-
-                // The boot is turned out by the stance (PuppetTuning.ToeOut), turns further into a side-step — hard
-                // on the leading foot, barely on the trailing one — and rolls heel to toe through the stance. It is
-                // pitched about the part of the sole that is on the ground, so the toe never goes through it.
-                float yaw = sign * t.ToeOut + (afoot ? gait * lateral * (sign * lateral > 0f ? 26f : 12f) : 0f);
-                var flat = afoot ? level * Quaternion.AngleAxis(yaw, Vector3.up) : pose;
-                var pivot = new Vector3(0f, 0f, (pitch > 0f ? ToePivot : -HeelPivot) * scale);
-                var bootRot = flat * Quaternion.Euler(pitch, 0f, 0f);
-                boot[s].SetPositionAndRotation(
-                    foot + flat * (pivot + new Vector3(0f, 0f, .015f * scale)) - bootRot * pivot, bootRot);
-                last[s] = foot;
+                // with the bone inside it — same line AND same stretch as the bone inside: a trouser leg that keeps
+                // its built length while the bone is scaled hangs past the boot, and the figure measures a head
+                // taller than it is
+                var knee = Limb(thigh[s], shin[s], hipJoint, ankle, thighLen, shinLen, kneeWay, ThighLen, ShinLen, pose * Vector3.forward, scale);
+                boot[s].SetPositionAndRotation(ankle + flat * new Vector3(0f, 0f, .015f * scale), bootRot);
+                // written down for whatever wears this pose: the sole sits a centimetre into the ground under the
+                // ankle, as the boot mesh's underside does, so that nothing standing on it shows daylight
+                var legPose = new PuppetLegPose
+                {
+                    Hip = hipJoint, Knee = knee, Ankle = ankle, Foot = bootRot,
+                    Sole = ankle + bootRot * new Vector3(0f, -(soleUp + .012f * scale), 0f),
+                    Bend = kneeWay,
+                };
+                if (s == 0) solved.LegL = legPose; else solved.LegR = legPose;
             }
 
             // ── arms ───────────────────────────────────────────────────────────────────────────────────────────────
             for (int s = 0; s < 2; s++)
             {
                 float sign = s == 0 ? -1f : 1f;
-                var shoulder = hipPoint + pose * new Vector3(sign * ShoulderOut * scale, ShoulderUp * scale, .01f);
+                bool modelArm = model && build.HasArm(s);
+                var shoulder = hipPoint + pose * (modelArm ? build.Shoulder(s) : new Vector3(sign * ShoulderOut * scale, ShoulderUp * scale, .01f));
+                float upperArm = modelArm ? build.UpperArm(s) : UpperArm * scale;
+                // the arm reaches for the middle of the palm; a model's forearm ends at the wrist, half a palm short of it
+                float forearm = modelArm ? build.Forearm(s) + PuppetArm.PalmHalf * scale : Forearm * scale;
                 var physical = s == 0 ? owner.Left : owner.Right;
                 // An arm answers the leg on its own side: forward when that leg is back, on the same clock. The
                 // swing is the drift, not the pace — walking backwards swings it the other way, and a side-step
@@ -582,18 +652,33 @@ namespace Height1079.Puppet
                 // the elbow is solved as for a leg, but no bones are laid on it: the arm is one tube through the
                 // three points, hand and all
                 var elbow = Joint(shoulder, wrist, upperArm, forearm, pose * Vector3.back);
+                var grip = Wrist(elbow, wrist, pose);
                 // seen from inside the head the arms hang off the eye instead (PoseFromEye), and a tube built here
                 // as well would flash at the body's sides on whichever frames it was built last
                 if (!eyeArms)
                 {
-                    var grip = Wrist(elbow, wrist, pose);
                     arm[s].Pose(shoulder, elbow, wrist, grip, scale);
                     handAt[s] = wrist; handGrip[s] = grip; handsKnown = true;
                 }
                 // the upper arm as a bone, for the sleeve skinned to it: same line as the tube, rolled to the body
                 Bone(armUp[s], shoulder, elbow, UpperArm, pose * Vector3.forward, scale);
                 // the sleeve sits on the shoulder and runs down the upper arm — same line, its own length
+                // and for whatever wears this pose: `wrist` here is the middle of the palm (PuppetArm), the joint
+                // itself sits half a palm back along the forearm
+                var toHand = wrist - elbow;
+                var along = toHand.sqrMagnitude > 1e-8f ? toHand.normalized : pose * Vector3.down;
+                var armPose = new PuppetArmPose
+                {
+                    Shoulder = shoulder, Elbow = elbow, Wrist = wrist - along * (PuppetArm.PalmHalf * scale),
+                    Hand = wrist, Grip = grip, Bend = pose * Vector3.back,
+                };
+                if (s == 0) solved.ArmL = armPose; else solved.ArmR = armPose;
             }
+            solved.Valid = true; solved.Scale = scale; solved.Limp = owner.Limp;
+            solved.Pelvis = hipPoint; solved.Body = pose;
+            solved.Head = head.position; solved.HeadRot = head.rotation;
+            // the worn model, if any, is posed from all of the above — here, so the order is never a race
+            if (worn && skeleton != null) skeleton.Apply(in solved, t.StandHeight);
             posed = true;
         }
 

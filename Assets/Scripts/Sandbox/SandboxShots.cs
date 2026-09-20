@@ -63,6 +63,35 @@ namespace Height1079.Sandbox
             Debug.Log($"shots: стопы {Stance(body):0.00} м врозь стоя");
             // and from behind: the pack is the one thing on the body no other frame shows
             yield return Shoot(boot, body, "10-стоит-сзади", new Vector3(.6f, .3f, -2.8f));
+
+            // ── the same man in the game's own hiker-v1.glb (B in play, here by hand): standing from the front and
+            // from behind, and mid-stride from the side, from the same spots as the frames above, so the two models
+            // can be laid side by side. Walked from the stand's spawn again, so the body ends up where the frames
+            // above left it and the frames after these are unchanged. Whatever was on before goes back on after.
+            var looks = boot.Figure;
+            var pf = body.GetComponent<PuppetFigure>();
+            if (looks != null && pf != null)
+            {
+                var was = SandboxFigure.Want;
+                Debug.Log("shots: фигура — " + SandboxFigure.Name(looks.Current) + (pf.Worn ? " · " + pf.ModelReport : ""));
+                boot.GoTo(0);
+                yield return new WaitForSeconds(1.2f);
+                looks.Set(SandboxFigure.Look.HikerGlb);
+                for (float w = 0f; w < 6f && looks.Current != SandboxFigure.Look.HikerGlb && !looks.GlbFailed; w += Time.deltaTime) yield return null;
+                Debug.Log("shots: модель hiker-v1 — " + (looks.Current == SandboxFigure.Look.HikerGlb ? "надета: " + pf.ModelReport : "не надета (см. предупреждение выше)"));
+                if (looks.Current == SandboxFigure.Look.HikerGlb)
+                {
+                    yield return Shoot(boot, body, "8-стоит-спереди-glb", new Vector3(0f, .1f, 3.0f));
+                    yield return Shoot(boot, body, "10-стоит-сзади-glb", new Vector3(.6f, .3f, -2.8f));
+                    t = 0f;
+                    while (t < 1.6f) { body.Drive(new PuppetInput { Move = new Vector2(0, 1), Look = Quaternion.identity }); t += Time.deltaTime; Frame(boot, body, new Vector3(3.2f, .3f, 0f)); yield return null; }
+                    yield return Shoot(boot, body, "2-шаг-glb", new Vector3(3.2f, .3f, 0f), keepDriving: true);
+                    body.Drive(PuppetInput.Idle);
+                    yield return new WaitForSeconds(1.2f);
+                }
+                looks.Set(was);
+                for (float w = 0f; w < 6f && looks.Current != was; w += Time.deltaTime) yield return null;
+            }
             // walking back south, toward the camera: north of here is the ramp stand, and a camera three metres
             // ahead of a body walking north ends up inside it
             var south = Quaternion.Euler(0f, 180f, 0f);
