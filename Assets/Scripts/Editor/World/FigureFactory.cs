@@ -121,8 +121,9 @@ namespace Height1079.EditorTools.World
 
         /// <summary>The Adventurer, as a winter hiker: quilted jacket, storm trousers with dark patches, canvas pack
         /// and bedroll with wooden toggles, felt boots with dark soles; skin, hair and beard. The model's shirt has
-        /// rolled sleeves — the "Skin" of its body mesh is the bare forearms and the hands — and they are painted as
-        /// jacket, which reads as long sleeves and gloves. Anything not listed falls to the nearest colour.</summary>
+        /// rolled sleeves — the "Skin" of its body mesh is the bare forearms and the hands — so the forearms are
+        /// painted as jacket, which reads as long sleeves, and the hands are cut off that surface by their bones
+        /// (<see cref="AdventurerSplits"/>) and painted as mittens. Anything not listed falls to the nearest colour.</summary>
         static readonly Rule[] Adventurer =
         {
             new Rule("Body", "Skin", "Ватник"),
@@ -142,11 +143,28 @@ namespace Height1079.EditorTools.World
             new Rule("Backpack", "Gold", "Дерево: лыжи, дрова"),
         };
 
-        public static bool BuildAdventurer() => Build(AdventurerFbx, AdventurerPrefab, Adventurer);
+        /// <summary>A piece of a surface painted by the bones it hangs on: the triangles of material
+        /// <see cref="Material"/> on mesh <see cref="Mesh"/> whose vertices follow a bone whose name — or an
+        /// ancestor's — contains <see cref="Bone"/> are cut into a submesh of their own and painted
+        /// <see cref="Colour"/>. The Adventurer's bare forearms and hands are one "Skin" surface: this is how the
+        /// hands become mittens while the forearms stay sleeves.</summary>
+        public struct Split
+        {
+            public string Mesh, Material, Bone, Colour;
+            public Split(string mesh, string material, string bone, string colour) { Mesh = mesh; Material = material; Bone = bone; Colour = colour; }
+        }
 
-        /// <summary>Instantiates the model, repaints every renderer slot from the table, strips whatever could
-        /// animate the bones, and saves the result as a plain prefab. The material → colour table goes to the log.</summary>
-        public static bool Build(string fbx, string prefab, Rule[] rules)
+        /// <summary>Mittens in the players' accent colour: everything on the hand bones and their fingers.</summary>
+        static readonly Split[] AdventurerSplits = { new Split("Body", "Skin", "hand", "Красный") };
+
+        public const string MeshDir = "Assets/Resources/Sandbox/Meshes";
+
+        public static bool BuildAdventurer() => Build(AdventurerFbx, AdventurerPrefab, Adventurer, AdventurerSplits);
+
+        /// <summary>Instantiates the model, cuts the surfaces the splits ask for, repaints every renderer slot from
+        /// the table, strips whatever could animate the bones, and saves the result as a plain prefab. The
+        /// material → colour table goes to the log.</summary>
+        public static bool Build(string fbx, string prefab, Rule[] rules, Split[] splits = null)
         {
             var model = AssetDatabase.LoadMainAssetAtPath(fbx) as GameObject;
             if (model == null) { Debug.LogWarning($"1079 figure: нет модели {fbx}"); return false; }
@@ -165,10 +183,30 @@ namespace Height1079.EditorTools.World
             foreach (var r in root.GetComponentsInChildren<Renderer>(true))
             {
                 var mats = r.sharedMaterials;
+                // the cuts first: each adds a slot at the end, painted by its rule and not by the table
+                var cutColour = new Dictionary<int, string>();
+                if (splits != null && r is SkinnedMeshRenderer smr)
+                    foreach (var split in splits)
+                    {
+                        if (r.name.IndexOf(split.Mesh, System.StringComparison.OrdinalIgnoreCase) < 0) continue;
+                        int slot = -1;
+                        for (int i = 0; i < mats.Length; i++)
+                            if (mats[i] != null && string.Equals(mats[i].name, split.Material, System.StringComparison.OrdinalIgnoreCase)) { slot = i; break; }
+                        if (slot < 0) continue;
+                        int cut, taken = 0;
+                        try { cut = Cut(smr, slot, split.Bone, Path.GetFileNameWithoutExtension(prefab), out taken); }
+                        catch (System.Exception e) { Debug.LogWarning($"1079 figure: cutting {r.name} / {split.Material} failed — {e.Message}"); cut = -1; }
+                        if (cut < 0) { log.Append($"\n  {r.name} / {split.Material}: nothing on bones «{split.Bone}» — not cut"); continue; }
+                        System.Array.Resize(ref mats, mats.Length + 1);
+                        cutColour[cut] = split.Colour;
+                        log.Append($"\n  {r.name} / {split.Material}: {taken} triangles on bones «{split.Bone}» cut into slot {cut}");
+                    }
                 for (int i = 0; i < mats.Length; i++)
                 {
                     string name = mats[i] != null ? mats[i].name : "(none)";
-                    var sw = Pick(rules, r.name, name, mats[i], out string how);
+                    Palette.Swatch sw; string how;
+                    if (cutColour.TryGetValue(i, out var cutName) && Palette.ByName(cutName) is Palette.Swatch byBones) { sw = byBones; how = "по костям"; name = "(cut)"; }
+                    else sw = Pick(rules, r.name, name, mats[i], out how);
                     log.Append($"\n  {r.name} / {name} → {sw.name} {sw.hex} ({how})");
                     mats[i] = Palette.Material(sw, PaletteDir);
                 }
@@ -182,6 +220,57 @@ namespace Height1079.EditorTools.World
             Object.DestroyImmediate(root);
             Debug.Log(log.ToString());
             return true;
+        }
+
+        /// <summary>Cuts the triangles of submesh <paramref name="sub"/> that hang on bones named like
+        /// <paramref name="boneKey"/> (the bone itself or any ancestor) into a new last submesh, on a copy of the
+        /// mesh saved under Resources, and puts the copy on the renderer. A vertex belongs to the bone it is most
+        /// weighted to; a triangle goes with the cut when two of its three corners do. Returns the new submesh's
+        /// index, or −1 when nothing was on those bones.</summary>
+        static int Cut(SkinnedMeshRenderer smr, int sub, string boneKey, string prefabName, out int taken)
+        {
+            taken = 0;
+            var mesh = smr.sharedMesh;
+            var bones = smr.bones;
+            if (mesh == null || bones == null || sub >= mesh.subMeshCount) return -1;
+            var onKey = new bool[bones.Length];
+            for (int i = 0; i < bones.Length; i++)
+                for (var t = bones[i]; t != null; t = t.parent)
+                    if (t.name.IndexOf(boneKey, System.StringComparison.OrdinalIgnoreCase) >= 0) { onKey[i] = true; break; }
+            var w = mesh.boneWeights;
+            if (w == null || w.Length != mesh.vertexCount) { Debug.LogWarning($"1079 figure: {mesh.name} has no readable bone weights — not cut"); return -1; }
+            var hit = new bool[w.Length];
+            for (int v = 0; v < w.Length; v++)
+            {
+                var b = w[v];
+                int best = b.boneIndex0; float bw = b.weight0;
+                if (b.weight1 > bw) { best = b.boneIndex1; bw = b.weight1; }
+                if (b.weight2 > bw) { best = b.boneIndex2; bw = b.weight2; }
+                if (b.weight3 > bw) best = b.boneIndex3;
+                hit[v] = best >= 0 && best < onKey.Length && onKey[best];
+            }
+            var tris = mesh.GetTriangles(sub);
+            var keep = new List<int>(tris.Length); var take = new List<int>();
+            for (int i = 0; i + 2 < tris.Length; i += 3)
+            {
+                int n = (hit[tris[i]] ? 1 : 0) + (hit[tris[i + 1]] ? 1 : 0) + (hit[tris[i + 2]] ? 1 : 0);
+                var dst = n >= 2 ? take : keep;
+                dst.Add(tris[i]); dst.Add(tris[i + 1]); dst.Add(tris[i + 2]);
+            }
+            if (take.Count == 0) return -1;
+            var m = Object.Instantiate(mesh);
+            m.name = $"{prefabName}_{mesh.name}";
+            int count = mesh.subMeshCount;
+            m.subMeshCount = count + 1;
+            for (int s = 0; s < count; s++) m.SetTriangles(s == sub ? keep.ToArray() : mesh.GetTriangles(s), s);
+            m.SetTriangles(take.ToArray(), count);
+            Directory.CreateDirectory(MeshDir);
+            string path = $"{MeshDir}/{m.name}.asset";
+            AssetDatabase.DeleteAsset(path);
+            AssetDatabase.CreateAsset(m, path);
+            smr.sharedMesh = m;
+            taken = take.Count / 3;
+            return count;
         }
 
         static Palette.Swatch Pick(Rule[] rules, string mesh, string material, Material src, out string how)
