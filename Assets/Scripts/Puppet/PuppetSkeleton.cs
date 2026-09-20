@@ -50,6 +50,8 @@ namespace Height1079.Puppet
         /// sole — averaged over the two feet.</summary>
         float restHeight = 1f, ankleUp;
         float scale = 1f, standHeight;
+        /// <summary>The model's build in its own units, measured off the rest pose — see <see cref="Proportions"/>.</summary>
+        PuppetProportions rest;
         /// <summary>The direction the hand was last aimed along, per side, for <see cref="HandPoint"/>.</summary>
         readonly Vector3[] handDir = { Vector3.down, Vector3.down };
         bool visible = true;
@@ -64,6 +66,11 @@ namespace Height1079.Puppet
         public float Scale => scale;
         /// <summary>One line on what was found, for a log or a panel.</summary>
         public string Report { get; private set; } = "";
+        /// <summary>How the worn model is built, metres at the current scale — its hip and shoulder joints off the
+        /// pelvis, its bone lengths, how high its pelvis rides over its soles and its ankles over them. The figure
+        /// solves its pose against these while the model is worn (<see cref="PuppetFigure"/>), so that the bones
+        /// aimed along that pose end exactly at its joints. Measured off the rest pose in <see cref="Bind"/>.</summary>
+        public PuppetProportions Proportions => rest.Scaled(scale);
 
         // ─── binding ────────────────────────────────────────────────────────────────────────────────────────────────
 
@@ -87,7 +94,10 @@ namespace Height1079.Puppet
             foreach (var smr in model.GetComponentsInChildren<SkinnedMeshRenderer>(true))
                 if (smr.bones != null) foreach (var b in smr.bones) if (b != null && !candidates.Contains(b)) candidates.Add(b);
             if (candidates.Count == 0)
+            {
+                Debug.LogWarning($"PuppetSkeleton: '{model.name}' has no skinned mesh — its bones will be posed, but no mesh follows them (a model imported without skinning?).");
                 foreach (var t in model.GetComponentsInChildren<Transform>(true)) if (t != model) candidates.Add(t);
+            }
 
             System.Array.Clear(bone, 0, bone.Length);
             torso.Clear(); torsoFix.Clear();
@@ -175,6 +185,10 @@ namespace Height1079.Puppet
             var restTorso = Frame(Vector3.up, restFwd);
             rootFix = Quaternion.Inverse(restTorso);                 // the root's own rest rotation is the identity
             hipsRest = bone[(int)Bone.Hips].position;
+            // the build, for the figure to solve against: joints off the pelvis in the rest frame, bone lengths,
+            // the pelvis and the ankles over the sole — all in the model's own units, scaled when read
+            var invTorso = Quaternion.Inverse(restTorso);
+            rest = new PuppetProportions { Valid = true, PelvisRide = hipsRest.y - box.min.y, AnkleUp = ankleUp };
             fix[(int)Bone.Hips] = Quaternion.Inverse(restTorso) * bone[(int)Bone.Hips].rotation;
             foreach (var t in torso) torsoFix.Add(Quaternion.Inverse(restTorso) * t.rotation);
             if (bone[(int)Bone.Head] != null) fix[(int)Bone.Head] = Quaternion.Inverse(restTorso) * bone[(int)Bone.Head].rotation;
@@ -183,6 +197,9 @@ namespace Height1079.Puppet
                 var thigh = bone[(int)Thigh(s)]; var shin = bone[(int)Shin(s)]; var foot = bone[(int)Foot(s)];
                 Vector3 hip = thigh.position, knee = shin.position;
                 Vector3 ankle = foot != null ? foot.position : knee + (knee - hip);
+                var hipOff = invTorso * (hip - hipsRest);
+                if (s == 0) { rest.HipL = hipOff; rest.ThighL = (knee - hip).magnitude; rest.ShinL = (ankle - knee).magnitude; }
+                else { rest.HipR = hipOff; rest.ThighR = (knee - hip).magnitude; rest.ShinR = (ankle - knee).magnitude; }
                 // the way the knee bends at rest, if the rest pose has any bend in it; a straight leg bends forward
                 var hint = Vector3.ProjectOnPlane(knee - hip, ankle - hip);
                 if (hint.magnitude < .01f) hint = restFwd;
@@ -197,6 +214,9 @@ namespace Height1079.Puppet
                 Vector3 shoulder = upper.position;
                 Vector3 elbow = fore != null ? fore.position : shoulder + Vector3.down * .3f;
                 Vector3 wrist = hand != null ? hand.position : elbow + (elbow - shoulder);
+                var shoulderOff = invTorso * (shoulder - hipsRest);
+                if (s == 0) { rest.ShoulderL = shoulderOff; rest.UpperArmL = (elbow - shoulder).magnitude; rest.ForearmL = (wrist - elbow).magnitude; }
+                else { rest.ShoulderR = shoulderOff; rest.UpperArmR = (elbow - shoulder).magnitude; rest.ForearmR = (wrist - elbow).magnitude; }
                 var bend = Vector3.ProjectOnPlane(elbow - shoulder, wrist - shoulder);
                 if (bend.magnitude < .01f) bend = -restFwd;              // a straight arm bends backward at the elbow
                 fix[(int)UpperArm(s)] = Quaternion.Inverse(Frame(elbow - shoulder, bend)) * upper.rotation;
@@ -215,18 +235,18 @@ namespace Height1079.Puppet
             this.standHeight = standHeight;
             scale = Mathf.Max(standHeight, .2f) / restHeight;
             model.localScale = Vector3.one * scale;
-            Report = $"{model.name}: hips, {(torso.Count > 0 ? "spine ×" + torso.Count : "no spine")}, {(bone[(int)Bone.Head] != null ? "head" : "no head")}, "
-                   + $"{Arms()} arms, legs, {feet} feet · rest {restHeight:0.00} → ×{scale:0.000}, ankle {ankleUp:0.00}";
+            var spine = new StringBuilder();
+            foreach (var t in torso) { if (spine.Length > 0) spine.Append('+'); spine.Append(t.name); }
+            Report = $"{model.name}: hips={N(Bone.Hips)} spine={(spine.Length > 0 ? spine.ToString() : "—")} head={N(Bone.Head)} "
+                   + $"armL={N(Bone.UpperArmL)}/{N(Bone.ForearmL)}/{N(Bone.HandL)} armR={N(Bone.UpperArmR)}/{N(Bone.ForearmR)}/{N(Bone.HandR)} "
+                   + $"legL={N(Bone.ThighL)}/{N(Bone.ShinL)}/{N(Bone.FootL)} legR={N(Bone.ThighR)}/{N(Bone.ShinR)}/{N(Bone.FootR)} "
+                   + $"· rest {restHeight:0.00} → ×{scale:0.000}: pelvis {rest.PelvisRide * scale:0.00}, ankle {ankleUp * scale:0.00}, "
+                   + $"thigh {rest.ThighL * scale:0.00} shin {rest.ShinL * scale:0.00} upper arm {rest.UpperArmL * scale:0.00} forearm {rest.ForearmL * scale:0.00} m";
             Debug.Log("PuppetSkeleton: wearing " + Report);
             return true;
         }
 
-        string Arms()
-        {
-            int n = 0;
-            for (int s = 0; s < 2; s++) if (bone[(int)UpperArm(s)] != null) n++;
-            return n.ToString();
-        }
+        string N(Bone b) => bone[(int)b] != null ? bone[(int)b].name : "—";
 
         void Take(Bone slot, Transform t)
         {

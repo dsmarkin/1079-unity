@@ -50,4 +50,40 @@ namespace Height1079.Puppet
         /// <summary>The way the elbow bends (backward, for a body's own arm).</summary>
         public Vector3 Bend;
     }
+
+    /// <summary>How a body is built, metres in the body's own frame off the pelvis (x to its right, y up, z ahead):
+    /// what the figure needs in order to solve a pose for a given set of limbs. The sculpted figure's are constants
+    /// in <see cref="PuppetFigure"/>; a worn model's are measured off its rest pose by <see cref="PuppetSkeleton"/>
+    /// and the figure solves against them while the model is worn — so the model's bones, aimed along the solved
+    /// segments, end exactly at the solved joints. Nothing stretches, the feet land where the solver put them, and
+    /// a model whose legs are longer than the sculpted figure's does not walk in a crouch.</summary>
+    public struct PuppetProportions
+    {
+        public bool Valid;
+        /// <summary>The pelvis above the sole, standing at rest.</summary>
+        public float PelvisRide;
+        /// <summary>The ankle joint above the sole.</summary>
+        public float AnkleUp;
+        /// <summary>The hip joints and the shoulder joints, off the pelvis.</summary>
+        public Vector3 HipL, HipR, ShoulderL, ShoulderR;
+        public float ThighL, ThighR, ShinL, ShinR, UpperArmL, UpperArmR, ForearmL, ForearmR;
+
+        public Vector3 Hip(int side) => side == 0 ? HipL : HipR;
+        public Vector3 Shoulder(int side) => side == 0 ? ShoulderL : ShoulderR;
+        public float Thigh(int side) => side == 0 ? ThighL : ThighR;
+        public float Shin(int side) => side == 0 ? ShinL : ShinR;
+        public float UpperArm(int side) => side == 0 ? UpperArmL : UpperArmR;
+        public float Forearm(int side) => side == 0 ? ForearmL : ForearmR;
+        /// <summary>The model has an arm on this side at all.</summary>
+        public bool HasArm(int side) => UpperArm(side) > 1e-4f;
+
+        /// <summary>The same build at another size.</summary>
+        public PuppetProportions Scaled(float k) => new PuppetProportions
+        {
+            Valid = Valid, PelvisRide = PelvisRide * k, AnkleUp = AnkleUp * k,
+            HipL = HipL * k, HipR = HipR * k, ShoulderL = ShoulderL * k, ShoulderR = ShoulderR * k,
+            ThighL = ThighL * k, ThighR = ThighR * k, ShinL = ShinL * k, ShinR = ShinR * k,
+            UpperArmL = UpperArmL * k, UpperArmR = UpperArmR * k, ForearmL = ForearmL * k, ForearmR = ForearmR * k,
+        };
+    }
 }

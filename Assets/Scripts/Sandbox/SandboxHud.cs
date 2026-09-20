@@ -530,11 +530,11 @@ namespace Height1079.Sandbox
 
             // ── the figure: the model from the file or the one sculpted in code ──
             GUILayout.Label("фигура (B)", head);
-            if (boot.Hiker != null)
+            if (boot.Figure != null)
             {
-                if (GUILayout.Button(boot.Hiker.Status)) boot.Hiker.Toggle();
+                if (GUILayout.Button(boot.Figure.Status)) boot.Figure.Next();
                 var figure = b.GetComponent<PuppetFigure>();
-                if (figure != null && figure.HasModel) GUILayout.Label(figure.ModelReport, small);
+                if (figure != null && figure.Worn) GUILayout.Label(figure.ModelReport, small);
             }
 
             GUILayout.Label("масса и сложение", head);

@@ -505,12 +505,16 @@ namespace Height1079.Sandbox
             bool any = false;
             foreach (var r in parts)
             {
-                if (r == null) continue;
+                // what is on the screen: with a model from a file worn, the sculpted parts are still posed but
+                // switched off, and they are not the man being measured
+                if (r == null || !r.enabled) continue;
                 // the clothes are skinned, and a skinned renderer's box is not measured off its vertices — it is
                 // the generous one PuppetFigure sets by hand so the figure is never culled mid-stride, and it
                 // reads a metre over the head and under the boots. The head and the boots bound the figure by
-                // themselves: nothing of the clothes reaches past either.
-                if (r is SkinnedMeshRenderer) continue;
+                // themselves: nothing of the clothes reaches past either. A worn model's skinned parts are the
+                // other case: told to update off screen, their boxes are measured off the skinned vertices every
+                // frame, and they are all the model has.
+                if (r is SkinnedMeshRenderer smr && !smr.updateWhenOffscreen) continue;
                 if (!any) { box = r.bounds; any = true; }
                 else box.Encapsulate(r.bounds);
             }

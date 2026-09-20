@@ -91,10 +91,13 @@ namespace Height1079.EditorTools
         /// the sandbox without anybody having to know it exists.</summary>
         public static void Ensure()
         {
-            // the test model for the skeleton (Assets/Data/hiker-v1.glb → Resources/hiker.bytes) is the game's, and
-            // a sandbox built on its own must ship it too: SandboxHiker loads it exactly as HikerAnimator does
+            // the game's hiker-v1 (Assets/Data/hiker-v1.glb → Resources/hiker.bytes) is the second look on B, and
+            // a sandbox built on its own must ship it too: SandboxFigure loads it exactly as HikerAnimator does
             ProjectSetup.EnsureHikerModel(false);
             EnsureMaterials();
+            // the climber: the Quaternius Adventurer dressed in the palette (FigureFactory), the sandbox's default
+            // figure, worn over the puppet by SandboxFigure. Rebuilt every time, because the colour table is code.
+            World.FigureFactory.BuildAdventurer();
             if (File.Exists(ScenePath)) return;
             Directory.CreateDirectory("Assets/Scenes");
             var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
