@@ -201,6 +201,8 @@
 3. `WorldImporter.PipelineVersion` +1, **1079 → Rebuild world**.
 4. Кадр в песочнице (`Tools/mac/sandbox.command --shot`, кадры 18–20 — двор ночью, 21 — весь лагерь в сумерках), приёмка по чеклисту раздела 6.
 
+**Пересборка набора.** Префабы пекутся заново, только если версия в `Resources/World/Prefabs/Imported/imported.version` отличается от `WorldImporter.PipelineVersion`. Поэтому **любая правка таблицы `ImportedFactory` требует поднять `PipelineVersion` на 1**: сборка песочницы не гоняет весь пайплайн мира и иначе молча положит в плеер старый набор. Ровно это и случилось 20.09.2026 с починкой палатки: правка была в коде, а в сборке осталась старая.
+
 ## Источники
 
 - [PEAK, the Viral Climbing Game, Resulted From a Month Long Game Jam in Korea — Game8](https://game8.co/articles/latest/peak-the-viral-climbing-game-resulted-from-a-month-long-game-jam-in-korea) — 3 + 4 человека, четыре недели в Корее.

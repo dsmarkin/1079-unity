@@ -115,8 +115,17 @@ namespace Height1079.EditorTools.World
             new Entry("Rock_Snow_3", KenneyModels + "rock-c.glb", 1.8f, Fit.Height) { Shape = Shape.Convex, SnowCap = .6f, Colours = new[] { ("*", Palette.Stone) } },
         };
 
-        /// <summary>True once the set has been baked (the sandbox setup asks before building its player).</summary>
-        public static bool IsBuilt => File.Exists($"{PrefabDir}/Tent.prefab") && File.Exists(PaletteMaterials.MaterialPath);
+        /// <summary>The version the set on disk was baked at, beside the prefabs.</summary>
+        static string Stamp => $"{PrefabDir}/imported.version";
+
+        /// <summary>True once the set has been baked **at the current pipeline version** (the sandbox setup asks
+        /// before building its player). Existence alone is not enough: a sandbox build does not run the world
+        /// pipeline, so a changed table — a new thing, another scale, a collider open at its ends — would never
+        /// reach the player and the build would silently ship the old set. Change the table, raise
+        /// <see cref="WorldImporter.PipelineVersion"/>, and the next build re-bakes.</summary>
+        public static bool IsBuilt =>
+            File.Exists($"{PrefabDir}/Tent.prefab") && File.Exists(PaletteMaterials.MaterialPath)
+            && File.Exists(Stamp) && File.ReadAllText(Stamp).Trim() == WorldImporter.PipelineVersion.ToString();
 
         public static void Build()
         {
@@ -135,6 +144,7 @@ namespace Height1079.EditorTools.World
                 catch (Exception ex) { Debug.LogError($"1079 imported: {e.Name} — {ex.Message}\n{ex.StackTrace}"); }
             }
             if (colormap != null) UnityEngine.Object.DestroyImmediate(colormap);
+            File.WriteAllText(Stamp, WorldImporter.PipelineVersion.ToString());
             AssetDatabase.SaveAssets();
             Debug.Log($"1079 imported: {made} prefabs in {clock.Elapsed.TotalSeconds:0.0} s" + (missing > 0 ? $", {missing} without a source model" : ""));
         }
