@@ -8,8 +8,15 @@ namespace Height1079.EditorTools.World
 {
     public static class WorldPaths
     {
-        /// <summary>Everything the world pipeline writes lives here (git-ignored, rebuilt by menu 1079 → Rebuild world).</summary>
+        /// <summary>Pipeline output the game and the sandbox both load by name, so it has to sit in Resources
+        /// (git-ignored, rebuilt by menu 1079 → Rebuild world). Unity packs all of Resources into EVERY player,
+        /// whichever scene is built — so anything heavy that only the game needs belongs in <see cref="Kit"/>.</summary>
         public const string Generated = "Assets/Resources/World";
+
+        /// <summary>Heavy, game-only pipeline output: terrain, height grids, animal tracks, Elbrus, skis, sky.
+        /// Outside Resources, so the sandbox player does not carry it. The game finds it through
+        /// <see cref="Height1079.Runtime.WorldKit"/>, which the Main scene references. Git-ignored like Resources.</summary>
+        public const string Kit = Height1079.Runtime.WorldKit.GeneratedDir;
         public const string Source = "Assets/Data/World";
         public const string PolyHaven = "Assets/Art/ThirdParty/PolyHaven";
         public const string Sketchfab = "Assets/Art/ThirdParty/Sketchfab";

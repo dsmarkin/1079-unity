@@ -1,0 +1,18 @@
+{
+ "survival_pack": {
+  "name": "Survival Pack",
+  "authors": [
+   "Quaternius"
+  ],
+  "url": "https://quaternius.com/packs/survival.html",
+  "license": "CC0 1.0"
+ },
+ "ultimate_nature_pack": {
+  "name": "Ultimate Nature Pack",
+  "authors": [
+   "Quaternius"
+  ],
+  "url": "https://quaternius.com/packs/ultimatenature.html",
+  "license": "CC0 1.0"
+ }
+}

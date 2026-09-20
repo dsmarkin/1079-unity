@@ -5,16 +5,27 @@ using UnityEngine;
 
 namespace Height1079.EditorTools.World
 {
-    /// <summary>Sky assets for Runtime/SkyDome: materials on the Height1079/Sky* shaders, a dome mesh, the moon quad and the star mesh
-    /// built from Assets/Data/Sky/stars.f32 (Yale Bright Star Catalogue to V 6, equinox 1959; Tools/sky/stars.py).</summary>
+    /// <summary>Sky assets for Night/SkyDome and Night/DaySky: materials on the Height1079/Sky* shaders, a dome mesh, the moon quad and
+    /// the star mesh built from Assets/Data/Sky/stars.f32 (Yale Bright Star Catalogue to V 6, equinox 1959; Tools/sky/stars.py).
+    ///
+    /// Written into Resources, not into the game's kit: the sky is shared code now (Assets/Scripts/Night) and both players draw it —
+    /// the game over Kholat and Elbrus, the small map over its yard — and the small map's player carries no kit to look in.
+    /// It is about a megabyte, nearly all of it the star mesh.</summary>
     public static class SkyFactory
     {
         const string MatDir = WorldPaths.Generated + "/Materials/Sky";
         const string MeshDir = WorldPaths.Generated + "/Meshes/Sky";
 
+        /// <summary>Whether the sky is already baked — the small map's own build asks before baking it (SandboxSetup).</summary>
+        public static bool IsBuilt => AssetDatabase.LoadAssetAtPath<Material>(MatDir + "/Sky.mat") != null
+                                   && AssetDatabase.LoadAssetAtPath<Mesh>(MeshDir + "/Stars.asset") != null;
+
         public static void Build()
         {
             Directory.CreateDirectory(MatDir); Directory.CreateDirectory(MeshDir);
+            // a checkout generated while the sky lived in the kit still has it there; Resources is the one place now
+            foreach (var stale in new[] { WorldPaths.Kit + "/Materials/Sky", WorldPaths.Kit + "/Meshes/Sky" })
+                if (Directory.Exists(stale)) AssetDatabase.DeleteAsset(stale);
             foreach (var (name, shader) in new[] { ("Sky", "Height1079/Sky"), ("Stars", "Height1079/SkyStars"), ("Moon", "Height1079/SkyMoon"), ("Clouds", "Height1079/SkyClouds"), ("Aurora", "Height1079/SkyAurora") })
             {
                 var sh = Shader.Find(shader);
@@ -90,7 +101,7 @@ namespace Height1079.EditorTools.World
                 int o = k * 20;
                 float x = System.BitConverter.ToSingle(raw, o), y = System.BitConverter.ToSingle(raw, o + 4), z = System.BitConverter.ToSingle(raw, o + 8);
                 float mag = System.BitConverter.ToSingle(raw, o + 12), kelvin = System.BitConverter.ToSingle(raw, o + 16);
-                // the equatorial frame is right-handed, the game frame left-handed: store y negated (Runtime/SkyDome builds the rotation to match)
+                // the equatorial frame is right-handed, the game frame left-handed: store y negated (Night/SkyDome builds the rotation to match)
                 var p = new Vector3(x, -y, z);
                 float bright = Mathf.Pow(10f, -.4f * (mag - 1f));                 // relative flux, 1 at V = 1
                 float size = Mathf.Lerp(.0017f, .0062f, Mathf.Clamp01((6.2f - mag) / 7.5f));   // tan of the half-size angle

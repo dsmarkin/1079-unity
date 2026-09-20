@@ -17,7 +17,8 @@ namespace Height1079.Runtime
     /// 1/30 s a frame, so the result is smooth however slowly the thing renders.
     ///
     /// It needs no network session: the world is already standing behind the menu, and the two hooks below let the reel
-    /// move the night clock (<see cref="SkyDome"/>) and the weather (<see cref="Weather"/>) itself.</summary>
+    /// move the night clock (read by <c>Bootstrap.Atmosphere.GameSky</c>, which feeds <c>Night/SkyDome</c>) and the
+    /// weather (<c>Night/Weather</c>) itself.</summary>
     public sealed class DemoReel : MonoBehaviour
     {
         /// <summary>The film is rendered large and with full multisampling, then shrunk to this before it is written:
