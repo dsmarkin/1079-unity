@@ -160,22 +160,28 @@ namespace Height1079.Sandbox
             boot.FirstPerson = true;
             yield return new WaitForSeconds(5f);
             body = boot.Body;           // Begin() puts a fresh body at the fire
-            boot.Eye.Yaw = 0f; boot.Eye.Pitch = 2f;
+            // from the start, looking back at the fire — the start and the finish, the one thing to show
+            var toFire = SandboxHuntYard.Fire - body.Torso.position; toFire.y = 0f;
+            boot.Eye.Yaw = Quaternion.LookRotation(toFire).eulerAngles.y; boot.Eye.Pitch = 12f;
             if (!boot.Hunt.Torch) boot.Hunt.ToggleTorch();
             for (float w = 0f; w < .5f; w += Time.deltaTime) { boot.AimCamera(); yield return null; }
             yield return ShootHere(boot, body, "15-ночь-костёр");
-            // the creature, lit by the torch from eight metres in front of it
+            // and the yard ahead: the way to the tent, torch on
+            boot.Eye.Yaw = 0f; boot.Eye.Pitch = 2f;
+            for (float w = 0f; w < .3f; w += Time.deltaTime) { boot.AimCamera(); yield return null; }
+            yield return ShootHere(boot, body, "15a-ночь-к-палатке");
+            // the creature in the beam: the body stands eight metres in front of it, the eye and the torch on it
             var menk = boot.Hunt.Menk;
-            for (float w = 0f; w < .5f; w += Time.deltaTime)
             {
-                var at = new Vector3(menk.X, .1f, menk.Z);
+                var at = new Vector3(menk.X, 0f, menk.Z);
                 var ahead = Quaternion.Euler(0f, menk.Yaw, 0f) * Vector3.forward;
-                boot.Cam.transform.position = at + ahead * 8f + Vector3.up * 1.7f + Vector3.Cross(Vector3.up, ahead) * 2f;
-                boot.Cam.transform.LookAt(at + Vector3.up * 2.4f);
-                yield return null;
+                var standAt = at + ahead * 8f + Vector3.Cross(Vector3.up, ahead) * 1.5f;
+                boot.PlaceAt(new Vector3(standAt.x, 1.2f, standAt.z));
+                var look = at + Vector3.up * 2.4f - new Vector3(standAt.x, 1.6f, standAt.z);
+                boot.Eye.Yaw = Quaternion.LookRotation(look).eulerAngles.y; boot.Eye.Pitch = -Mathf.Asin(look.normalized.y) * Mathf.Rad2Deg;
+                for (float w = 0f; w < .8f; w += Time.deltaTime) { boot.AimCamera(); yield return null; }
             }
-            yield return new WaitForEndOfFrame();
-            yield return Capture(boot, body, "16-ночь-менк", false);
+            yield return ShootHere(boot, body, "16-ночь-менк");
             // the wall: the clock jumps to the last minute and the front builds
             boot.Hunt.Skip(75f);
             boot.PlaceAt(SandboxHuntYard.Spawn);

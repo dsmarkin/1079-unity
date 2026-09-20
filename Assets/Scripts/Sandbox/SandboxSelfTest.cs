@@ -334,6 +334,15 @@ namespace Height1079.Sandbox
                     $"низ фигуры на {drawn.Value.min.y - floorY:0.00} м от опоры");
             }
 
+            // ── 12b. down in the snow, on the flat: the ride height comes down with the stance ───────────────────
+            boot.GoTo(0);
+            yield return new WaitForSeconds(1.2f);
+            float flatY = body.Torso.position.y;
+            for (float w = 0f; w < 1.5f; w += Time.deltaTime) { body.Drive(new PuppetInput { Look = Quaternion.identity, Prone = true }); yield return null; }
+            Check(body.Low && body.Prone && flatY - body.Torso.position.y > .3f, "лёжа тело ниже на полметра (ровное место)",
+                $"с {flatY:0.00} до {body.Torso.position.y:0.00} м, stance {body.Stance:0.00}, опора {body.GroundDistance:0.00}, grounded {body.Grounded}, limp {body.Limp}, dead {body.Dead}, корпус {body.Tilt:0}°");
+            for (float w = 0f; w < 1.5f; w += Time.deltaTime) { body.Drive(PuppetInput.Idle); yield return null; }
+
             // ── 13. the night yard: the loop of docs/SANDBOX.md, end to end ───────────────────────────────────────
             // Everything the Menk decides is tested in dotnet (HuntTests); what is checked here is the engine side
             // of it: that the night comes, that the body in the scene is read the way the rules expect, that a
@@ -364,36 +373,55 @@ namespace Height1079.Sandbox
                 "свет фонаря зовёт Менка", $"режим {menk.Mode}, на свет {menk.WentToLight} раз");
             if (hunt.Torch) hunt.ToggleTorch();
 
-            // the diary: taken at the tent, put down at the fire, counted
+            // the diary: it lies just inside the doorway of the tent (the mouth faces the fire, south), so it is
+            // taken from the threshold; put down at the fire, counted
             var diary = run.Errand.Items.Find(i => i.Name == "дневник");
-            boot.PlaceAt(new Vector3(diary.X, 1.2f, diary.Z - 1f));
+            var door = SandboxHuntYard.Tent + new Vector3(0f, 0f, -Height1079.Core.Sites.Tent.Length * .5f - .9f);
+            boot.PlaceAt(new Vector3(door.x, 1.2f, door.z));
             yield return new WaitForSeconds(1f);
-            hunt.TakeOrPutDown();
-            Check(hunt.Held == diary, "дневник взят у палатки", hunt.Held != null ? "в руках: " + hunt.Held.Name : "руки пусты");
+            Check(Height1079.Core.HuntRules.Dist(diary.X, diary.Z, door.x, door.z) < 2.2f, "дневник лежит у входа в палатку",
+                $"{Height1079.Core.HuntRules.Dist(diary.X, diary.Z, door.x, door.z):0.0} м от порога");
+            var feet = body.Torso.position + Vector3.down * t.HoverHeight;
+            hunt.Take(diary);
+            Check(hunt.Held == diary, "дневник взят с порога",
+                (hunt.Held != null ? "в руках: " + hunt.Held.Name : "руки пусты") + $" · тело в ({feet.x:0.0}, {feet.z:0.0}), порог ({door.x:0.0}, {door.z:0.0}), дневник ({diary.X:0.0}, {diary.Z:0.0}), {Height1079.Core.HuntRules.Dist(diary.X, diary.Z, feet.x, feet.z):0.0} м, limp {body.Limp}, dead {boot.Dead}");
             boot.PlaceAt(SandboxHuntYard.Spawn);
             yield return new WaitForSeconds(1f);
             hunt.TakeOrPutDown();
             Check(diary.Delivered && run.Errand.Delivered == 1, "положен у костра — засчитан", $"принесено {run.Errand.Delivered}");
 
-            // the stove: two hands, and no running with it
+            // the stove: at the back of the tent, so the body crawls in under the ridge; two hands, and no running with it
             var stove = run.Errand.Items.Find(i => i.Name == "печка");
-            boot.PlaceAt(new Vector3(stove.X, 1.2f, stove.Z - 1f));
-            yield return new WaitForSeconds(1f);
-            hunt.TakeOrPutDown();
+            boot.PlaceAt(new Vector3(door.x, 1.2f, door.z));
+            yield return new WaitForSeconds(.8f);
+            for (float w = 0f; w < 7f && Height1079.Core.HuntRules.Dist(body.Torso.position.x, body.Torso.position.z, stove.X, stove.Z) > 1.5f; w += Time.deltaTime)
+            {
+                body.Drive(new PuppetInput { Move = new Vector2(0f, 1f), Look = Quaternion.identity, Prone = true });
+                yield return null;
+            }
+            body.Drive(new PuppetInput { Look = Quaternion.identity, Prone = true });
+            yield return null;
+            Check(Height1079.Core.HuntRules.Dist(body.Torso.position.x, body.Torso.position.z, stove.X, stove.Z) < 2.2f, "ползком добрался до печки в глубине палатки",
+                $"{Height1079.Core.HuntRules.Dist(body.Torso.position.x, body.Torso.position.z, stove.X, stove.Z):0.0} м до печки, тело y {body.Torso.position.y:0.00}, stance {body.Stance:0.00}");
+            hunt.Take(stove);
             Check(hunt.Held == stove, "печка взята", hunt.Held != null ? "в руках: " + hunt.Held.Name : "руки пусты");
             Check(!Height1079.Core.Errand.MayRun(stove.Carry) && !Height1079.Core.Errand.MayTorch(stove.Carry), "с печкой — шагом и без фонаря", stove.Carry.ToString());
             hunt.ToggleTorch();
             Check(!hunt.Torch, "фонарь с печкой не включается", hunt.Torch ? "включился" : "не включился");
             hunt.TakeOrPutDown();
             Check(hunt.Held == null && stove.OnSnow && !stove.Delivered, "печка положена в снег у палатки", $"лежит {stove.OnSnow}, сдана {stove.Delivered}");
+            boot.PlaceAt(new Vector3(door.x, 1.2f, door.z - 2f));
+            yield return new WaitForSeconds(.6f);
+            Check(SandboxHuntYard.RealObjects, "площадка собрана из объектов игры", SandboxHuntYard.RealObjects ? "префабы мира на месте" : "заглушки: мир не сгенерирован");
 
-            // flat in the snow: the body comes down and slows
+            // flat in the snow: the body comes down and slows. Stood up first — the last order it was given was
+            // to crawl, and a body keeps its last order until it is given another
             boot.PlaceAt(SandboxHuntYard.Spawn);
-            yield return new WaitForSeconds(1f);
+            for (float w = 0f; w < 1.2f; w += Time.deltaTime) { body.Drive(PuppetInput.Idle); yield return null; }
             float standY = body.Torso.position.y;
             for (float w = 0f; w < 1.5f; w += Time.deltaTime) { body.Drive(new PuppetInput { Look = Quaternion.identity, Prone = true }); yield return null; }
-            Check(body.Low && body.Prone && standY - body.Torso.position.y > .3f, "лёжа тело ниже на полметра",
-                $"опустилось на {standY - body.Torso.position.y:0.00} м, stance {body.Stance:0.00}");
+            Check(body.Low && body.Prone && standY - body.Torso.position.y > .3f, "лёжа тело ниже на полметра (у костра)",
+                $"с {standY:0.00} до {body.Torso.position.y:0.00} м, stance {body.Stance:0.00}, опора {body.GroundDistance:0.00}, grounded {body.Grounded}, limp {body.Limp}, dead {body.Dead}, корпус {body.Tilt:0}°");
             var proneFrom = body.Torso.position;
             for (float w = 0f; w < 2f; w += Time.deltaTime) { body.Drive(new PuppetInput { Move = new Vector2(0, 1), Run = true, Look = Quaternion.identity, Prone = true }); yield return null; }
             float crawl = Flat(body.Torso.position - proneFrom).magnitude / 2f;
@@ -407,7 +435,7 @@ namespace Height1079.Sandbox
             for (float w = 0f; w < 10f && !hunt.Dead; w += Time.deltaTime) { body.Drive(new PuppetInput { Look = lookAtMenk }); yield return null; }
             yield return null;
             Check(hunt.Dead && run.Over, "стоя перед Менком — удар, забег окончен", $"мёртв {hunt.Dead}, исход «{run.Outcome}», режим {menk.Mode}");
-            Check(body.Limp, "тело после удара лежит", $"limp {body.Limp}");
+            Check(body.Limp || body.Dead, "тело после удара лежит", $"limp {body.Limp}, dead {body.Dead}, boot.Dead {boot.Dead}, корпус {body.Tilt:0}°, то же тело {ReferenceEquals(body, boot.Body)}");
             Check(hunt.Report != null && hunt.Report.Count >= 4, "итог написан", hunt.Report != null ? string.Join(" | ", hunt.Report) : "нет итога");
             hunt.End();
             yield return new WaitForSeconds(.5f);

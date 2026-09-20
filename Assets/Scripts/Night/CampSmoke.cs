@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace Height1079.Runtime
+namespace Height1079.Night
 {
     /// <summary>Wood smoke for the 31 Jan camp: the stove pipe (always) and the fire (while it burns). Material from SnowFxFactory ("Smoke").</summary>
     public static class CampSmoke

@@ -112,6 +112,8 @@ namespace Height1079.Sandbox
             ApplySolver();
             Sky();
             SandboxRange.Build();
+            // the sandbox opens on the yard (docs/SANDBOX.md); the physics range is a few stands away (F11/F12)
+            if (SandboxRange.YardStand >= 0) stand = SandboxRange.YardStand;
             // the game's own prints, puffs and trail map (Height1079.Snow), under this object so they go when it goes
             SnowPrints.Create(transform);
             Spawn();
@@ -128,6 +130,8 @@ namespace Height1079.Sandbox
             // `-selftest` drives the body by script and quits: the only way to check physics in a batch build
             if (SandboxSelfTest.Requested) gameObject.AddComponent<SandboxSelfTest>();
             else if (SandboxShots.Requested) gameObject.AddComponent<SandboxShots>();
+            // otherwise the night comes down at once: the yard is what the sandbox is for now
+            else if (stand == SandboxRange.YardStand) Hunt.Begin();
         }
 
         public void ApplySolver()

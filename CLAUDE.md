@@ -84,7 +84,7 @@ Assets/
                                      облачка, карта троп и правило глубины), SnowPrintArt (картинки отпечатков). Только UnityEngine.
     Night/     Height1079.Night    — ночь, общая для игры и песочницы: Weather (ветер, метель, позёмка; кто владеет ночью, задаёт
                                      Want/Live — в игре это Runtime/WeatherDriver), Synth (синтез звука), NightFilm (виньетка, зерно),
-                                     MenkPuppet (скелет Менка и его позы), WindSound (ветер в ушах). Только UnityEngine.
+                                     CampSmoke (пламя и дым костра), MenkPuppet (скелет Менка и его позы), WindSound (ветер в ушах). Только UnityEngine.
     Puppet/    Height1079.Puppet   — новое тело по образцу PEAK (капсула на пружине ног, фигура, одежда), пока живёт в песочнице.
     Torchlight/ Height1079.Torchlight — луч фонаря (TorchBeam: свет, кука рефлектора, батарея и мерцание), общий для Equipment
                                      игры и фонарика песочницы. Только UnityEngine.
