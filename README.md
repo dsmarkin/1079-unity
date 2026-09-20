@@ -107,6 +107,7 @@
 | [docs/SANDBOX.md](docs/SANDBOX.md) | песочница как игра: бриф петли «забрал — спрятался — унёс», площадка, Менк на свет/шум/следы, пурга-стена, что сделано |
 | [docs/BACKLOG.md](docs/BACKLOG.md) | бэклог механик |
 | `Assets/Art/ThirdParty/PolyHaven/SOURCES.json` | происхождение и лицензии сторонних ассетов (Poly Haven, CC0) |
+| `Assets/Art/ThirdParty/Quaternius/SOURCES.json`, `Assets/Art/ThirdParty/Kenney/SOURCES.json` | low-poly модели снаряжения, деревьев, камней (CC0); в игру идут перекрашенными в палитру — [docs/ART.md](docs/ART.md) §9 |
 
 ## Steam (необязательно)
 

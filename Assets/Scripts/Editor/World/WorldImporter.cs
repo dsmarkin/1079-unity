@@ -23,7 +23,7 @@ namespace Height1079.EditorTools.World
         public static void RebuildMenu() => Build(true);
 
         /// <summary>Bump when a factory changes so existing checkouts rebuild the generated world on next open/check.</summary>
-        public const int PipelineVersion = 53;
+        public const int PipelineVersion = 54;
         const string Stamp = WorldPaths.Generated + "/pipeline.version";
 
         public static bool IsBuilt => File.Exists(TerrainAsset) && File.Exists(HeightResource) && File.Exists(Stamp)
@@ -67,6 +67,8 @@ namespace Height1079.EditorTools.World
             AnimalTracksFactory.Build(dem);
             SkyFactory.Build();
             ItemsFactory.Build();
+            // the ready-made low-poly models in the palette's colours (docs/ART.md «Как подключаются готовые модели»)
+            ImportedFactory.Build();
             CargoFactory.Build();
             SkiFactory.Build();
             SiteFactory.BuildRucksack(WorldPaths.Generated + "/Prefabs/Items");
@@ -332,6 +334,39 @@ namespace Height1079.EditorTools.World
             else if (assetPath.Contains("_rough") || assetPath.Contains("_arm")) imp.sRGBTexture = false;
             imp.maxTextureSize = 1024;
             imp.anisoLevel = 4;
+        }
+    }
+
+    /// <summary>Import rules for the third-party model packs (Quaternius, Kenney — ImportedFactory bakes them into
+    /// palette prefabs): the file's own scale (metres come out of the fit in the factory, not out of the file), no
+    /// rig, no cameras or lights, readable meshes for the bake. Written here rather than in .meta files, which this
+    /// repository does not keep.</summary>
+    public sealed class ThirdPartyModelPostprocessor : AssetPostprocessor
+    {
+        public static bool Wants(string path) => path.StartsWith(ImportedFactory.Quaternius) || path.StartsWith("Assets/Art/ThirdParty/Kenney");
+
+        void OnPreprocessModel()
+        {
+            if (!Wants(assetPath)) return;
+            Apply((ModelImporter)assetImporter);
+        }
+
+        public static void Apply(ModelImporter imp)
+        {
+            imp.useFileScale = true;
+            imp.globalScale = 1f;
+            imp.importAnimation = false;
+            imp.animationType = ModelImporterAnimationType.None;
+            imp.importCameras = false;
+            imp.importLights = false;
+            imp.importBlendShapes = false;
+            imp.importVisibility = false;
+            imp.isReadable = true;
+            imp.meshCompression = ModelImporterMeshCompression.Off;
+            imp.generateSecondaryUV = false;
+            imp.importNormals = ModelImporterNormals.Import;
+            imp.materialImportMode = ModelImporterMaterialImportMode.ImportStandard;
+            imp.materialLocation = ModelImporterMaterialLocation.InPrefab;
         }
     }
 }

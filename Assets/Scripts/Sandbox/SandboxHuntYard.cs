@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using UnityEngine;
+using Height1079.Art;
 using Height1079.Core;
 using Height1079.Night;
 using Height1079.Puppet;
@@ -11,6 +12,12 @@ namespace Height1079.Sandbox
     /// Zorkiy inside it (<c>Site_Camp_31Jan_Tent</c>), the forest's boulders and spruces for cover, windfalls to lie
     /// behind, and the rolled tent from the cargo library. Nothing here is drawn from primitives while the world
     /// exists; a clone that has not generated its world yet gets stand-ins, and the log says so.
+    ///
+    /// Since the style was settled (docs/ART.md §3) the yard prefers the imported low-poly set in the palette's
+    /// colours (<c>Resources/World/Prefabs/Imported</c>, Editor/World/ImportedFactory): the tent, the fire's pile and
+    /// its logs, the pines, the rocks and the windfalls, the things lying by the tent. The stove, the diary and the
+    /// camera are still lifted out of the game's site tent — no pack has them — and repainted in the same colours,
+    /// as are the labaz and its cargo. Without the imported set the yard is what it was.
     ///
     /// The square is 60 m, far south of the physics range so neither is in the other's picture. The fire is at the
     /// south edge — the start, and the finish: put a thing down inside its ring and it is home. The tent is at the
@@ -31,6 +38,7 @@ namespace Height1079.Sandbox
         /// <summary>Top of the snow you see, world y.</summary>
         public const float SnowTop = .105f;
         const string Prefabs = "World/Prefabs/";
+        const string Imported = "World/Prefabs/Imported/";
 
         public enum Cover { Rock, Spruce, Windfall }
         public struct Shelter { public Cover Kind; public Vector3 Pos; public float Height; }
@@ -48,6 +56,8 @@ namespace Height1079.Sandbox
         public static readonly Dictionary<string, float> Heights = new Dictionary<string, float>();
         /// <summary>True when the game's prefabs were there; false means stand-ins.</summary>
         public static bool RealObjects { get; private set; }
+        /// <summary>True when the imported set in palette colours is there: the yard is then one drawing.</summary>
+        public static bool Palettised { get; private set; }
 
         static Material snow, rock;
 
@@ -80,8 +90,11 @@ namespace Height1079.Sandbox
             Clear();
             snow = snowMat; rock = rockMat;
             Root = new GameObject("HuntYard").transform;
-            RealObjects = Resources.Load<GameObject>(Prefabs + "Sites/Site_Camp_31Jan_Fire") != null;
+            Palettised = Imp("Tent") != null && Imp("Bonfire") != null;
+            RealObjects = Palettised || Resources.Load<GameObject>(Prefabs + "Sites/Site_Camp_31Jan_Fire") != null;
             if (!RealObjects) Debug.LogWarning("1079 sandbox: мир не сгенерирован (нет World/Prefabs) — площадка собрана из заглушек. Меню 1079 → Rebuild world.");
+            if (Palettised) { snow = Palette.Flat(Palette.SnowLit); rock = Palette.Flat(Palette.Stone); }
+            else Debug.Log("1079 sandbox: нет импортированных моделей (World/Prefabs/Imported) — площадка из объектов игры или заглушек.");
 
             // the square: a plate under a skin of snow, the same idea as the range's yard
             var ground = Box("HuntGround", Origin + new Vector3(0f, -1f, 0f), new Vector3(Size, 2f, Size), snow);
@@ -106,6 +119,7 @@ namespace Height1079.Sandbox
                     case Cover.Windfall: Windfall(at, s.h, yaw, rnd.Next(3)); break;
                 }
             }
+            Dressing();
         }
 
         public static void Clear()
@@ -116,6 +130,15 @@ namespace Height1079.Sandbox
         }
 
         static GameObject Load(string path) => Resources.Load<GameObject>(Prefabs + path);
+        /// <summary>One of the imported set, or null where the set is not built.</summary>
+        static GameObject Imp(string name) => Resources.Load<GameObject>(Imported + name);
+
+        /// <summary>How tall an imported prefab was baked, off its mesh: the yard scales it to the height the plan wants.</summary>
+        static float BakedHeight(GameObject prefab)
+        {
+            var mf = prefab.GetComponent<MeshFilter>();
+            return mf != null && mf.sharedMesh != null ? Mathf.Max(.01f, mf.sharedMesh.bounds.size.y) : 1f;
+        }
 
         static Transform Put(GameObject prefab, Vector3 at, float yaw, float scale = 1f)
         {
@@ -125,16 +148,41 @@ namespace Height1079.Sandbox
             return t;
         }
 
+        /// <summary>An imported thing on the snow, or null where the set is not built.</summary>
+        static Transform Prop(string name, Vector3 at, float yaw, float scale = 1f)
+        {
+            var p = Imp(name);
+            return p == null ? null : Put(p, at + Vector3.up * SnowTop, yaw, scale);
+        }
+
         // ── the fire: the start and the finish ──
 
         static void FireAt(Vector3 at)
         {
-            var prefab = Load("Sites/Site_Camp_31Jan_Fire");
-            Transform fire = prefab != null ? Put(prefab, at + Vector3.up * (SnowTop - .02f), 0f) : FireFallback(at);
-            // the cedar over it: the fire of the night was under the cedar, and a tree this size is the landmark
-            // the base is found by from anywhere on the yard
-            var cedar = Load("Trees/HeroCedar");
-            if (cedar != null) Put(cedar, at + new Vector3(-3.2f, 0f, -2.6f), 40f, .75f);
+            Transform fire;
+            var pile = Imp("Bonfire");
+            if (pile != null)
+            {
+                // the pack's pile of logs; the flames, the smoke and the light are the game's, as below
+                fire = Put(pile, at + Vector3.up * (SnowTop - .01f), 25f);
+                // wood to feed it, stacked beside
+                for (int i = 0; i < 4; i++) Prop("WoodLog", at + new Vector3(1.7f + (i % 2) * .24f, (i / 2) * .19f, -.5f + (i % 2) * .08f), 84f + i * 5f);
+            }
+            else
+            {
+                var prefab = Load("Sites/Site_Camp_31Jan_Fire");
+                fire = prefab != null ? Put(prefab, at + Vector3.up * (SnowTop - .02f), 0f) : FireFallback(at);
+            }
+            // the tree over it: the fire of the night was under the cedar, and a tree this size is the landmark
+            // the base is found by from anywhere on the yard. The pack's pine stands six metres off, so that from
+            // the fire it is a cone and not the underside of a bough lit from below, which reads as a leafy crown
+            var pine = Imp("Pine_Snow_2");
+            if (pine != null) Put(pine, at + new Vector3(-6.5f, 0f, -1f), 40f, 11f / BakedHeight(pine));
+            else
+            {
+                var cedar = Load("Trees/HeroCedar");
+                if (cedar != null) Put(cedar, at + new Vector3(-3.2f, 0f, -2.6f), 40f, .75f);
+            }
             // the half-burnt stack and the embers are part of the site; the game lights them the same way
             var embers = fire.Find("Embers");
             if (embers != null) { var r = embers.GetComponent<Renderer>(); if (r != null) r.enabled = true; }
@@ -151,8 +199,9 @@ namespace Height1079.Sandbox
             ring.transform.SetParent(Root, true);
             ring.transform.position = at + Vector3.up * (SnowTop + .006f);
             ring.transform.localScale = new Vector3(HuntRules.FireRadius * 2f, .003f, HuntRules.FireRadius * 2f);
-            var rm = new Material(Shader.Find("Standard")) { color = new Color(.78f, .66f, .48f) };
-            rm.SetFloat("_Glossiness", 0f);
+            Material rm;
+            if (Palettised) rm = Palette.Flat(Palette.SnowShade);
+            else { rm = new Material(Shader.Find("Standard")) { color = new Color(.78f, .66f, .48f) }; rm.SetFloat("_Glossiness", 0f); }
             ring.GetComponent<Renderer>().sharedMaterial = rm;
             ring.GetComponent<Renderer>().shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             Object.Destroy(ring.GetComponent<Collider>());
@@ -162,24 +211,56 @@ namespace Height1079.Sandbox
 
         /// <summary>The camp tent of 31 January, turned so its doorway faces the fire. The list's things are taken
         /// out of it as objects of their own — the stove off its wires, the diary and the camera from by the door —
-        /// and lie where they lay; the rolled tent from the cargo library lies by the entrance.</summary>
+        /// and lie where they lay; the rolled tent from the cargo library lies by the entrance. With the imported
+        /// set the pack's tent stands in the site's place and the site's canvas goes; the things keep their places
+        /// under the new canvas, repainted, and the camp's gear lies about the mouth.</summary>
         static void TentAt(Vector3 at)
         {
-            var prefab = Load("Sites/Site_Camp_31Jan_Tent");
-            if (prefab == null) { TentFallback(at); return; }
-            // the prefab's +Z is its doorway; the fire is to the south
-            TentRoot = Put(prefab, at + Vector3.up * (SnowTop - .02f), 180f);
-            Extract("печка", "Stove", "StoveDoor");
-            Extract("дневник", "Diary", "Pencil");
-            Extract("фотоаппарат", "Cam");
-            var roll = Load("Cargo/Tent");
+            var site = Load("Sites/Site_Camp_31Jan_Tent");
+            var tent = Imp("Tent");
+            if (site == null && tent == null) { TentFallback(at); return; }
+            var toFire = (Fire - at); toFire.y = 0f; toFire.Normalize();
+            var side = Vector3.Cross(Vector3.up, toFire);
+            Transform siteRoot = null;
+            if (site != null)
+            {
+                // the prefab's +Z is its doorway; the fire is to the south
+                siteRoot = Put(site, at + Vector3.up * (SnowTop - .02f), 180f);
+                TentRoot = siteRoot;
+                Extract("печка", new[] { ("StoveDoorGlow", (string)null), ("Stove", Palette.Metal) }, "Stove", "StoveDoor");
+                Extract("дневник", new[] { ("DiaryCover", Palette.Quilt), ("DiaryPages", Palette.Enamel), ("Diary", Palette.Quilt), ("Pencil", Palette.Wood) }, "Diary", "Pencil");
+                Extract("фотоаппарат", new[] { ("CamGlass", Palette.SnowShade), ("CamChrome", Palette.Metal), ("CamCase", Palette.Felt), ("Cam", Palette.Black) }, "Cam");
+            }
+            if (tent != null)
+            {
+                // the imported tent: baked with its mouth toward +Z, like the site's, so the same turn faces the fire
+                TentRoot = Put(tent, at + Vector3.up * (SnowTop - .02f), 180f);
+                if (siteRoot != null) Object.Destroy(siteRoot.gameObject);
+                Gear(at, toFire, side);
+            }
+            var roll = Imp("TentRoll") ?? Load("Cargo/Tent");
             if (roll != null)
             {
-                var toFire = (Fire - at); toFire.y = 0f; toFire.Normalize();
-                var side = Vector3.Cross(Vector3.up, toFire);
                 var r = Put(roll, at + toFire * 3.4f + side * 1.2f + Vector3.up * SnowTop, 70f);
+                if (Palettised) Palette.Recolour(r.gameObject);
                 Register("свёрнутая палатка", Wrap(r, "свёрнутая палатка"));
             }
+        }
+
+        /// <summary>The camp's things about the mouth of the tent, the way a camp's things lie: the pack against the
+        /// canvas, the axe by the wood, the pot and the tins by the door, the bedroll inside. Dressing, not the list.</summary>
+        static void Gear(Vector3 at, Vector3 toFire, Vector3 side)
+        {
+            // the rolled tent of the list lies at toFire 3.4, side 1.2, and nothing else lies on it
+            Prop("Backpack", at + toFire * 1.6f - side * 1.55f, 205f);
+            Prop("Axe", at + toFire * 2.6f + side * 2.3f, 30f);
+            Prop("WoodLog", at + toFire * 3.2f + side * 2.6f, 100f);
+            Prop("WoodLog", at + toFire * 3.5f + side * 2.4f, 96f);
+            Prop("Pot", at + toFire * 3.0f - side * .9f, 0f);
+            Prop("Can", at + toFire * 3.3f - side * 1.3f, 0f);
+            Prop("Can", at + toFire * 2.9f - side * 1.15f, 40f);
+            Prop("Flashlight", at + toFire * 2.5f - side * .45f, 250f);
+            Prop("Bedroll", at - toFire * .5f - side * .45f, 0f);
         }
 
         /// <summary>The labaz: the cache dug into the snow and covered with firewood and fir branches, marked by
@@ -187,7 +268,11 @@ namespace Height1079.Sandbox
         static void LabazAt(Vector3 at)
         {
             var prefab = Load("Sites/Site_Labaz_1959");
-            if (prefab != null) LabazRoot = Put(prefab, at + Vector3.up * (SnowTop - .02f), 20f);
+            if (prefab != null)
+            {
+                LabazRoot = Put(prefab, at + Vector3.up * (SnowTop - .02f), 20f);
+                if (Palettised) Palette.Recolour(LabazRoot.gameObject);
+            }
             else
             {
                 var fallback = Box("LabazFallback", at + Vector3.up * (SnowTop + .3f), new Vector3(2.2f, .6f, 1.6f), snow);
@@ -197,14 +282,21 @@ namespace Height1079.Sandbox
             var side = Vector3.Cross(Vector3.up, toFire);
             Cargo("сухари", "Cargo/Rusks", at + toFire * 1.6f + side * .9f, 15f, new Vector3(.3f, .2f, .3f), new Color(.6f, .45f, .3f));
             Cargo("свечи", "Cargo/Candles", at + toFire * 1.9f - side * 1.0f, -30f, new Vector3(.2f, .1f, .2f), new Color(.9f, .85f, .7f));
-            Cargo("дрова", "Cargo/Firewood", at - toFire * 1.2f + side * 1.4f, 60f, new Vector3(.5f, .35f, .5f), new Color(.35f, .25f, .15f));
+            if (Imp("WoodLog") != null) Firewood("дрова", at - toFire * 1.2f + side * 1.4f, 60f);
+            else Cargo("дрова", "Cargo/Firewood", at - toFire * 1.2f + side * 1.4f, 60f, new Vector3(.5f, .35f, .5f), new Color(.35f, .25f, .15f));
             Cargo("запасные лыжи", "Gear/Ski_Pair_Packed", at - toFire * 1.0f - side * 1.8f, 100f, new Vector3(2f, .12f, .2f), new Color(.5f, .35f, .2f));
         }
 
         static void Cargo(string item, string path, Vector3 at, float yaw, Vector3 standSize, Color standColour)
         {
             var prefab = Load(path);
-            if (prefab != null) { Register(item, Wrap(Put(prefab, at + Vector3.up * SnowTop, yaw), item)); return; }
+            if (prefab != null)
+            {
+                var t = Put(prefab, at + Vector3.up * SnowTop, yaw);
+                if (Palettised) Palette.Recolour(t.gameObject);
+                Register(item, Wrap(t, item));
+                return;
+            }
             var go = Box("Item " + item, at + Vector3.up * (SnowTop + standSize.y * .5f), standSize, new Material(Shader.Find("Standard")) { color = standColour });
             Object.Destroy(go.GetComponent<Collider>());
             var root = new GameObject("Item " + item).transform;
@@ -214,10 +306,28 @@ namespace Height1079.Sandbox
             Register(item, root);
         }
 
+        /// <summary>An armful of the pack's logs, three stacked, as one thing to carry.</summary>
+        static void Firewood(string item, Vector3 at, float yaw)
+        {
+            var root = new GameObject("Item " + item).transform;
+            root.SetParent(Root, true); root.position = at + Vector3.up * SnowTop; root.rotation = Quaternion.Euler(0f, yaw, 0f);
+            var log = Imp("WoodLog");
+            var offsets = new[] { new Vector3(-.13f, 0f, 0f), new Vector3(.13f, 0f, .03f), new Vector3(0f, .17f, -.02f) };
+            for (int i = 0; i < offsets.Length; i++)
+            {
+                var t = Object.Instantiate(log, root).transform;
+                t.name = log.name; t.localPosition = offsets[i]; t.localRotation = Quaternion.Euler(0f, (i - 1) * 7f, 0f);
+                var c = t.GetComponent<Collider>(); if (c != null) Object.Destroy(c);
+            }
+            Heights[item] = .38f;
+            Register(item, root);
+        }
+
         /// <summary>Lifts the parts of the tent whose names start with <paramref name="prefixes"/> out into an
-        /// object of their own, standing where they were. The site's parts are named by what they are made of
-        /// (<c>Stove</c>, <c>DiaryCover</c>, <c>CamBody</c> …), which is what makes this possible.</summary>
-        static void Extract(string item, params string[] prefixes)
+        /// object of their own, standing where they were, painted in the palette where the set is in use. The site's
+        /// parts are named by what they are made of (<c>Stove</c>, <c>DiaryCover</c>, <c>CamBody</c> …), which is what
+        /// makes this possible.</summary>
+        static void Extract(string item, (string prefix, string colour)[] paint, params string[] prefixes)
         {
             if (TentRoot == null) return;
             var parts = new List<Transform>();
@@ -227,7 +337,9 @@ namespace Height1079.Sandbox
                 foreach (var p in prefixes) if (tr.name.StartsWith(p)) { parts.Add(tr); break; }
             }
             if (parts.Count == 0) { Debug.LogWarning("1079 sandbox: в палатке нет частей для «" + item + "»"); return; }
-            Register(item, Wrap(parts, "Item " + item));
+            var root = Wrap(parts, "Item " + item);
+            if (Palettised) Palette.Recolour(root.gameObject, paint);
+            Register(item, root);
         }
 
         /// <summary>One object at the foot of a set of parts, the parts under it, world positions kept.</summary>
@@ -265,6 +377,9 @@ namespace Height1079.Sandbox
 
         static void Rock(Vector3 at, float h, float yaw, int variant)
         {
+            var imported = Imp("Rock_Snow_" + (variant % 3 + 1));
+            // the brief's boulders are up to two metres; the plan's heights were written for the game's own
+            if (imported != null) { Put(imported, at, yaw, Mathf.Min(h, 2f) / BakedHeight(imported)); return; }
             var prefab = Load("Rocks/Boulder_" + Mathf.Clamp(variant, 0, 3));
             if (prefab == null) { RockFallback(at, h, yaw); return; }
             // the library's boulders are knee to waist high; the yard wants a man's height, so they are scaled up
@@ -275,6 +390,8 @@ namespace Height1079.Sandbox
 
         static void Spruce(Vector3 at, float h, float yaw, int variant)
         {
+            var imported = Imp("Pine_Snow_" + (variant % 3 + 1));
+            if (imported != null) { CoverCollider(Put(imported, at, yaw, h / BakedHeight(imported))); return; }
             var prefab = Load("Trees/Spruce_" + Mathf.Clamp(variant, 0, 4));
             if (prefab == null) { SpruceFallback(at, h); return; }
             var t = Put(prefab, at, yaw, h / 16f);
@@ -283,10 +400,35 @@ namespace Height1079.Sandbox
 
         static void Windfall(Vector3 at, float h, float yaw, int variant)
         {
+            var imported = Imp("Windfall");
+            // the imported log is three metres and half a metre through as baked; the plan's height is for the
+            // game's windfalls with their root plates, and a log scaled to it would be a barrel
+            if (imported != null) { CoverCollider(Put(imported, at, yaw, .9f + variant * .1f)); return; }
             var prefab = Load("Trees/Windfall_" + Mathf.Clamp(variant, 0, 2));
             if (prefab == null) { DriftFallback(at, h); return; }
             var t = Put(prefab, at, yaw);
             CoverCollider(t);
+        }
+
+        /// <summary>Trees that are scenery and not cover, at the margins of the square where nobody has to pass:
+        /// bare birches in snow and dead trees, so the yard reads as a winter wood and not a row of pines. Only with
+        /// the imported set; the game's own yard had none.</summary>
+        static void Dressing()
+        {
+            var trees = new (string name, float x, float z, float yaw, float h)[]
+            {
+                ("Birch_Snow_1",    -21f,  20f,  30f, 7f),
+                ("Birch_Snow_2",     22f, -20f,  80f, 8.5f),
+                ("DeadTree_Snow_1", -17f, -24f,   0f, 7f),
+                ("Birch_Snow_2",    -24f,  -6f, 140f, 8f),
+                ("DeadTree_Snow_1",  26f,  24f, 200f, 6.5f),
+            };
+            foreach (var t in trees)
+            {
+                var prefab = Imp(t.name);
+                if (prefab == null) return;
+                Put(prefab, Origin + new Vector3(t.x, 0f, t.z), t.yaw, t.h / BakedHeight(prefab));
+            }
         }
 
         /// <summary>Trees carry a trunk capsule and nothing for the boughs, so a line of sight went straight
