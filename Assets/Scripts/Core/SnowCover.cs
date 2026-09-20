@@ -26,7 +26,10 @@ namespace Height1079.Core
     /// 2.5–3 m in May, with a probe reaching 4 m (search protocols, dyatlovpass.com/the-den; see
     /// <see cref="Sites.Den.SnowAboveInMay"/>).</item>
     /// </list>
-    /// The shape of the model — which multiplier does what — is a game rule, not a measurement.</summary>
+    /// The shape of the model — which multiplier does what — is a game rule, not a measurement.
+    ///
+    /// Everything below is the Kholat Syakhl model; <see cref="Depth"/>, <see cref="Crust"/> and <see cref="Forest"/>
+    /// hand the question to <see cref="Locations.Active"/>, so another location brings its own snow with it.</summary>
     public static class SnowCover
     {
         /// <summary>A measured depth raster, when there is one: set it and the procedural model below is bypassed.
@@ -61,7 +64,7 @@ namespace Height1079.Core
         const float Drifting = 1.5f;       // a hollow or the lee of a break holds this much more
         const float Scouring = .62f;       // a ridge or a convex nose keeps this much less
         const float Aspect = .40f;         // lee slopes gain, slopes facing the wind lose
-        const float BendRelief = 2.2f;     // metres of relief over Span that count as a full hollow or ridge
+        public const float BendRelief = 2.2f;   // metres of relief over Span that count as a full hollow or ridge
         const float Trapped = .15f;        // snow blown off the tops and caught by the trees
         const float Collector = .95f, CollectorWidth = 8f;   // the stream ravine fills up
 
@@ -75,12 +78,17 @@ namespace Height1079.Core
         static float Clamp(float v, float lo, float hi) => v < lo ? lo : v > hi ? hi : v;
         static float Smooth(float t) { t = Clamp01(t); return t * t * (3f - 2f * t); }
 
-        /// <summary>Depth of the snow pack, metres, at a point of the world frame.</summary>
+        /// <summary>Depth of the snow pack, metres, at a point of the world frame. The measured raster wins; after
+        /// that the active location answers (<see cref="ILocation.SnowDepth"/>).</summary>
         public static float Depth(HeightField dem, float x, float z)
         {
             if (Raster != null) return Math.Max(0f, Raster(x, z));
-            if (World.IsElbrus) return ElbrusDepth(dem, x, z);
+            return Locations.Active.SnowDepth(dem, x, z);
+        }
 
+        /// <summary>The procedural model this file documents: the late-January pack of Kholat Syakhl.</summary>
+        public static float KholatDepth(HeightField dem, float x, float z)
+        {
             float y = dem.Sample(x, z);
             var (fx, fz, slopeDeg) = dem.Fall(x, z, Span);
             float trees = Forest(x, z, y);
@@ -101,9 +109,11 @@ namespace Height1079.Core
         /// "наст, голые места", which carries a loaded walker. Late January is still early in the season, so the
         /// ceiling stays below 1: the wind-packed surface of these mountains only reaches a density of 0.50–0.55 by
         /// the beginning of March.</summary>
-        public static float Crust(HeightField dem, float x, float z)
+        public static float Crust(HeightField dem, float x, float z) => Locations.Active.SnowCrust(dem, x, z);
+
+        /// <summary>The Kholat half of <see cref="Crust"/>: the wind board of the diary's "наст, голые места".</summary>
+        public static float KholatCrust(HeightField dem, float x, float z)
         {
-            if (World.IsElbrus) return ElbrusCrust(dem, x, z);
             float y = dem.Sample(x, z);
             var (fx, fz, _) = dem.Fall(x, z, Span);
             float trees = Forest(x, z, y);
@@ -130,14 +140,18 @@ namespace Height1079.Core
             return forest + (open - forest) * bare;
         }
 
-        /// <summary>How much canopy stands over a point, 0..1. Belts from docs/MAP.md: dark taiga to ~620 m, the tree
-        /// line at 700–750 m ("кончились ели, пошёл редкий березняк", diary 31.01), bare tundra above.</summary>
+        /// <summary>How much canopy stands over a point, 0..1. The measured mask wins; after that the active location
+        /// answers (<see cref="ILocation.Canopy"/>).</summary>
         public static float Forest(float x, float z, float y)
         {
             if (Canopy != null) return Clamp01(Canopy(x, z));
-            if (World.IsElbrus) return 0f;
-            return 1f - Smooth((y - SubalpineFrom) / (Sites.TreeLine + 30f - SubalpineFrom));
+            return Clamp01(Locations.Active.Canopy(x, z, y));
         }
+
+        /// <summary>The Kholat belts of docs/MAP.md: dark taiga to ~620 m, the tree line at 700–750 m ("кончились
+        /// ели, пошёл редкий березняк", diary 31.01), bare tundra above.</summary>
+        public static float KholatCanopy(float y)
+            => 1f - Smooth((y - SubalpineFrom) / (Sites.TreeLine + 30f - SubalpineFrom));
 
         /// <summary>How the ground bends over <paramref name="span"/> metres: positive in a hollow, where the point
         /// sits below its surroundings and the drift settles; negative on a ridge or a convex break, which is blown
@@ -148,27 +162,6 @@ namespace Height1079.Core
             float m = (dem.Sample(x + span, z) + dem.Sample(x - span, z)
                      + dem.Sample(x, z + span) + dem.Sample(x, z - span)) * .25f;
             return m - c;
-        }
-
-        /// <summary>The southern slope of Elbrus, as a sketch until a winter survey is wired in: a wind-worked pack on
-        /// the lava ridges and moraine of the lower slope, glacier firn above the shelf — thin and hard on the open
-        /// ice, metres deep in the hollows and the crevasse fields that catch the drift (docs/ELBRUS.md).</summary>
-        static float ElbrusDepth(HeightField dem, float x, float z)
-        {
-            float y = dem.Sample(x, z);
-            var (_, _, slopeDeg) = dem.Fall(x, z, Span);
-            float bend = Clamp(Hollow(dem, x, z, Span) / BendRelief, -1f, 1f);
-            float depth = y < 3000f ? 1f : y < 3800f ? .8f : .55f;
-            depth *= 1f - .45f * Math.Min(1f, slopeDeg / 40f);
-            depth *= 1f + (bend > 0f ? 1.6f * bend : .55f * bend);
-            return Clamp(depth, MinDepth, MaxDepth);
-        }
-
-        /// <summary>Firn and wind board carry almost everything above the shelf; lower down the pack is softer.</summary>
-        static float ElbrusCrust(HeightField dem, float x, float z)
-        {
-            float y = dem.Sample(x, z);
-            return Clamp(.55f + .35f * Clamp01((y - 3000f) / 1200f), 0f, 1f);
         }
     }
 }

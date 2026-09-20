@@ -23,6 +23,16 @@ namespace NUnit.Framework {
   }
   public static class StringAssert { public static void Contains(string needle, string hay) { if (!hay.Contains(needle)) Assert.IsTrue(false, $"'{hay}' lacks '{needle}'"); } }
 }
+// The optional locations have no player or editor to initialise them here, so the runner registers them itself —
+// the dotnet equivalent of the [RuntimeInitializeOnLoadMethod] hook a build uses (see Height1079.Core.Locations).
+// Compiled out with the location itself: dotnet run -p:NoElbrus=true defines HEIGHT1079_NO_ELBRUS.
+static class LocationBootstrap {
+#if !HEIGHT1079_NO_ELBRUS
+  [System.Runtime.CompilerServices.ModuleInitializer]
+  internal static void Elbrus() => Height1079.Core.ElbrusLocation.Register();
+#endif
+}
+
 static class Runner {
   static int Main() {
     int pass = 0, fail = 0;
