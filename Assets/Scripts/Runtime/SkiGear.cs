@@ -26,7 +26,7 @@ namespace Height1079.Runtime
         /// <summary>How often the snow under the feet is looked at again (it is a dozen height samples).</summary>
         const float SampleSeconds = .2f, SampleMetres = .45f;
 
-        const string GearDir = "World/Prefabs/Gear/";
+        const string GearDir = "Prefabs/Gear/";
 
         static bool warned;
         static AudioClip swish;
@@ -90,7 +90,7 @@ namespace Height1079.Runtime
 
         Transform Spawn(string name, bool inWorld = false)
         {
-            var prefab = Resources.Load<GameObject>(GearDir + name);
+            var prefab = WorldAssets.Load<GameObject>(GearDir + name);
             if (prefab == null)
             {
                 if (!warned) { warned = true; Debug.LogWarning("Ski gear prefabs missing (" + GearDir + name + ") — call SkiFactory.Build from the world pipeline."); }

@@ -63,6 +63,35 @@ namespace Height1079.Sandbox
             Debug.Log($"shots: стопы {Stance(body):0.00} м врозь стоя");
             // and from behind: the pack is the one thing on the body no other frame shows
             yield return Shoot(boot, body, "10-стоит-сзади", new Vector3(.6f, .3f, -2.8f));
+
+            // ── the same man in the game's own hiker-v1.glb (B in play, here by hand): standing from the front and
+            // from behind, and mid-stride from the side, from the same spots as the frames above, so the two models
+            // can be laid side by side. Walked from the stand's spawn again, so the body ends up where the frames
+            // above left it and the frames after these are unchanged. Whatever was on before goes back on after.
+            var looks = boot.Figure;
+            var pf = body.GetComponent<PuppetFigure>();
+            if (looks != null && pf != null)
+            {
+                var was = SandboxFigure.Want;
+                Debug.Log("shots: фигура — " + SandboxFigure.Name(looks.Current) + (pf.Worn ? " · " + pf.ModelReport : ""));
+                boot.GoTo(0);
+                yield return new WaitForSeconds(1.2f);
+                looks.Set(SandboxFigure.Look.HikerGlb);
+                for (float w = 0f; w < 6f && looks.Current != SandboxFigure.Look.HikerGlb && !looks.GlbFailed; w += Time.deltaTime) yield return null;
+                Debug.Log("shots: модель hiker-v1 — " + (looks.Current == SandboxFigure.Look.HikerGlb ? "надета: " + pf.ModelReport : "не надета (см. предупреждение выше)"));
+                if (looks.Current == SandboxFigure.Look.HikerGlb)
+                {
+                    yield return Shoot(boot, body, "8-стоит-спереди-glb", new Vector3(0f, .1f, 3.0f));
+                    yield return Shoot(boot, body, "10-стоит-сзади-glb", new Vector3(.6f, .3f, -2.8f));
+                    t = 0f;
+                    while (t < 1.6f) { body.Drive(new PuppetInput { Move = new Vector2(0, 1), Look = Quaternion.identity }); t += Time.deltaTime; Frame(boot, body, new Vector3(3.2f, .3f, 0f)); yield return null; }
+                    yield return Shoot(boot, body, "2-шаг-glb", new Vector3(3.2f, .3f, 0f), keepDriving: true);
+                    body.Drive(PuppetInput.Idle);
+                    yield return new WaitForSeconds(1.2f);
+                }
+                looks.Set(was);
+                for (float w = 0f; w < 6f && looks.Current != was; w += Time.deltaTime) yield return null;
+            }
             // walking back south, toward the camera: north of here is the ramp stand, and a camera three metres
             // ahead of a body walking north ends up inside it
             var south = Quaternion.Euler(0f, 180f, 0f);
@@ -193,9 +222,79 @@ namespace Height1079.Sandbox
             yield return ShootHere(boot, body, "18-смерть-и-итог");
             boot.Hunt.End();
 
+            // ── the yard as a drawing: the fire with the tent behind, the things by the tent, cover in the beam ──
+            // a fresh run long enough that no front comes while the frames are taken; the night takes four seconds
+            boot.Hunt.Begin(1200f);
+            boot.FirstPerson = true;
+            yield return new WaitForSeconds(5f);
+            body = boot.Body;
+            if (!boot.Hunt.Torch) boot.Hunt.ToggleTorch();
+            // these frames are of the yard, not of the creature: it is stood in the far corner before each, the way
+            // the self-test parks it, or its ring round the tent walks it through the picture
+            var far = SandboxHuntYard.Origin + new Vector3(-27f, 0f, -27f);
+            void Park() { var m = boot.Hunt.Menk; if (m != null) { m.X = far.x; m.Z = far.z; } }
+            // from behind the fire, down on the haunches, looking north over it at the cover of the yard (the tent
+            // is fifty metres off, beyond the night's twelve, so no frame has the fire and the tent together)
+            Park();
+            yield return YardFrame(boot, body, "18-двор-костёр-и-укрытия", SandboxHuntYard.Fire + new Vector3(2.4f, 0f, -6.5f), SandboxHuntYard.Fire + Vector3.up * .6f, .95f, low: true);
+            // the mouth of the tent from the fire's side, four metres off: the things on the snow in the beam's
+            // core, the canvas behind them in its skirt. The beam leaves the hand a third of a metre under the eye,
+            // so the eye is aimed a little above what the beam is meant to fall on
+            var tent = SandboxHuntYard.Tent;
+            Park();
+            yield return YardFrame(boot, body, "19-двор-вещи-у-палатки", tent + new Vector3(.6f, 0f, -5.4f), tent + new Vector3(.9f, .5f, -2.9f), .95f, low: true);
+            // a boulder seven metres off and a pine twelve, in the beam alone: the fire is out of range here. The
+            // creature is stood a few metres behind the boulder for it — a figure over the rock is what the frame is about
+            Park();
+            var boulder = SandboxHuntYard.Origin + new Vector3(3f, 0f, 8f);
+            yield return YardFrame(boot, body, "20-двор-деревья-и-камни-в-луче", SandboxHuntYard.Origin + new Vector3(6f, 0f, 2f), SandboxHuntYard.Origin + new Vector3(5.5f, 2f, 12f), .95f, low: true,
+                beforeShot: () => { var m = boot.Hunt.Menk; if (m != null) { m.X = boulder.x - 1.8f; m.Z = boulder.z + 4.5f; m.Yaw = 160f; } });
+            // the postcard: the whole camp from behind and above the fire — the fire and its logs, the figure by
+            // it, the pine, the cover, the tent at the far end. The night is brought half way back for it: at full
+            // night the tent stands fifty metres into the fog and the frame is a black square
+            Park();
+            boot.Hunt.Night.Want = .45f;
+            boot.FirstPerson = false;
+            boot.PlaceAt(SandboxHuntYard.Spawn);
+            for (float w = 0f; w < 3.5f; w += Time.deltaTime) { body.Drive(new PuppetInput { Look = Quaternion.identity }); yield return null; }
+            boot.Cam.transform.position = SandboxHuntYard.Fire + new Vector3(5f, 3f, -9f);
+            boot.Cam.transform.LookAt(SandboxHuntYard.Fire + new Vector3(-1f, .8f, 8f));
+            yield return Capture(boot, body, "21-лагерь-сумерки", false);
+            boot.Hunt.Night.Want = 1f;
+            boot.Hunt.End();
+
             Debug.Log("shots: папка " + Folder);
             yield return new WaitForSeconds(.4f);
             Application.Quit(0);
+        }
+
+        /// <summary>Stand the body on the yard, facing a point, and photograph from inside the head — down on the
+        /// haunches when <paramref name="low"/>, which is the eye height the yard is meant to be seen from.
+        /// <paramref name="eye"/> is where the eye is taken to be, for the pitch. <paramref name="beforeShot"/> runs
+        /// once the body has settled, half a second before the picture — for putting something into the frame.</summary>
+        IEnumerator YardFrame(SandboxBoot boot, Puppet.Puppet body, string name, Vector3 standAt, Vector3 lookAt, float eye, bool low, System.Action beforeShot = null)
+        {
+            boot.PlaceAt(new Vector3(standAt.x, 1.2f, standAt.z));
+            var look = lookAt - new Vector3(standAt.x, eye, standAt.z);
+            var facing = Quaternion.Euler(0f, Quaternion.LookRotation(Vector3.ProjectOnPlane(look, Vector3.up)).eulerAngles.y, 0f);
+            boot.Eye.Yaw = facing.eulerAngles.y; boot.Eye.Pitch = -Mathf.Asin(look.normalized.y) * Mathf.Rad2Deg;
+            for (float w = 0f; w < 1.2f; w += Time.deltaTime)
+            {
+                body.Drive(new PuppetInput { Look = facing, Crouch = low });
+                boot.AimCamera();
+                yield return null;
+            }
+            if (beforeShot != null)
+            {
+                beforeShot();
+                for (float w = 0f; w < .6f; w += Time.deltaTime)
+                {
+                    body.Drive(new PuppetInput { Look = facing, Crouch = low });
+                    boot.AimCamera();
+                    yield return null;
+                }
+            }
+            yield return ShootHere(boot, body, name);
         }
 
         /// <summary>Walk the body north for a while, keeping the camera on it. With no offset the camera is the body's

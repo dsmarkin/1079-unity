@@ -8,11 +8,11 @@ namespace Height1079.EditorTools.World
 {
     /// <summary>Animal trails on the snow (Tools/terrain/tracks.py → tracks.f32): each print is a small quad lying on the terrain,
     /// merged into 64 m chunk meshes with an atlas of print shapes (hare group, canid, elk, mustelid pair, grouse, ptarmigan, squirrel).
-    /// Prefab Resources/World/Prefabs/Tracks/AnimalTracks; runtime fades the material while a blizzard fills them.</summary>
+    /// Prefab Assets/Generated/World/Prefabs/Tracks/AnimalTracks (75 MB of chunk meshes: game only, outside Resources); runtime fades the material while a blizzard fills them.</summary>
     public static class AnimalTracksFactory
     {
-        const string PrefabDir = WorldPaths.Generated + "/Prefabs/Tracks";
-        const string MeshDir = WorldPaths.Generated + "/Meshes/Tracks";
+        const string PrefabDir = WorldPaths.Kit + "/Prefabs/Tracks";
+        const string MeshDir = WorldPaths.Kit + "/Meshes/Tracks";
         const float Chunk = 64f;
         // atlas cell per kind (4×2), print size (m) along and across the direction of travel
         static readonly int[] Cell = { 0, 1, 2, 3, 4, 5, 6, 1 };

@@ -7,7 +7,7 @@ namespace Height1079.Runtime
     /// <summary>Builds the Elbrus location at runtime from <see cref="Elbrus"/> and the DEM: the six ropeways with their
     /// towers, ropes and cars, the terminals, the barrel camp and the shelters, the snow-cats and the wands of the
     /// summit route. <see cref="ElbrusDressing"/> then fills the same ground with everything smaller.
-    /// Prefabs come from Resources/World/Prefabs/Elbrus (ElbrusFactory, ElbrusProps).
+    /// Prefabs come from Assets/Generated/World/Prefabs/Elbrus (ElbrusFactory, ElbrusProps) through WorldAssets.
     /// Nothing here is placed by a single height sample: buildings are sat on their whole footprint and, where the
     /// ground falls away under them, stood on a plinth (see <see cref="Seat"/>).</summary>
     public static class ElbrusWorld
@@ -55,7 +55,7 @@ namespace Height1079.Runtime
         static GameObject Load(string name)
         {
             if (loaded.TryGetValue(name, out var cached)) return cached;
-            var p = Resources.Load<GameObject>("World/Prefabs/Elbrus/" + name);
+            var p = WorldAssets.Load<GameObject>("Prefabs/Elbrus/" + name);
             if (p == null) Debug.LogWarning("1079 Эльбрус: нет префаба " + name);
             loaded[name] = p;
             return p;

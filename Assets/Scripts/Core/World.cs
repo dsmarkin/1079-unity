@@ -27,9 +27,9 @@ namespace Height1079.Core
         public static float GridStep => Current == Place.Elbrus ? Elbrus.GridStep : HeightField.Step;
         public static float HeightMin => Current == Place.Elbrus ? Elbrus.HeightMin : WorldData.HeightMin;
         public static float HeightMax => Current == Place.Elbrus ? Elbrus.HeightMax : WorldData.HeightMax;
-        /// <summary>Name of the TerrainData asset under Resources/World.</summary>
+        /// <summary>Name of the TerrainData asset; the game finds it through WorldAssets (Assets/Generated/World).</summary>
         public static string TerrainAsset => Current == Place.Elbrus ? "Elbrus" : "Kholat";
-        /// <summary>Name of the height raster under Resources/World.</summary>
+        /// <summary>Name of the height raster; the game finds it through WorldAssets (Assets/Generated/World).</summary>
         public static string HeightAsset => Current == Place.Elbrus ? "elbrus_height_2049" : "height_2049";
 
         /// <summary>Ground height in the active place (the Kholat map carves its stream and levels the camp pads;

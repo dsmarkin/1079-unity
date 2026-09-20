@@ -16,7 +16,7 @@ namespace Height1079.EditorTools.World
     /// three real places and the paths between them.
     ///
     /// Everything is baked in world coordinates against the Elbrus height field and saved as ONE prefab,
-    /// Resources/World/Prefabs/Elbrus/Elb_Valley, exactly the way <see cref="ElbrusAscent"/> bakes the mountain above
+    /// Assets/Generated/World/Prefabs/Elbrus/Elb_Valley, exactly the way <see cref="ElbrusAscent"/> bakes the mountain above
     /// Гара-Баши. The runtime glue is a single line: instantiate it at the origin with no rotation. Fifty-odd
     /// buildings, four routes, several kilometres of fence, wire and gas pipe cost a few dozen renderers, not a few
     /// thousand transforms.
@@ -43,8 +43,8 @@ namespace Height1079.EditorTools.World
     /// Sources are listed in docs/ELBRUS.md, section «Низ карты».</summary>
     public static class ElbrusValley
     {
-        const string PrefabDir = WorldPaths.Generated + "/Prefabs/Elbrus";
-        const string MeshDir = WorldPaths.Generated + "/Meshes/Valley";
+        const string PrefabDir = WorldPaths.Kit + "/Prefabs/Elbrus";
+        const string MeshDir = WorldPaths.Kit + "/Meshes/Valley";
 
         // ── the three places, as the real map puts them ───────────────────────────────────────────────────
         /// <summary>Посёлок Терскол, 43.26562 / 42.51519 — the centre of the village, by the junction where the road

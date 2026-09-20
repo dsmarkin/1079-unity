@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using Unity.Netcode;
@@ -34,6 +35,8 @@ namespace Height1079.EditorTools
             MakeMaterial("Flat", new Color(.886f, .91f, .93f));
             EnsureHikerPrefab(force);
             EnsureSessionPrefab(force);
+            // the index of everything the pipeline wrote outside Resources — has to exist before the scene is wired to it
+            World.WorldKitBuilder.Build();
             EnsureScene(force);
             SandboxSetup.Ensure();
             AssetDatabase.SaveAssets();
@@ -150,7 +153,7 @@ namespace Height1079.EditorTools
             Debug.Log("1079: шейдеры рельефа и травы добавлены в Always Included Shaders.");
         }
 
-        static void EnsureHikerModel(bool force)
+        internal static void EnsureHikerModel(bool force)
         {
             string hiker = Path.Combine(ResourcesDir, "hiker.bytes");
             if (File.Exists(hiker) && !force) return;
@@ -209,14 +212,63 @@ namespace Height1079.EditorTools
 
         static void EnsureScene(bool force)
         {
-            if (File.Exists(ScenePath) && !force) { EnsureBuildScene(); return; }
+            if (File.Exists(ScenePath) && !force)
+            {
+                EnsureWorldKitInScene();
+                EnsureBuildScene();
+                return;
+            }
             Directory.CreateDirectory("Assets/Scenes");
             var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
             // Everything else is created by Bootstrap at runtime; the camera exists so the empty scene is not black in the editor.
             var cam = new GameObject("Main Camera", typeof(Camera), typeof(AudioListener)); cam.tag = "MainCamera";
             cam.transform.position = new Vector3(0, 800, -200);
+            new GameObject("WorldKit", typeof(WorldKitHolder)).GetComponent<WorldKitHolder>().Kit =
+                AssetDatabase.LoadAssetAtPath<WorldKit>(World.WorldKitBuilder.AssetPath);
             EditorSceneManager.SaveScene(scene, ScenePath);
             EnsureBuildScene();
+        }
+
+        /// <summary>The one object the game scene carries, and the reason the sandbox player is small: the heavy half
+        /// of the generated world sits outside Resources, and Unity ships it only with a scene that points at it.
+        /// An existing scene is repaired in place — a checkout made before the split has no holder, and without one
+        /// the game would find no terrain at all.</summary>
+        static void EnsureWorldKitInScene()
+        {
+            string assetPath = World.WorldKitBuilder.AssetPath;
+            var kit = AssetDatabase.LoadAssetAtPath<WorldKit>(assetPath);
+            if (kit == null) { Debug.LogWarning("1079: нет " + assetPath + " — мир не собран?"); return; }
+            // The scene already names this exact asset: nothing to do, and no scene load on every editor start.
+            // A GUID, not just the object, because deleting Assets/Generated gives the kit a new one and leaves the
+            // reference in the scene dangling — which would look exactly like a world that failed to generate.
+            string guid = AssetDatabase.AssetPathToGUID(assetPath);
+            if (!string.IsNullOrEmpty(guid) && File.ReadAllText(ScenePath).Contains(guid)) return;
+
+            var scene = UnityEngine.SceneManagement.SceneManager.GetSceneByPath(ScenePath);
+            bool opened = !scene.isLoaded;
+            if (opened) scene = EditorSceneManager.OpenScene(ScenePath, OpenSceneMode.Additive);
+            try
+            {
+                WorldKitHolder holder = null;
+                foreach (var root in scene.GetRootGameObjects())
+                {
+                    holder = root.GetComponentInChildren<WorldKitHolder>(true);
+                    if (holder != null) break;
+                }
+                if (holder == null)
+                {
+                    var go = new GameObject("WorldKit", typeof(WorldKitHolder));
+                    EditorSceneManager.MoveGameObjectToScene(go, scene);
+                    holder = go.GetComponent<WorldKitHolder>();
+                }
+                holder.Kit = kit;
+                EditorUtility.SetDirty(holder);
+                EditorSceneManager.MarkSceneDirty(scene);
+                EditorSceneManager.SaveScene(scene);
+                Debug.Log("1079: сцена Main связана с WorldKit (мир вне Resources).");
+            }
+            // closing a scene the user had open would pull it out from under him, so only what we opened ourselves
+            finally { if (opened) EditorSceneManager.CloseScene(scene, true); }
         }
 
         /// <summary>Both scenes go into the build list: the game, and the physics sandbox the menu button loads.
@@ -235,6 +287,11 @@ namespace Height1079.EditorTools
     {
         static string[] Scenes => new[] { "Assets/Scenes/Main.unity", SandboxSetup.ScenePath };
 
+        /// <summary>The two trees the pipeline writes: what every player carries (Resources) and what only the game
+        /// scene pulls in (Assets/Generated). Either may be absent on a fresh clone.</summary>
+        static IEnumerable<string> Roots() =>
+            new[] { "Assets/Resources", WorldKit.GeneratedDir }.Where(Directory.Exists);
+
         public static void Mac() => Build(BuildTarget.StandaloneOSX, "Builds/mac/1079.app");
         public static void Windows() => Build(BuildTarget.StandaloneWindows64, "Builds/windows/1079.exe");
 
@@ -244,7 +301,9 @@ namespace Height1079.EditorTools
         public static void EnsureData()
         {
             AssetDatabase.Refresh();
-            foreach (var file in Directory.GetFiles("Assets/Resources", "*.bytes", SearchOption.AllDirectories))
+            // Both generated trees: the height grids are the biggest .bytes in the project and they live in
+            // Assets/Generated now, outside Resources. Miss one and the player starts with no terrain at all.
+            foreach (var file in Roots().SelectMany(root => Directory.GetFiles(root, "*.bytes", SearchOption.AllDirectories)))
             {
                 string path = file.Replace('\\', '/');
                 for (int attempt = 0; attempt < 3; attempt++)

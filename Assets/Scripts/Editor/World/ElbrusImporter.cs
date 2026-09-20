@@ -8,13 +8,13 @@ using Debug = UnityEngine.Debug;
 
 namespace Height1079.EditorTools.World
 {
-    /// <summary>Second location: Assets/Data/World/elbrus → Resources/World/Elbrus.asset + the Elbrus prefab library.
+    /// <summary>Second location: Assets/Data/World/elbrus → Assets/Generated/World/Elbrus.asset + the Elbrus prefab library (game only, outside Resources).
     /// The terrain is 12 288 m square on a 6 m grid (2049² heightmap), so one Unity terrain covers Azau, both summits
     /// and everything the ropeways and the route touch. Deterministic, like the Kholat importer.</summary>
     public static class ElbrusImporter
     {
-        public const string TerrainAsset = WorldPaths.Generated + "/Elbrus.asset";
-        public const string HeightResource = WorldPaths.Generated + "/elbrus_height_2049.bytes";
+        public const string TerrainAsset = WorldPaths.Kit + "/Elbrus.asset";
+        public const string HeightResource = WorldPaths.Kit + "/elbrus_height_2049.bytes";
         public static readonly string Source = WorldPaths.Source + "/elbrus";
         public const float BaseHeight = Elbrus.HeightMin - 6f;
         public static float Range => Elbrus.HeightMax - BaseHeight;
@@ -37,6 +37,7 @@ namespace Height1079.EditorTools.World
                 return;
             }
             var clock = Stopwatch.StartNew();
+            Directory.CreateDirectory(WorldPaths.Kit);
 
             AssetDatabase.StartAssetEditing();
             try { File.Copy($"{Source}/height_2049.r16", HeightResource, true); }

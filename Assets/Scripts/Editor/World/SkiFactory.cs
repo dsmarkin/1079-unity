@@ -15,7 +15,7 @@ namespace Height1079.EditorTools.World
     /// binding — a steel toe iron with two coil springs, a bail around the heel, a toe strap and a heel strap of harness leather, and a
     /// felt pad where the heel lands. Poles are bamboo with a leather grip, a wrist loop, a cane-and-thong basket and a steel ferrule.
     ///
-    /// Prefabs (Resources/World/Prefabs/Gear), two LODs each, +Z towards the tip, Y up:
+    /// Prefabs (Assets/Generated/World/Prefabs/Gear), two LODs each, +Z towards the tip, Y up:
     ///   Ski_Left / Ski_Right   pivot on the snow under the middle of the binding (the board itself sits 1.2 cm higher: that is the camber)
     ///   Pole_Bamboo            pivot on the snow at the ferrule
     ///   Ski_Pair_Packed        two skis tied base to base, tips up, poles lashed alongside — what rides on a rucksack when walking
@@ -30,8 +30,8 @@ namespace Height1079.EditorTools.World
     /// SOURCES.json with its author and licence, and rebuild. Direct links come from https://api.polyhaven.com/files/&lt;id&gt;.</summary>
     public static class SkiFactory
     {
-        const string PrefabDir = WorldPaths.Generated + "/Prefabs/Gear";
-        const string MeshDir = WorldPaths.Generated + "/Meshes/Gear";
+        const string PrefabDir = WorldPaths.Kit + "/Prefabs/Gear";
+        const string MeshDir = WorldPaths.Kit + "/Meshes/Gear";
 
         // One submesh layout for every prefab here, so builders can be appended into each other with Matrix4x4 transforms.
         const int SubLacquer = 0, SubLaminate = 1, SubBase = 2, SubSteel = 3, SubLeather = 4, SubFelt = 5, SubBamboo = 6, SubRope = 7, SubWood = 8, Subs = 9;

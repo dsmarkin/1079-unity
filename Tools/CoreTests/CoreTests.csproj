@@ -10,8 +10,8 @@
   <ItemGroup>
     <Compile Include="Shim.cs" />
     <Compile Include="../../Assets/Scripts/Core/**/*.cs" />
-    <!-- engine-free tests only: MenkTests and PuppetTests need UnityEngine (Runtime / Puppet assemblies) -->
-    <Compile Include="../../Assets/Tests/EditMode/**/*.cs" Exclude="../../Assets/Tests/EditMode/MenkTests.cs;../../Assets/Tests/EditMode/PuppetTests.cs;../../Assets/Tests/EditMode/SnowPrintsTests.cs" />
+    <!-- engine-free tests only: MenkTests, PuppetTests, SnowPrintsTests, PaletteTests and YardLayoutTests need UnityEngine -->
+    <Compile Include="../../Assets/Tests/EditMode/**/*.cs" Exclude="../../Assets/Tests/EditMode/MenkTests.cs;../../Assets/Tests/EditMode/PuppetTests.cs;../../Assets/Tests/EditMode/SnowPrintsTests.cs;../../Assets/Tests/EditMode/PaletteTests.cs;../../Assets/Tests/EditMode/YardLayoutTests.cs" />
     <None Include="../../Assets/Data/World/*" LinkBase="Assets/Data/World" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

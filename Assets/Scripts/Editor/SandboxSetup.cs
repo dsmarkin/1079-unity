@@ -44,6 +44,9 @@ namespace Height1079.EditorTools
             // built before the world exists bakes it here, the way it bakes the prints above
             if (AssetDatabase.LoadAssetAtPath<GameObject>(World.WorldPaths.Generated + "/Prefabs/Creatures/Menk.prefab") == null)
                 World.CreatureFactory.Build();
+            // the yard's tent, fire, trees, rocks and things are the imported low-poly set in palette colours
+            // (ImportedFactory); a sandbox built before the world exists bakes them here too
+            if (!World.ImportedFactory.IsBuilt) World.ImportedFactory.Build();
             Mat("Snow", "snow_02", 6f, .22f, new Color(.97f, .98f, 1f));
             Mat("Crust", "snow_03", 9f, .34f, new Color(.93f, .95f, 1f));
             Mat("Rock", "lichen_rock", 4f, .12f, new Color(.72f, .70f, .66f));
@@ -91,7 +94,13 @@ namespace Height1079.EditorTools
         /// the sandbox without anybody having to know it exists.</summary>
         public static void Ensure()
         {
+            // the game's hiker-v1 (Assets/Data/hiker-v1.glb → Resources/hiker.bytes) is the second look on B, and
+            // a sandbox built on its own must ship it too: SandboxFigure loads it exactly as HikerAnimator does
+            ProjectSetup.EnsureHikerModel(false);
             EnsureMaterials();
+            // the climber: the Quaternius Adventurer dressed in the palette (FigureFactory), the sandbox's default
+            // figure, worn over the puppet by SandboxFigure. Rebuilt every time, because the colour table is code.
+            World.FigureFactory.BuildAdventurer();
             if (File.Exists(ScenePath)) return;
             Directory.CreateDirectory("Assets/Scenes");
             var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
@@ -114,6 +123,9 @@ namespace Height1079.EditorTools
         {
             SandboxSetup.Ensure();
             AssetDatabase.SaveAssets();
+            // the same guard the game's build has: a .bytes asset imported in this very session can reach the
+            // player empty (CLAUDE.md, "Пустой мир в сборке"), and here that is the body's model
+            Builds.EnsureData();
             var report = BuildPipeline.BuildPlayer(new BuildPlayerOptions
             {
                 scenes = new[] { SandboxSetup.ScenePath },

@@ -81,26 +81,32 @@ namespace Height1079.Puppet
         public static Rect Lid => LidT.Rect;
         public static Rect Pocket => PocketT.Rect;
 
-        static readonly Color Skin = new Color(.93f, .75f, .58f);
-        static readonly Color Cheek = new Color(.95f, .68f, .58f);
-        static readonly Color Shirt = new Color(.94f, .47f, .19f);
-        static readonly Color ShirtDark = new Color(.79f, .36f, .14f);
-        static readonly Color Trouser = new Color(.24f, .31f, .45f);
-        static readonly Color TrouserDark = new Color(.18f, .24f, .36f);
-        static readonly Color Leather = new Color(.34f, .23f, .16f);
-        static readonly Color LeatherDark = new Color(.25f, .17f, .12f);
-        static readonly Color Sole = new Color(.80f, .76f, .67f);
-        static readonly Color Rubber = new Color(.16f, .15f, .14f);
-        static readonly Color Lace = new Color(.88f, .84f, .74f);
-        static readonly Color Canvas = new Color(.30f, .33f, .21f);
-        static readonly Color CanvasDark = new Color(.22f, .25f, .15f);
-        static readonly Color Strap = new Color(.27f, .22f, .18f);
-        static readonly Color Buckle = new Color(.72f, .70f, .64f);
-        static readonly Color Wool = new Color(.72f, .20f, .18f);
-        static readonly Color WoolDark = new Color(.56f, .15f, .14f);
-        static readonly Color Fleece = new Color(.93f, .90f, .82f);
-        static readonly Color Ink = new Color(.13f, .12f, .15f);
-        static readonly Color White = new Color(.99f, .98f, .95f);
+        // The team's palette, docs/art/palette.json, and nothing off it: the same colours the model from a file is
+        // dressed in (Editor/World/FigureFactory), so the arms the eye sees in first person — these — match the
+        // body seen from outside, and the fallback figure is the same man in the same clothes.
+        static readonly Color Skin = Hex(0xE8B894);          // Кожа
+        static readonly Color Cheek = Hex(0xE8B894);         // no blush: a flat face in one colour
+        static readonly Color Shirt = Hex(0x4E4A3F);         // Ватник — the quilted jacket, sleeves included
+        static readonly Color ShirtDark = Hex(0x4A3A32);     // Кора — its seams, hem, collar and zip
+        static readonly Color Mitten = Hex(0xC43C2E);        // Красный — the players' accent: mittens, and their cuffs
+        static readonly Color Trouser = Hex(0x6B774C);       // Штормовка
+        static readonly Color TrouserDark = Hex(0x3A6A52);   // Хвоя на свету — waistband, hem
+        static readonly Color Leather = Hex(0x5A4635);       // Валенки, кожа обуви
+        static readonly Color LeatherDark = Hex(0x17140F);   // Чёрный — toe cap, tongue, collar
+        static readonly Color Sole = Hex(0xD9D4C5);          // Эмаль — the midsole line and the welt stitch
+        static readonly Color Rubber = Hex(0x17140F);        // Чёрный
+        static readonly Color Lace = Hex(0xD9D4C5);          // Эмаль
+        static readonly Color Canvas = Hex(0x7A8460);        // Брезент: палатка, рюкзак
+        static readonly Color CanvasDark = Hex(0x3A6A52);    // Хвоя на свету — the lid, the flap, the bottom
+        static readonly Color Strap = Hex(0xA9773F);         // Дерево — leather straps
+        static readonly Color Buckle = Hex(0x8A8F96);        // Металл
+        static readonly Color Wool = Hex(0xC43C2E);          // Красный — the hat, the same accent as the mittens
+        static readonly Color WoolDark = Hex(0x4A3A32);      // Кора — the hat's fold
+        static readonly Color Fleece = Hex(0xD9D4C5);        // Эмаль — the pompom
+        static readonly Color Ink = Hex(0x17140F);           // Чёрный — eyes, brows, mouth
+        static readonly Color White = Hex(0xEEF3FA);         // Снег на свету — the whites of the eyes
+
+        static Color Hex(int rgb) => new Color(((rgb >> 16) & 255) / 255f, ((rgb >> 8) & 255) / 255f, (rgb & 255) / 255f);
 
         static Color32[] px;
 
@@ -113,11 +119,11 @@ namespace Height1079.Puppet
             Face();
             Clothes();
             Rucksack();
-            // the detail mask: weave on the cloth and the knitted hat, none on the skin or the boots
+            // the detail mask: weave on the cloth, the knitted hat and the mittens, none on the face or the boots
             Alpha(TorsoT, 255); Alpha(TrouserLegT, 255); Alpha(SeatT, 255);
             Alpha(PackT, 255); Alpha(LidT, 255); Alpha(PocketT, 255); Alpha(HatT, 255); Alpha(PompomT, 255);
-            Alpha(HeadT, 0); Alpha(HandT, 0); Alpha(BootT, 0);
-            Alpha(ArmT, 255); AlphaBand(ArmT, PuppetArm.HandV, 1f, 0);      // sleeve to the wrist, skin from there
+            Alpha(HeadT, 0); Alpha(HandT, 255); Alpha(BootT, 0);
+            Alpha(ArmT, 255);                                              // sleeve, cuff and mitten are all knit
 
             var tex = new Texture2D(Size, Size, TextureFormat.RGBA32, true)
             {
@@ -198,9 +204,10 @@ namespace Height1079.Puppet
             // the arm: v = 1 at the fingertips and metres of tube back from there. A sleeve down to a knitted cuff at
             // the wrist, then the hand
             Band(ArmT, 0f, 1f, Shirt);
-            Band(ArmT, PuppetArm.CuffV, PuppetArm.HandV, ShirtDark);
-            Band(ArmT, PuppetArm.HandV, 1f, Skin);
-            Band(HandT, 0f, 1f, Skin);
+            // the knitted cuff is the mitten's, pulled up over the sleeve, and the hand in it is the mitten
+            Band(ArmT, PuppetArm.CuffV, PuppetArm.HandV, Mitten);
+            Band(ArmT, PuppetArm.HandV, 1f, Mitten);
+            Band(HandT, 0f, 1f, Mitten);
 
             PaintBoot();
 
