@@ -1,0 +1,27 @@
+{
+  "name": "Height1079.Elbrus.Tests",
+  "rootNamespace": "Height1079.Tests",
+  "references": [
+    "Height1079.Core",
+    "Height1079.Elbrus.Core",
+    "Height1079.Tests",
+    "UnityEngine.TestRunner",
+    "UnityEditor.TestRunner"
+  ],
+  "includePlatforms": [
+    "Editor"
+  ],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": true,
+  "precompiledReferences": [
+    "nunit.framework.dll"
+  ],
+  "autoReferenced": false,
+  "defineConstraints": [
+    "UNITY_INCLUDE_TESTS",
+    "!HEIGHT1079_NO_ELBRUS"
+  ],
+  "versionDefines": [],
+  "noEngineReferences": false
+}

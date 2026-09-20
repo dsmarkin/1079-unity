@@ -199,7 +199,7 @@ namespace Height1079.Tests
         [Test]
         public void DayRunIsLongerAndMilderThanTheNight()
         {
-            var plan = World.ElbrusPlan;
+            var plan = ElbrusLocation.Plan;
             Assert.IsFalse(plan.Storms);
             Assert.Greater(plan.Profile.Seconds, SurvivalRules.NightSeconds * 3);
             var p = new Participant { Heat = 100 };
@@ -210,7 +210,7 @@ namespace Height1079.Tests
         [Test]
         public void SummitEndsTheRunAndHutsShelter()
         {
-            var plan = World.ElbrusPlan;
+            var plan = ElbrusLocation.Plan;
             var top = Elbrus.WestSummit;
             Assert.IsTrue(plan.AtGoal(top.X, top.Z));
             Assert.IsFalse(plan.AtGoal(top.X + 200f, top.Z));

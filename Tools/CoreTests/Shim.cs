@@ -2,6 +2,10 @@
 using System; using System.Linq; using System.Reflection;
 namespace NUnit.Framework {
   [AttributeUsage(AttributeTargets.Method)] public class TestAttribute : Attribute {}
+  // One-time assembly set-up: Unity runs it, the runner below does not need it (Shim registers the optional
+  // locations from a module initializer instead), but the same sources have to compile here.
+  [AttributeUsage(AttributeTargets.Class)] public class SetUpFixtureAttribute : Attribute {}
+  [AttributeUsage(AttributeTargets.Method)] public class OneTimeSetUpAttribute : Attribute {}
   public class AssertionException : Exception { public AssertionException(string m) : base(m) {} }
   public static class TestContext { public static Ctx CurrentContext = new Ctx(); public class Ctx { public string TestDirectory => AppContext.BaseDirectory; } }
   public static class Assert {
@@ -23,6 +27,16 @@ namespace NUnit.Framework {
   }
   public static class StringAssert { public static void Contains(string needle, string hay) { if (!hay.Contains(needle)) Assert.IsTrue(false, $"'{hay}' lacks '{needle}'"); } }
 }
+// The optional locations have no player or editor to initialise them here, so the runner registers them itself —
+// the dotnet equivalent of the [RuntimeInitializeOnLoadMethod] hook a build uses (see Height1079.Core.Locations).
+// Compiled out with the location itself: dotnet run -p:NoElbrus=true defines HEIGHT1079_NO_ELBRUS.
+static class LocationBootstrap {
+#if !HEIGHT1079_NO_ELBRUS
+  [System.Runtime.CompilerServices.ModuleInitializer]
+  internal static void Elbrus() => Height1079.Core.ElbrusLocation.Register();
+#endif
+}
+
 static class Runner {
   static int Main() {
     int pass = 0, fail = 0;

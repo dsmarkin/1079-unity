@@ -176,29 +176,11 @@ namespace Height1079.Core
             return list;
         }
 
-        /// <summary>What a visitor comes up the Azau ropeway with. Nothing of 1959 is in it — no axe, no saw, no
-        /// tinned stew for a fire there is nothing to build — and the two things that make a halt into a camp are:
-        /// a двойка and a burner. Everything <see cref="Ascent.Required"/> checks for is hired at the counter below
-        /// (<see cref="Rental"/>) and goes into the same rucksack; the two together come to about forty of its fifty
-        /// litres, which is the point.</summary>
-        public static readonly ItemId[] ElbrusStarter =
-        {
-            ItemId.Rusks, ItemId.Chocolate, ItemId.CondensedMilk, ItemId.Flask, ItemId.Socks,
-            ItemId.Tent, ItemId.Burner,
-            // and the sheet: it is issued with the rucksack the way a real programme is issued at the first briefing
-            ItemId.ProgrammeSheet,
-        };
-
-        /// <summary>The starting kit for a place: the night on Kholat Syakhl is carried up the Auspiya,
-        /// the day on the southern slope of Elbrus is bought in Azau.</summary>
-        public static List<ItemStack> StarterFor(int index, Place place)
-        {
-            if (place != Place.Elbrus) return StarterFor(index);
-            var list = new List<ItemStack>();
-            foreach (var id in ElbrusStarter) list.Add(new ItemStack(id));
-            list.Add(new ItemStack(ItemId.Matches, MatchesInBox));
-            return list;
-        }
+        /// <summary>The starting kit for a place — every location packs its own rucksack
+        /// (<see cref="ILocation.Starter"/>). The night on Kholat Syakhl is carried up the Auspiya; another location
+        /// may hand out something else entirely, and a location this build was compiled without reads as the
+        /// default one.</summary>
+        public static List<ItemStack> StarterFor(int index, Place place) => Locations.Of(place).Starter(index);
     }
 
     /// <summary>A soft canvas rucksack of the 1950s: fixed volume, its own weight, an ordered list of contents.
