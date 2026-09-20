@@ -44,6 +44,9 @@ namespace Height1079.EditorTools
             // built before the world exists bakes it here, the way it bakes the prints above
             if (AssetDatabase.LoadAssetAtPath<GameObject>(World.WorldPaths.Generated + "/Prefabs/Creatures/Menk.prefab") == null)
                 World.CreatureFactory.Build();
+            // the yard's tent, fire, trees, rocks and things are the imported low-poly set in palette colours
+            // (ImportedFactory); a sandbox built before the world exists bakes them here too
+            if (!World.ImportedFactory.IsBuilt) World.ImportedFactory.Build();
             Mat("Snow", "snow_02", 6f, .22f, new Color(.97f, .98f, 1f));
             Mat("Crust", "snow_03", 9f, .34f, new Color(.93f, .95f, 1f));
             Mat("Rock", "lichen_rock", 4f, .12f, new Color(.72f, .70f, .66f));

@@ -108,6 +108,7 @@
 | [docs/ART.md](docs/ART.md) | графика: стиль, конвейер ассетов Blender → Unity, роли, приёмка по кадрам и чеклисту |
 | [docs/BACKLOG.md](docs/BACKLOG.md) | бэклог механик |
 | `Assets/Art/ThirdParty/PolyHaven/SOURCES.json` | происхождение и лицензии сторонних ассетов (Poly Haven, CC0) |
+| `Assets/Art/ThirdParty/Quaternius/SOURCES.json`, `Assets/Art/ThirdParty/Kenney/SOURCES.json` | low-poly модели снаряжения, деревьев, камней (CC0); в игру идут перекрашенными в палитру — [docs/ART.md](docs/ART.md) §9 |
 
 ## Steam (необязательно)
 

@@ -8,7 +8,9 @@
     "UnityEngine.TestRunner",
     "UnityEditor.TestRunner",
     "Height1079.Snow",
-    "Height1079.Night"
+    "Height1079.Night",
+    "Height1079.Art",
+    "Height1079.Editor"
   ],
   "includePlatforms": [
     "Editor"
