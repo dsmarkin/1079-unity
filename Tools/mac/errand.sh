@@ -43,6 +43,11 @@ printf 'running %s  %s\n' "$TOKEN" "$(date '+%F %T %Z')" > "$STATE"
 # run.command backgrounds the player with `&`, which is fine from a terminal and useless from here:
 # launchd tears the job's whole process group down when the script returns, and the game went with it.
 # `open` hands the bundle to Launch Services instead, so the player outlives the errand.
+stop_game() {
+    pkill -f 'Builds/mac/1079.app/Contents/MacOS/' && printf 'game stopped\n' || printf 'game was not running\n'
+    sleep 1
+}
+
 start_game() {
     local app="$ROOT/Builds/mac/1079.app"
     [ -d "$app" ] || { printf 'no build at %s\n' "$app"; return 66; }
@@ -58,8 +63,8 @@ run_job() {
         check)     bash "$ROOT/check.command" ;;
         build)     bash "$ROOT/build.command" ;;
         run)       start_game ;;
-        build+run) bash "$ROOT/build.command" && start_game ;;
-        quit)      pkill -f 'Builds/mac/1079.app/Contents/MacOS/' && echo 'game stopped' || echo 'game was not running' ;;
+        build+run) stop_game; bash "$ROOT/build.command" && start_game ;;
+        quit)      stop_game ;;
         push)      GIT_TERMINAL_PROMPT=0 git -C "$ROOT" push origin main ;;
         ping)      printf 'errand runner alive: %s\n' "$(sw_vers -productVersion 2>/dev/null || uname -s)" ;;
         *)         printf 'unknown errand: %s\n' "$JOB"; return 64 ;;
