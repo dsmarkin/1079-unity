@@ -33,6 +33,13 @@ namespace Height1079.Art
         public const string ResourcePath = "Art/palette";
         /// <summary>The source of truth, relative to the project root.</summary>
         public const string SourcePath = "docs/art/palette.json";
+        /// <summary>The override a built player can be given without rebuilding it: a sheet in the loose files beside
+        /// the app (<c>StreamingAssets/sandbox/palette.json</c>; on macOS inside
+        /// <c>1079-sandbox.app/Contents/Resources/Data/StreamingAssets/sandbox/</c>). Put one there, restart, and every
+        /// colour the game <em>applies at run time</em> comes from it. What it cannot touch is colour baked into mesh
+        /// vertices by the editor's import (docs/ART.md §9): those need a re-bake in Unity.</summary>
+        public const string OverrideFolder = "sandbox", OverrideFile = "palette.json";
+        public static string OverridePath => Path.Combine(Application.streamingAssetsPath, OverrideFolder, OverrideFile);
 
         static List<Swatch> all;
         static Dictionary<string, int> byName;
@@ -123,39 +130,31 @@ namespace Height1079.Art
 
         // ── loading ──
 
-        [Serializable] class Sheet { public List<Group> groups; }
+        [Serializable] class SheetFile { public List<Group> groups; }
         [Serializable] class Group { public string group; public List<Entry> colours; }
         [Serializable] class Entry { public string name, label, hex; }
 
         static void Load()
         {
             if (all != null) return;
-            string json = null, from = null;
-            var asset = Resources.Load<TextAsset>(ResourcePath);
-            if (asset != null && !string.IsNullOrEmpty(asset.text)) { json = asset.text; from = "Resources/" + ResourcePath; }
-            else
+            all = new List<Swatch>();
+            // A sheet dropped beside a built player wins over everything: this is the one colour knob that needs no
+            // rebuild. Desktop only, which is every platform this game is built for. A sheet that will not parse is a
+            // warning and the next source down, so a typo in it cannot leave the game without colours.
+            Sheet(ReadOverride(), OverridePath);
+            if (all.Count == 0)
+            {
+                var asset = Resources.Load<TextAsset>(ResourcePath);
+                if (asset != null && !string.IsNullOrEmpty(asset.text)) Sheet(asset.text, "Resources/" + ResourcePath);
+            }
+            if (all.Count == 0)
             {
                 try
                 {
                     string file = Path.Combine(Path.GetDirectoryName(Application.dataPath) ?? ".", SourcePath);
-                    if (File.Exists(file)) { json = File.ReadAllText(file); from = SourcePath; }
+                    if (File.Exists(file)) Sheet(File.ReadAllText(file), SourcePath);
                 }
                 catch (Exception) { }
-            }
-            all = new List<Swatch>();
-            if (json != null)
-            {
-                try
-                {
-                    var sheet = JsonUtility.FromJson<Sheet>("{\"groups\":" + json + "}");
-                    if (sheet?.groups != null)
-                        foreach (var g in sheet.groups)
-                            if (g.colours != null)
-                                foreach (var e in g.colours)
-                                    if (ColorUtility.TryParseHtmlString(e.hex, out var c))
-                                        all.Add(new Swatch { Group = g.group, Name = e.name, Label = e.label, Hex = e.hex.ToUpperInvariant(), Colour = c });
-                }
-                catch (Exception ex) { Debug.LogWarning("1079 palette: " + from + " не прочитан — " + ex.Message); all.Clear(); }
             }
             if (all.Count == 0)
             {
@@ -165,6 +164,32 @@ namespace Height1079.Art
             }
             byName = new Dictionary<string, int>();
             for (int i = 0; i < all.Count; i++) byName[all[i].Name] = i;
+        }
+
+        /// <summary>The override sheet beside the player, or null when there is none.</summary>
+        static string ReadOverride()
+        {
+            try { return File.Exists(OverridePath) ? File.ReadAllText(OverridePath) : null; }
+            catch (Exception e) { Debug.LogWarning("1079 palette: " + OverridePath + " не прочитан — " + e.Message); return null; }
+        }
+
+        /// <summary>Parses one sheet into <see cref="all"/>; a sheet that will not parse leaves it empty and says so,
+        /// and the caller goes on to the next source.</summary>
+        static void Sheet(string json, string from)
+        {
+            if (string.IsNullOrWhiteSpace(json)) return;
+            try
+            {
+                var sheet = JsonUtility.FromJson<SheetFile>("{\"groups\":" + json + "}");
+                if (sheet?.groups != null)
+                    foreach (var g in sheet.groups)
+                        if (g.colours != null)
+                            foreach (var e in g.colours)
+                                if (ColorUtility.TryParseHtmlString(e.hex, out var c))
+                                    all.Add(new Swatch { Group = g.group, Name = e.name, Label = e.label, Hex = e.hex.ToUpperInvariant(), Colour = c });
+            }
+            catch (Exception ex) { Debug.LogWarning("1079 palette: " + from + " не прочитан — " + ex.Message); all.Clear(); }
+            if (all.Count > 0) Debug.Log("1079 palette: цвета из " + from + " (" + all.Count + ")");
         }
 
         /// <summary>Forget what was loaded (the editor calls it after rewriting the sheet).</summary>

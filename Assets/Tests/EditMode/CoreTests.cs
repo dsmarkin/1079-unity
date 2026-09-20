@@ -138,8 +138,9 @@ namespace Height1079.Tests
             Assert.IsTrue(toTent > 1500 && toTent < 2100, $"camp → tent {toTent} m");
             Assert.IsTrue(WorldData.NearCamp(NightRun.Start.x, NightRun.Start.z));
             // 31 Jan camp accounting: every ski and pole of the nine is somewhere on the site
-            Assert.AreEqual(Sites.Camp31.SkiPairs, Sites.Camp31.SkiPairsUnderFloor + Sites.Camp31.SkiPairsAsStand);
-            Assert.AreEqual(Sites.Tent.SkiPairsUnderFloor, Sites.Camp31.SkiPairsUnderFloor);
+            Assert.AreEqual(Sites.Camp31.SkiPairs, Sites.Camp31.SkiPairsAtTent + Sites.Camp31.SkiPairsAsStand);
+            // the same eight pairs, but under the floor only on the slope: in the forest they stood in the snow
+            Assert.AreEqual(Sites.Tent.SkiPairsUnderFloor, Sites.Camp31.SkiPairsAtTent);
             Assert.AreEqual(8, Sites.Camp31.PolesLeftFree);
             // the tent pad is level where the tent and its entrance stand
             float pad = WorldData.PadHeight(dem);
