@@ -53,6 +53,10 @@ namespace Height1079.EditorTools.World
             public (string match, string colour)[] Colours = new (string, string)[0];
             /// <summary>Only faces of these materials/parts make the collider (null = all of them).</summary>
             public string[] CollideOn;
+            /// <summary>Leave the ends of the thing open in its collider: faces looking along ±Z are dropped from it.
+            /// A tent is a tunnel — the body has to be able to crawl in from either end, whichever way the model was
+            /// turned, and the end wall of a closed A-frame is exactly what stopped it (self-test, 20.09.2026).</summary>
+            public bool OpenEnds;
 
             public Entry(string name, string path, float size, Fit fit) { Name = name; Path = path; Size = size; Fit = fit; }
         }
@@ -72,7 +76,7 @@ namespace Height1079.EditorTools.World
             // the pack's pup tent (1.8 × 1.6 m of canvas, guy lines out to twice that), drawn out to 3.6 × 2 m — near
             // the camp tent's 4.3 × 2; its open end comes out at +Z, like the site's. Only the canvas collides, so a
             // body crawls in through the mouth and the guy lines do not trip it
-            new Entry("Tent", Survival + "Tent.fbx", 1.5f, Fit.Height) { Shape = Shape.Mesh, CollideOn = new[] { "LightGreen", "Green" }, Stretch = new Vector3(1.6f, 1f, 2f),
+            new Entry("Tent", Survival + "Tent.fbx", 1.5f, Fit.Height) { Shape = Shape.Mesh, CollideOn = new[] { "LightGreen", "Green" }, OpenEnds = true, Stretch = new Vector3(1.6f, 1f, 2f),
                 Colours = new[] { ("DarkWood", Palette.Wood), ("Black", Palette.Quilt), ("LightGreen", Palette.Canvas), ("Green", Palette.Anorak) } },
             new Entry("Bedroll", KenneyModels + "bedroll.glb", 1.7f, Fit.Length) { AlignZ = true,
                 Colours = new[] { ("blanket", Palette.Quilt), ("*", Palette.Canvas) } },
@@ -269,9 +273,11 @@ namespace Height1079.EditorTools.World
             var render = ToMesh(faces, e.Name, null);
             SaveMesh(render, e.Name);
             Mesh collision = null;
-            if ((e.Shape == Shape.Convex || e.Shape == Shape.Mesh) && e.CollideOn != null)
+            if ((e.Shape == Shape.Convex || e.Shape == Shape.Mesh) && (e.CollideOn != null || e.OpenEnds))
             {
-                collision = ToMesh(faces, e.Name + "_Col", f => Matches(e.CollideOn, f.Material, f.Part));
+                collision = ToMesh(faces, e.Name + "_Col", f =>
+                    (e.CollideOn == null || Matches(e.CollideOn, f.Material, f.Part)) &&
+                    (!e.OpenEnds || Mathf.Abs(Normal(f).z) < .75f));
                 if (collision.vertexCount == 0) { Debug.LogWarning($"1079 imported: {e.Name}: под коллайдер не попала ни одна грань, взят весь меш"); collision = null; }
                 else SaveMesh(collision, e.Name + "_Col");
             }

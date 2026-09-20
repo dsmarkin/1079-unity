@@ -241,26 +241,41 @@ namespace Height1079.Sandbox
             var roll = Imp("TentRoll") ?? Load("Cargo/Tent");
             if (roll != null)
             {
-                var r = Put(roll, at + toFire * 3.4f + side * 1.2f + Vector3.up * SnowTop, 70f);
+                var r = Put(roll, at + toFire * 3.4f + side * 1.6f + Vector3.up * SnowTop, 70f);
                 if (Palettised) Palette.Recolour(r.gameObject);
                 Register("свёрнутая палатка", Wrap(r, "свёрнутая палатка"));
             }
         }
 
+        /// <summary>The way in: the body crawls from the fire to the stove at the back of the tent, so the line from
+        /// the mouth to the stove has to stay clear of everything with a collider. Half a body plus the arms, and the
+        /// things laid as dressing are pushed out of it (<see cref="Gear"/>) instead of being placed by eye.</summary>
+        public const float Corridor = 1.1f;
+
+        /// <summary>Lays a thing where the camp's things lie, but never in the way in: a place inside the corridor is
+        /// slid sideways, away from the centre line, until it clears. Dressing must not decide whether the night can
+        /// be played — the self-test caught exactly that (the pot and the tins stopped the prone body at the mouth).</summary>
+        static Transform Lay(string name, Vector3 at, Vector3 along, Vector3 side, float ahead, float across, float yaw)
+        {
+            if (Mathf.Abs(across) < Corridor) across = Mathf.Sign(across == 0f ? 1f : across) * Corridor;
+            return Prop(name, at + along * ahead + side * across, yaw);
+        }
+
         /// <summary>The camp's things about the mouth of the tent, the way a camp's things lie: the pack against the
-        /// canvas, the axe by the wood, the pot and the tins by the door, the bedroll inside. Dressing, not the list.</summary>
+        /// canvas, the axe by the wood, the pot and the tins by the door, the bedroll along the wall inside. Dressing,
+        /// not the list — and none of it in the way in.</summary>
         static void Gear(Vector3 at, Vector3 toFire, Vector3 side)
         {
-            // the rolled tent of the list lies at toFire 3.4, side 1.2, and nothing else lies on it
-            Prop("Backpack", at + toFire * 1.6f - side * 1.55f, 205f);
-            Prop("Axe", at + toFire * 2.6f + side * 2.3f, 30f);
-            Prop("WoodLog", at + toFire * 3.2f + side * 2.6f, 100f);
-            Prop("WoodLog", at + toFire * 3.5f + side * 2.4f, 96f);
-            Prop("Pot", at + toFire * 3.0f - side * .9f, 0f);
-            Prop("Can", at + toFire * 3.3f - side * 1.3f, 0f);
-            Prop("Can", at + toFire * 2.9f - side * 1.15f, 40f);
-            Prop("Flashlight", at + toFire * 2.5f - side * .45f, 250f);
-            Prop("Bedroll", at - toFire * .5f - side * .45f, 0f);
+            // the rolled tent of the list lies ahead 3.4, across 1.6, and nothing else lies on it
+            Lay("Backpack", at, toFire, side, 1.6f, -1.55f, 205f);
+            Lay("Axe", at, toFire, side, 2.6f, 2.3f, 30f);
+            Lay("WoodLog", at, toFire, side, 3.2f, 2.6f, 100f);
+            Lay("WoodLog", at, toFire, side, 3.5f, 2.4f, 96f);
+            Lay("Pot", at, toFire, side, 3.0f, -1.35f, 0f);
+            Lay("Can", at, toFire, side, 3.3f, -1.75f, 0f);
+            Lay("Can", at, toFire, side, 2.9f, -1.6f, 40f);
+            Lay("Flashlight", at, toFire, side, 2.5f, -1.15f, 250f);
+            Lay("Bedroll", at, toFire, side, -.5f, -1.15f, 0f);
         }
 
         /// <summary>The labaz: the cache dug into the snow and covered with firewood and fir branches, marked by
