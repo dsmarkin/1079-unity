@@ -2,6 +2,10 @@
 using System; using System.Linq; using System.Reflection;
 namespace NUnit.Framework {
   [AttributeUsage(AttributeTargets.Method)] public class TestAttribute : Attribute {}
+  // One-time assembly set-up: Unity runs it, the runner below does not need it (Shim registers the optional
+  // locations from a module initializer instead), but the same sources have to compile here.
+  [AttributeUsage(AttributeTargets.Class)] public class SetUpFixtureAttribute : Attribute {}
+  [AttributeUsage(AttributeTargets.Method)] public class OneTimeSetUpAttribute : Attribute {}
   public class AssertionException : Exception { public AssertionException(string m) : base(m) {} }
   public static class TestContext { public static Ctx CurrentContext = new Ctx(); public class Ctx { public string TestDirectory => AppContext.BaseDirectory; } }
   public static class Assert {

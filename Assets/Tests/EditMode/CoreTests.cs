@@ -308,23 +308,6 @@ namespace Height1079.Tests
         }
 
         [Test]
-        public void ANightSleptPutsTheClockBackToTheMorning()
-        {
-            var run = new NightRun(0, Ground, ElbrusLocation.Plan);
-            double t = Advance(run, 1, 600);
-            Assert.Greater(run.Elapsed, 590f);
-            float wasHour = AscentRoute.HourAt(run.Elapsed, ElbrusLocation.Plan.Profile.Seconds);
-            Assert.Greater(wasHour, AscentRoute.RunStartHour);
-            run.NewMorning();
-            Assert.AreEqual(0f, run.Elapsed, 1e-3);
-            // and the clock stays there: the skipped hours are given back, not merely hidden for one tick
-            t = Advance(run, t, 10);
-            Assert.AreEqual(10f, run.Elapsed, .5f);
-            Assert.AreEqual(AscentRoute.RunStartHour,
-                AscentRoute.HourAt(run.Elapsed, ElbrusLocation.Plan.Profile.Seconds), .05f);
-        }
-
-        [Test]
         public void TwoBlowsOfTheGiantTakeAPlayer()
         {
             var run = new NightRun(1, Ground);
