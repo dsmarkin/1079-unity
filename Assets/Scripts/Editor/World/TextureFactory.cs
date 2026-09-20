@@ -11,7 +11,8 @@ namespace Height1079.EditorTools.World
     {
         public const string Dir = WorldPaths.Generated + "/Textures";
 
-        internal static Texture2D Save(string name, Texture2D tex, bool alpha, TextureWrapMode wrap)
+        /// <summary>Public, not internal: the Elbrus factories live in their own assembly now (Editor/Elbrus).</summary>
+        public static Texture2D Save(string name, Texture2D tex, bool alpha, TextureWrapMode wrap)
         {
             Directory.CreateDirectory(Dir);
             string path = $"{Dir}/{name}.png";
