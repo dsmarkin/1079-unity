@@ -182,6 +182,16 @@ namespace Height1079.Sandbox
                 for (float w = 0f; w < .8f; w += Time.deltaTime) { boot.AimCamera(); yield return null; }
             }
             yield return ShootHere(boot, body, "16-ночь-менк");
+            // the second section: the labaz, from six metres with the torch on it
+            {
+                var lab = SandboxHuntYard.Labaz;
+                var from = lab + (SandboxHuntYard.Fire - lab).normalized * 6f;
+                boot.PlaceAt(new Vector3(from.x, 1.2f, from.z));
+                var look = lab + Vector3.up * .4f - new Vector3(from.x, 1.6f, from.z);
+                boot.Eye.Yaw = Quaternion.LookRotation(look).eulerAngles.y; boot.Eye.Pitch = -Mathf.Asin(look.normalized.y) * Mathf.Rad2Deg;
+                for (float w = 0f; w < .8f; w += Time.deltaTime) { boot.AimCamera(); yield return null; }
+            }
+            yield return ShootHere(boot, body, "16a-ночь-лабаз");
             // the wall: the clock jumps to the last minute and the front builds
             boot.Hunt.Skip(75f);
             boot.PlaceAt(SandboxHuntYard.Spawn);

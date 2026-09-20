@@ -486,7 +486,8 @@ namespace Height1079.Sandbox
             // ── the night run: its line top left while it runs, and the debrief in the middle when it is over ─────
             if (hunt != null && hunt.Run != null)
             {
-                GUILayout.BeginArea(new Rect(10, 10, 420, 52), GUI.skin.box);
+                GUILayout.BeginArea(new Rect(10, 10, 460, 110), GUI.skin.box);
+                GUILayout.Label(hunt.TaskList(), small);
                 GUILayout.Label(hunt.Status(), small);
                 GUILayout.EndArea();
                 if (hunt.Report != null)

@@ -372,6 +372,11 @@ namespace Height1079.Sandbox
             Check(menk.Mode == Height1079.Core.HunterBrain.State.ToLight || menk.Mode == Height1079.Core.HunterBrain.State.Chase,
                 "свет фонаря зовёт Менка", $"режим {menk.Mode}, на свет {menk.WentToLight} раз");
             if (hunt.Torch) hunt.ToggleTorch();
+            // the Menk has been called and is on its way: for the steps that follow it is stood in the far corner
+            // of the yard and stood there again before each, or the check of the list becomes a check of luck
+            var corner = SandboxHuntYard.Origin + new Vector3(-27f, 0f, -27f);
+            void Park() { menk.X = corner.x; menk.Z = corner.z; }
+            Park();
 
             // the diary: it lies just inside the doorway of the tent (the mouth faces the fire, south), so it is
             // taken from the threshold; put down at the fire, counted
@@ -389,9 +394,11 @@ namespace Height1079.Sandbox
             yield return new WaitForSeconds(1f);
             hunt.TakeOrPutDown();
             Check(diary.Delivered && run.Errand.Delivered == 1, "положен у костра — засчитан", $"принесено {run.Errand.Delivered}");
+            Check(run.LabazOpen && menk.Posts == 2, "первая вещь из палатки открыла лабаз и удлинила обход Менка", $"лабаз {run.LabazOpen}, постов {menk.Posts}");
 
             // the stove: at the back of the tent, so the body crawls in under the ridge; two hands, and no running with it
             var stove = run.Errand.Items.Find(i => i.Name == "печка");
+            Park();
             boot.PlaceAt(new Vector3(door.x, 1.2f, door.z));
             yield return new WaitForSeconds(.8f);
             for (float w = 0f; w < 7f && Height1079.Core.HuntRules.Dist(body.Torso.position.x, body.Torso.position.z, stove.X, stove.Z) > 1.5f; w += Time.deltaTime)
@@ -413,6 +420,40 @@ namespace Height1079.Sandbox
             boot.PlaceAt(new Vector3(door.x, 1.2f, door.z - 2f));
             yield return new WaitForSeconds(.6f);
             Check(SandboxHuntYard.RealObjects, "площадка собрана из объектов игры", SandboxHuntYard.RealObjects ? "префабы мира на месте" : "заглушки: мир не сгенерирован");
+
+            // the second section: rusks from the labaz, then the Zorkiy — three home is the quota, and the night is
+            // called when the body has stood at the fire for five seconds
+            var rusks = run.Errand.Items.Find(i => i.Name == "сухари");
+            Park();
+            boot.PlaceAt(new Vector3(rusks.X, 1.2f, rusks.Z - 1.2f));
+            yield return new WaitForSeconds(1f);
+            hunt.Take(rusks);
+            Check(hunt.Held == rusks, "сухари взяты у лабаза", hunt.Held != null ? "в руках: " + hunt.Held.Name : "руки пусты");
+            boot.PlaceAt(SandboxHuntYard.Spawn);
+            yield return new WaitForSeconds(1f);
+            hunt.TakeOrPutDown();
+            // the Zorkiy lies a step further in than the diary: the body stands in the doorway for it
+            var zorkiy = run.Errand.Items.Find(i => i.Name == "фотоаппарат");
+            Park();
+            boot.PlaceAt(new Vector3(door.x, 1.2f, door.z + .8f));
+            yield return new WaitForSeconds(1f);
+            hunt.Take(zorkiy);
+            Check(hunt.Held == zorkiy, "«Зоркий» взят из дверей", hunt.Held != null ? "в руках: " + hunt.Held.Name : $"руки пусты · {Height1079.Core.HuntRules.Dist(zorkiy.X, zorkiy.Z, body.Torso.position.x, body.Torso.position.z):0.0} м до него");
+            boot.PlaceAt(SandboxHuntYard.Spawn);
+            yield return new WaitForSeconds(1f);
+            hunt.TakeOrPutDown();
+            Park();
+            Check(run.Errand.Delivered == 3 && run.QuotaMet, "три вещи у костра — квота", $"принесено {run.Errand.Delivered}: {string.Join(", ", run.Errand.Items.FindAll(i => i.Delivered).ConvertAll(i => i.Name))}");
+            for (float w = 0f; w < Height1079.Core.HuntRules.FinishHold + 1.5f && !run.Over; w += Time.deltaTime) { body.Drive(PuppetInput.Idle); yield return null; }
+            Check(run.Over && run.Outcome == "вернулись", "все у костра — ночь окончена до пурги", $"over {run.Over}, исход «{run.Outcome}», {Height1079.Core.HuntRules.Clock(run.Elapsed)}");
+            // the debrief is written on the frame after the run ends
+            yield return null; yield return null;
+            Check(hunt.Report != null && hunt.Report.Exists(l => l.StartsWith("Из палатки 2 из 4, из лабаза 1 из 4")), "итог считает по секциям", hunt.Report != null ? string.Join(" | ", hunt.Report) : "нет итога");
+
+            // a new night for the death: the Menk must be met on a run that is still going
+            hunt.Begin(180f);
+            yield return new WaitForSeconds(5f);
+            body = boot.Body; run = hunt.Run; menk = hunt.Menk;
 
             // flat in the snow: the body comes down and slows. Stood up first — the last order it was given was
             // to crawl, and a body keeps its last order until it is given another
@@ -437,6 +478,13 @@ namespace Height1079.Sandbox
             Check(hunt.Dead && run.Over, "стоя перед Менком — удар, забег окончен", $"мёртв {hunt.Dead}, исход «{run.Outcome}», режим {menk.Mode}");
             Check(body.Limp || body.Dead, "тело после удара лежит", $"limp {body.Limp}, dead {body.Dead}, boot.Dead {boot.Dead}, корпус {body.Tilt:0}°, то же тело {ReferenceEquals(body, boot.Body)}");
             Check(hunt.Report != null && hunt.Report.Count >= 4, "итог написан", hunt.Report != null ? string.Join(" | ", hunt.Report) : "нет итога");
+            Check(boot.Dead && boot.DeathTitle == "МЕНК ДОГНАЛ", "экран смерти со словами про Менка", $"boot.Dead {boot.Dead}, «{boot.DeathTitle}»");
+            // and the morning after is another night on the yard, not a day on the range (the physics sections
+            // above walked the stands; the player never leaves the yard)
+            boot.GoTo(SandboxRange.YardStand);
+            boot.Restart();
+            yield return new WaitForSeconds(1f);
+            Check(hunt.Active && !boot.Dead && hunt.Run != run, "после смерти — новый забег, не день", $"active {hunt.Active}, dead {boot.Dead}");
             hunt.End();
             yield return new WaitForSeconds(.5f);
 

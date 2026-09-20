@@ -49,6 +49,17 @@ namespace Height1079.Core
         /// <summary>Wind-up before the blow lands, and the whole swing.</summary>
         public const float StrikeAt = .55f, StrikeFor = 1.4f;
 
+        // ── the track: two sections and a finish ──
+        /// <summary>Things home before the night may be called done (Burglin' Gnomes: three tasks, whatever else).</summary>
+        public const int Quota = 3;
+        /// <summary>With the quota met, everyone inside the fire's ring for this long ends the night as "вернулись".</summary>
+        public const float FinishHold = 5f;
+        /// <summary>The second section (the labaz) joins the Menk's beat once this many things from the tent are home
+        /// (R.E.P.O.: the next extraction point appears after the previous one has been used).</summary>
+        public const int OpensLabaz = 1;
+        /// <summary>Degrees of a ring it walks before crossing to its other post.</summary>
+        public const float LapDegrees = 400f;
+
         // ── the blizzard wall ──
         public const float RunSeconds = 15f * 60f;
         /// <summary>The wind starts rising here; at the end of the run it is a wall.</summary>
@@ -181,7 +192,7 @@ namespace Height1079.Core
     /// freeze in a beam the way the night's Menk does — the opposite: the beam is what brings it.</summary>
     public sealed class HunterBrain
     {
-        public enum State : byte { Patrol, Listen, ToLight, ToNoise, Tracking, Chase, Strike, LookAround }
+        public enum State : byte { Patrol, Listen, ToLight, ToNoise, Tracking, Chase, Strike, LookAround, Walk }
         public enum Cue : byte { None, Light, Noise, Tracks, Sight }
 
         public float X, Z, Yaw;
@@ -204,7 +215,11 @@ namespace Height1079.Core
         /// <summary>A line for the protocol.</summary>
         public Action<string> Say;
 
-        readonly float tentX, tentZ;
+        /// <summary>The places it circles: the tent, and the labaz once that section is open. It walks one ring
+        /// for <see cref="HuntRules.LapDegrees"/>, then crosses to the next post and circles there.</summary>
+        readonly List<(float x, float z)> posts = new List<(float x, float z)>();
+        int post;
+        float lapDeg;
         readonly TrackChain tracks;
         readonly Random rnd;
         float pauseIn, patrolAngle, lostFor;
@@ -216,17 +231,30 @@ namespace Height1079.Core
 
         public HunterBrain(float tentX, float tentZ, TrackChain tracks, int seed = 1959)
         {
-            this.tentX = tentX; this.tentZ = tentZ; this.tracks = tracks;
+            posts.Add((tentX, tentZ)); this.tracks = tracks;
             rnd = new Random(seed);
             patrolAngle = (float)(rnd.NextDouble() * 360.0);
             X = tentX + (float)Math.Sin(patrolAngle * Math.PI / 180.0) * HuntRules.PatrolRadius;
             Z = tentZ + (float)Math.Cos(patrolAngle * Math.PI / 180.0) * HuntRules.PatrolRadius;
+            PostX = tentX; PostZ = tentZ;
             Yaw = patrolAngle + 90f;
             pauseIn = R(HuntRules.PauseEvery, HuntRules.PauseEveryMax);
             GoalX = X; GoalZ = Z;
         }
 
         float R(float a, float b) => a + (float)rnd.NextDouble() * (b - a);
+
+        /// <summary>The post it is circling now.</summary>
+        public float PostX { get; private set; }
+        public float PostZ { get; private set; }
+        public int Posts => posts.Count;
+
+        /// <summary>Another place to walk round: the beat now runs between them.</summary>
+        public void AddPost(float x, float z)
+        {
+            foreach (var p in posts) if (HuntRules.Dist(p.x, p.z, x, z) < 1f) return;
+            posts.Add((x, z));
+        }
 
         /// <summary>Something hit the snow: a dropped stove, a thrown camera. Heard within <paramref name="radius"/>.</summary>
         public void Hear(float x, float z, float radius, string who = null)
@@ -295,12 +323,35 @@ namespace Height1079.Core
                 {
                     pauseIn -= dt;
                     if (pauseIn <= 0f) { Go(State.Listen, Cue.None, X, Z); break; }
+                    // a ring walked, and there is another post: cross to it
+                    if (posts.Count > 1 && lapDeg >= HuntRules.LapDegrees)
+                    {
+                        post = (post + 1) % posts.Count;
+                        PostX = posts[post].x; PostZ = posts[post].z;
+                        lapDeg = 0f;
+                        // aim for the near side of the next ring
+                        float toward = HuntRules.Heading(PostX, PostZ, X, Z) * (float)Math.PI / 180f;
+                        Go(State.Walk, Cue.None, PostX + (float)Math.Sin(toward) * HuntRules.PatrolRadius, PostZ + (float)Math.Cos(toward) * HuntRules.PatrolRadius);
+                        break;
+                    }
                     // round the ring: the goal runs a few metres ahead of it along the circle
-                    patrolAngle += HuntRules.PatrolSpeed * slow * dt / HuntRules.PatrolRadius * 180f / (float)Math.PI;
+                    float step = HuntRules.PatrolSpeed * slow * dt / HuntRules.PatrolRadius * 180f / (float)Math.PI;
+                    patrolAngle += step; lapDeg += step;
                     float a = (patrolAngle + 12f) * (float)Math.PI / 180f;
-                    GoalX = tentX + (float)Math.Sin(a) * HuntRules.PatrolRadius;
-                    GoalZ = tentZ + (float)Math.Cos(a) * HuntRules.PatrolRadius;
+                    GoalX = PostX + (float)Math.Sin(a) * HuntRules.PatrolRadius;
+                    GoalZ = PostZ + (float)Math.Cos(a) * HuntRules.PatrolRadius;
                     Walk(GoalX, GoalZ, HuntRules.PatrolSpeed * slow, dt);
+                    break;
+                }
+                case State.Walk:
+                {
+                    float left = Walk(GoalX, GoalZ, HuntRules.PatrolSpeed * slow, dt);
+                    if (left < 2f)
+                    {
+                        patrolAngle = HuntRules.Heading(PostX, PostZ, X, Z);
+                        pauseIn = R(HuntRules.PauseEvery, HuntRules.PauseEveryMax);
+                        Go(State.Patrol, Cue.None, X, Z);
+                    }
                     break;
                 }
                 case State.Listen:
@@ -321,7 +372,7 @@ namespace Height1079.Core
                     Turn(Yaw + 70f * dt, dt, 70f);
                     if (StateTime > HuntRules.ListenSeconds)
                     {
-                        if (!FollowTracks()) Go(State.Patrol, Cue.None, X, Z);
+                        if (!FollowTracks()) BackToRing();
                     }
                     break;
 
@@ -381,6 +432,14 @@ namespace Height1079.Core
                     break;
                 }
             }
+        }
+
+        /// <summary>Back to the beat, at the nearest point of the ring of the post it belongs to now.</summary>
+        void BackToRing()
+        {
+            patrolAngle = HuntRules.Heading(PostX, PostZ, X, Z);
+            pauseIn = R(HuntRules.PauseEvery, HuntRules.PauseEveryMax);
+            Go(State.Patrol, Cue.None, X, Z);
         }
 
         /// <summary>Marks fresh enough and near enough to follow: take the freshest and go.</summary>
@@ -447,6 +506,8 @@ namespace Height1079.Core
     {
         public string Name;
         public Carry Carry;
+        /// <summary>Which section it lies in: "палатка" or "лабаз".</summary>
+        public string Section = "палатка";
         public float X, Z;
         public bool Delivered;
         /// <summary>Who has it in hand, or null on the snow.</summary>
@@ -481,6 +542,24 @@ namespace Height1079.Core
 
         public int Delivered { get { int n = 0; foreach (var i in Items) if (i.Delivered) n++; return n; } }
         public int Total => Items.Count;
+        public int DeliveredIn(string section) { int n = 0; foreach (var i in Items) if (i.Delivered && i.Section == section) n++; return n; }
+        public int TotalIn(string section) { int n = 0; foreach (var i in Items) if (i.Section == section) n++; return n; }
+
+        /// <summary>The whole camp: the tent's four, and at the labaz — the cache dug into the snow and covered
+        /// with firewood, marked by one ski — rusks and candles to carry in a hand, firewood in both, and the spare
+        /// skis, which take two.</summary>
+        public static Errand Camp(float fireX, float fireZ, float tentX, float tentZ, float labazX, float labazZ)
+        {
+            var e = Standard(fireX, fireZ, tentX, tentZ);
+            float dx = fireX - labazX, dz = fireZ - labazZ; float len = (float)Math.Sqrt(dx * dx + dz * dz); if (len < 1e-3f) { dx = 0; dz = -1; len = 1; }
+            dx /= len; dz /= len;
+            float sx = -dz, sz = dx;
+            e.Items.Add(new ErrandItem { Name = "сухари", Carry = Carry.Light, Section = "лабаз", X = labazX + dx * 1.6f + sx * .9f, Z = labazZ + dz * 1.6f + sz * .9f });
+            e.Items.Add(new ErrandItem { Name = "свечи", Carry = Carry.Light, Section = "лабаз", X = labazX + dx * 1.9f - sx * 1.0f, Z = labazZ + dz * 1.9f - sz * 1.0f });
+            e.Items.Add(new ErrandItem { Name = "дрова", Carry = Carry.Heavy, Section = "лабаз", X = labazX - dx * 1.2f + sx * 1.4f, Z = labazZ - dz * 1.2f + sz * 1.4f });
+            e.Items.Add(new ErrandItem { Name = "запасные лыжи", Carry = Carry.Pair, Section = "лабаз", X = labazX - dx * 1.0f - sx * 1.8f, Z = labazZ - dz * 1.0f - sz * 1.8f });
+            return e;
+        }
 
         public static bool MayRun(Carry c) => c == Carry.Light;
         public static bool MayTorch(Carry c) => c == Carry.Light;
@@ -535,24 +614,31 @@ namespace Height1079.Core
         public readonly Errand Errand;
         public readonly TrackChain Tracks = new TrackChain();
         public readonly HunterBrain Menk;
-        public readonly float FireX, FireZ, TentX, TentZ, Length;
+        public readonly float FireX, FireZ, TentX, TentZ, LabazX, LabazZ, Length;
         public float Elapsed { get; private set; }
         public bool Over { get; private set; }
         /// <summary>How it ended: "вернулись", "все погибли", or "" while it runs.</summary>
         public string Outcome { get; private set; } = "";
-        float wallFor;
+        /// <summary>The second section is on the Menk's beat and on the list's second line.</summary>
+        public bool LabazOpen { get; private set; }
+        /// <summary>Enough is home: the night may be called done at the fire.</summary>
+        public bool QuotaMet => Errand.Delivered >= HuntRules.Quota;
+        public bool HasLabaz => !float.IsNaN(LabazX);
+        float wallFor, homeFor;
 
         public float Storm => HuntRules.Storm(Elapsed, Length);
         public bool Wall => HuntRules.IsWall(Storm);
 
-        public HuntRun(float fireX, float fireZ, float tentX, float tentZ, float length = HuntRules.RunSeconds, int seed = 1959)
+        public HuntRun(float fireX, float fireZ, float tentX, float tentZ, float length = HuntRules.RunSeconds, int seed = 1959,
+                       float labazX = float.NaN, float labazZ = float.NaN)
         {
-            FireX = fireX; FireZ = fireZ; TentX = tentX; TentZ = tentZ; Length = length;
-            Errand = Errand.Standard(fireX, fireZ, tentX, tentZ);
+            FireX = fireX; FireZ = fireZ; TentX = tentX; TentZ = tentZ; LabazX = labazX; LabazZ = labazZ; Length = length;
+            Errand = float.IsNaN(labazX) ? Errand.Standard(fireX, fireZ, tentX, tentZ) : Errand.Camp(fireX, fireZ, tentX, tentZ, labazX, labazZ);
             Menk = new HunterBrain(tentX, tentZ, Tracks, seed);
             Menk.Say = Record;
             Menk.Hit = who => Kill(who, "Менк");
-            Record("Вышли от костра. В палатке: " + string.Join(", ", Errand.Items.ConvertAll(i => i.Name)) + ".");
+            Record("Вышли от костра. В палатке: " + string.Join(", ", Errand.Items.FindAll(i => i.Section == "палатка").ConvertAll(i => i.Name)) + ".");
+            if (HasLabaz) Record($"Хватит {HuntRules.Quota} вещей у костра, потом — все к огню, пока не накрыло.");
         }
 
         public void Record(string text) => Events.Add(new NightEvent(Elapsed, text));
@@ -580,13 +666,17 @@ namespace Height1079.Core
             Menk.Tick(dt, players, storm);
 
             bool wall = Wall;
+            // the living are counted off the party, not off what was seen this tick: a tick with nobody in the
+            // list (a test with no players about) is not a night on which everybody died
             int alive = 0, home = 0;
-            for (int i = 0; i < players.Count; i++)
+            foreach (var m in Party)
             {
-                var p = players[i];
-                var m = Find(p.Name);
-                if (m == null || !m.Alive) continue;
+                if (!m.Alive) continue;
                 alive++;
+                int at = -1;
+                for (int i = 0; i < players.Count; i++) if (players[i].Name == m.Name) { at = i; break; }
+                if (at < 0) continue;
+                var p = players[at];
                 if (p.Low) m.SecondsLow += dt;
                 bool inFire = Errand.InFire(p.X, p.Z);
                 if (inFire) home++;
@@ -603,6 +693,9 @@ namespace Height1079.Core
                 wallFor += dt;
                 if (alive > 0 && home == alive && wallFor > 10f) End("вернулись");
             }
+            // the finish: enough is home and everyone is at the fire — the night is called before the wall
+            if (!Over && QuotaMet && alive > 0 && home == alive) { homeFor += dt; if (homeFor >= HuntRules.FinishHold) End("вернулись"); }
+            else homeFor = 0f;
             if (alive == 0 && Party.Count > 0) End("все погибли");
         }
 
@@ -637,7 +730,20 @@ namespace Height1079.Core
             if (item == null) return false;
             bool home = Errand.PutDown(who, x, z);
             Record(home ? "У костра: " + item.Name + "." : who + " положил " + item.Name + ".");
+            if (home) Progress();
             return home;
+        }
+
+        /// <summary>What a thing home changes: the labaz opens after the tent's first, the quota is called.</summary>
+        void Progress()
+        {
+            if (HasLabaz && !LabazOpen && Errand.DeliveredIn("палатка") >= HuntRules.OpensLabaz)
+            {
+                LabazOpen = true;
+                Menk.AddPost(LabazX, LabazZ);
+                Record("Теперь лабаз: " + string.Join(", ", Errand.Items.FindAll(i => i.Section == "лабаз").ConvertAll(i => i.Name)) + ". Менк ходит и туда.");
+            }
+            if (Errand.Delivered == HuntRules.Quota) Record("Хватит. Все к костру — ночь окончена, когда все у огня.");
         }
 
         /// <summary>Thrown: it lands a few metres away and the snow hears it.</summary>
@@ -668,7 +774,8 @@ namespace Height1079.Core
                 if (i.Delivered) brought.Add(i.Name);
                 else left.Add($"{i.Name} — {HuntRules.Dist(i.X, i.Z, FireX, FireZ):0} м от костра");
             }
-            lines.Add($"Принесли {Errand.Delivered} из {Errand.Total}" + (brought.Count > 0 ? ": " + string.Join(", ", brought) : "") + ".");
+            lines.Add($"Принесли {Errand.Delivered} из {Errand.Total} (нужно {HuntRules.Quota})" + (brought.Count > 0 ? ": " + string.Join(", ", brought) : "") + ".");
+            if (HasLabaz) lines.Add($"Из палатки {Errand.DeliveredIn("палатка")} из {Errand.TotalIn("палатка")}, из лабаза {Errand.DeliveredIn("лабаз")} из {Errand.TotalIn("лабаз")}" + (LabazOpen ? "." : " (лабаз не открылся)."));
             if (left.Count > 0) lines.Add("Осталось лежать: " + string.Join("; ", left) + ".");
             foreach (var m in Party)
                 lines.Add(m.Alive ? $"{m.Name} — вернулся." : $"{m.Name} — погиб на {(int)(m.DiedAt / 60f) + 1}-й минуте ({m.Cause}).");

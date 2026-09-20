@@ -111,8 +111,9 @@ namespace Height1079.Sandbox
             Tuning = PuppetTuning.Load("sandbox");
             ApplySolver();
             Sky();
-            SandboxRange.Build();
-            // the sandbox opens on the yard (docs/SANDBOX.md); the physics range is a few stands away (F11/F12)
+            // the yard is the sandbox now (docs/SANDBOX.md); the physics range — steps, slopes, the wall, the drops —
+            // is built only for the scripts that measure the body on it
+            SandboxRange.Build(withRange: SandboxSelfTest.Requested || SandboxShots.Requested);
             if (SandboxRange.YardStand >= 0) stand = SandboxRange.YardStand;
             // the game's own prints, puffs and trail map (Height1079.Snow), under this object so they go when it goes
             SnowPrints.Create(transform);
@@ -204,10 +205,15 @@ namespace Height1079.Sandbox
 
         /// <summary>The bar has been eaten to nothing (<see cref="SandboxVitals"/>): the body goes down where it
         /// stands and the day is over. The screen says so and offers a new one (<see cref="SandboxHud"/>).</summary>
+        /// <summary>When the day ended, unscaled: the keys that start a new one wait a moment, so the jump the
+        /// player was pressing when the blow landed does not skip the screen that says what happened.</summary>
+        float diedAt = -99f;
+
         public void Die(string title = null, string line = null)
         {
             if (Dead || Body == null) return;
             Dead = true;
+            diedAt = Time.unscaledTime;
             PackOpen = false;
             DeathTitle = title ?? "СИЛ НЕ ОСТАЛОСЬ";
             DeathLine = line ?? "Голод, холод и сон съели всю полоску. Тело легло в снег.";
@@ -219,6 +225,8 @@ namespace Height1079.Sandbox
         /// ended with this death ends with it.</summary>
         public void Restart()
         {
+            // on the yard a new day is a new night: the run begins again from the fire
+            if (Hunt != null && stand == SandboxRange.YardStand) { Hunt.Begin(); return; }
             Hunt?.End();
             Revive(stand >= 0 && stand < SandboxRange.Stands.Count ? SandboxRange.Stands[stand].Spawn : new Vector3(0f, 1.2f, -10f));
             SandboxHud.Say("новый день: полоска целая, рюкзак собран");
@@ -282,7 +290,8 @@ namespace Height1079.Sandbox
             if (Dead)
             {
                 // the day is over: only the way to a new one is left on the keys (and the button on the screen)
-                if (Down(Key.Enter) || Down(Key.NumpadEnter) || Down(Key.Space) || Down(Key.F2)) Restart();
+                bool settled = Time.unscaledTime - diedAt > 2.5f;
+                if (settled && (Down(Key.Enter) || Down(Key.NumpadEnter) || Down(Key.Space) || Down(Key.F2))) Restart();
                 Body.Drive(new PuppetInput { Look = rig.LookRotation });
                 return;
             }
