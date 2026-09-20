@@ -33,8 +33,14 @@ namespace Height1079.Core
             /// Popular retellings fold all five damages into "the cuts", which is how they came to be missing here.
             /// Modelled at the middle of each range.</summary>
             public static readonly (float length, float width)[] TornSections = { (0.88f, 0.70f), (0.84f, 0.66f) };
-            /// <summary>Snow on the tent's northern part when found: 15–20 cm, wind-blown (search reports).</summary>
+            /// <summary>Snow on the tent's northern part when the search party found it: 15–20 cm, wind-blown
+            /// (search reports). That is twenty-four days of wind, not one night — see <see cref="SnowOnTentMorning"/>
+            /// for what the world actually draws.</summary>
             public const float SnowOnTentFound = 0.18f;
+            /// <summary>What lies on the tent on the morning of 2 February, the day the world is set on: a dusting.
+            /// No figure exists for it — nobody was there to measure — so it is scaled from the 15–20 cm found on
+            /// 26 February by the time between: assumed 2–3 cm, enough to read as snow and not as burial.</summary>
+            public const float SnowOnTentMorning = 0.025f;
 
             /// <summary>Ridge runs along the contour, the cuts face downslope, and the entrance faces SOUTH.
             ///

@@ -19,7 +19,7 @@ Shader "Height1079/Ghost"
 {
     Properties
     {
-        _Color      ("Tint", Color)             = (0.72, 0.80, 0.88, 1)
+        _Color      ("Tint", Color)             = (0.44, 0.55, 0.72, 1)
         _MainTex    ("Albedo", 2D)              = "white" {}
         _Ghost      ("Certainty", Range(0,1))   = 1
         _Alpha      ("Base alpha", Range(0,1))  = 0.11
@@ -54,6 +54,9 @@ Shader "Height1079/Ghost"
         sampler2D _MainTex;
         fixed4 _Color;
         half _Ghost, _Alpha, _RimPower, _RimBoost, _Emission;
+        // Set globally by Bootstrap from the world's own darkness: 0 in daylight, 1 in the deep of the night.
+        // Deliberately not a Property, so a per-material value cannot shadow it.
+        half _GhostNight;
 
         struct Input { float2 uv_MainTex; float3 viewDir; };
 
@@ -66,10 +69,16 @@ Shader "Height1079/Ghost"
             half rim = 1.0 - saturate(dot(normalize(IN.viewDir), o.Normal));
             half edge = pow(rim, _RimPower) * _RimBoost;
 
-            o.Albedo = base;
-            o.Emission = base * _Emission * _Ghost * (0.35 + edge);
+            // A ghost has opposite problems at the two ends of the day, and one setting cannot serve both. On
+            // sunlit snow anything pale and half-transparent vanishes into the white, so by day it has to be
+            // DARKER than the thing it stands on — a drawing in blue-grey. At night there is nothing bright to be
+            // darker than, so it goes back to a faint glow. The world says which way it is.
+            half night = saturate(_GhostNight);
+
+            o.Albedo = base * lerp(0.55, 1.0, night);
+            o.Emission = base * lerp(0.05, _Emission, night) * _Ghost * (0.35 + edge);
             // certainty drives opacity, and the rim is what keeps the outline visible on snow
-            o.Alpha = saturate((_Alpha + edge * 0.85) * (0.35 + 0.65 * _Ghost));
+            o.Alpha = saturate((lerp(0.52, _Alpha, night) + edge * 0.85) * (0.35 + 0.65 * _Ghost));
         }
         ENDCG
     }

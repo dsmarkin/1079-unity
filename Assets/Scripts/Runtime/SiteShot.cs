@@ -19,7 +19,8 @@ namespace Height1079.Runtime
     /// were taken.</summary>
     public sealed class SiteShot : MonoBehaviour
     {
-        public const int Width = 1600, Height = 1000;
+        // 2400 × 1500 so a frame still carries detail at 180 mm on a page; the book compresses them anyway
+        public const int Width = 2400, Height = 1500;
 
         static bool? asked;
         /// <summary>`1079 -shots`: the only thing that turns any of this on.</summary>
@@ -82,7 +83,7 @@ namespace Height1079.Runtime
             foreach (var bad in Path.GetInvalidFileNameChars()) safe = safe.Replace(bad, '-');
             string path = Path.Combine(Folder(), $"{++taken:00}-{safe}.png");
 
-            var rt = new RenderTexture(Width, Height, 24, RenderTextureFormat.ARGB32) { antiAliasing = 4 };
+            var rt = new RenderTexture(Width, Height, 24, RenderTextureFormat.ARGB32) { antiAliasing = 8 };
             var was = cam.targetTexture;
             cam.targetTexture = rt;
             cam.Render();

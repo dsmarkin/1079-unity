@@ -328,6 +328,8 @@ namespace Height1079.Runtime
             NightFilm film;
             Light moonLight;
 
+            static readonly int GhostNightId = Shader.PropertyToID("_GhostNight");
+
             void Start()
             {
                 film = NightFilm.Create();
@@ -390,14 +392,29 @@ namespace Height1079.Runtime
                 if (s == null) night = 0f;
                 // site views are for looking at things: keep them readable
                 if (WorldDressing.ViewIndex >= 0 && !WorldDressing.ViewKeepsDark) night = Mathf.Min(night, .35f);
+                // `1079 -shots` is the book being printed, and the book is one day: the morning of 2 February 1959.
+                // The clock is pinned to 11:20, when the sun stands 8° over the south-south-east — as high as it
+                // ever gets here in February, low enough to rake the snow and throw the shadows long. The sky view
+                // is the exception and keeps its own hour, 05:00, because a night sky is the whole subject there.
+                if (SiteShot.Asked && WorldDressing.ViewIndex >= 0)
+                {
+                    DemoReel.ClockMinutes = WorldDressing.ViewKeepsDark ? 24 * 60 + 5 * 60 : 24 * 60 + 11 * 60 + 20;
+                    if (!WorldDressing.ViewKeepsDark) night = 0f;
+                }
+                else if (SiteShot.Asked) DemoReel.ClockMinutes = -1f;
                 Darkness = Mathf.MoveTowards(Darkness, night, Time.deltaTime * .5f);
                 float d = Darkness;
+                // the ghost layer flips between a dark drawing on sunlit snow and a faint glow in the dark; it is
+                // the world that knows which, so it tells the shader rather than the shader guessing
+                Shader.SetGlobalFloat(GhostNightId, d);
 
                 // fog takes the colour of the horizon, so the far forest melts into the sky; in a blizzard it is the grey wall of snow
                 RenderSettings.fogColor = SkyDome.Horizon;
                 // clear dusk: long views; night: the dark eats everything past ~60 m; blizzard gusts: a few metres
                 float fog = s == null ? .0013f : Mathf.Lerp(.003f, .016f, d);
                 fog = Mathf.Lerp(fog, Mathf.Lerp(.05f, .12f, Weather.Gust), blizzard);
+                // a clear morning for the book: haze that eats the far ridge sells nothing
+                if (SiteShot.Asked && WorldDressing.ViewIndex >= 0 && !WorldDressing.ViewKeepsDark) fog = Mathf.Min(fog, .0011f);
                 RenderSettings.fogDensity = fog;
                 // ambient: the sky's own light, warmed by the afterglow while it lasts, greened a little by an aurora
                 var glow = SkyDome.Glow * .12f * (1f - d);

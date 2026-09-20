@@ -1,4 +1,5 @@
 using UnityEngine;
+using Height1079.Art;
 using Height1079.Core;
 using Height1079.Night;
 
@@ -57,8 +58,9 @@ namespace Height1079.Sandbox
         {
             var root = new GameObject("MenkFallback").transform;
             root.SetParent(transform, false);
-            var hide = new Material(Shader.Find("Standard")) { color = new Color(.075f, .066f, .06f) };
-            hide.SetFloat("_Glossiness", .04f);
+            // «Чёрный: уголь, Менк» is the sheet's colour for exactly this, and the flat material is shared, so it
+            // is taken as it comes: tuning its gloss here would re-tune every black thing on the map
+            var hide = Palette.Flat(Palette.Black);
             GameObject Part(PrimitiveType type, Vector3 at, Vector3 size, string name)
             {
                 var go = GameObject.CreatePrimitive(type);

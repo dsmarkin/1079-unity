@@ -86,10 +86,15 @@ namespace Height1079.Runtime
             if (tent != null)
             {
                 var evening = tent.transform.Find("Evening_1959-02-01");
-                var found = tent.transform.Find("SearchState_1959-02-26");
+                var found = tent.transform.Find("Morning_1959-02-02");
                 if (evening != null) evening.gameObject.SetActive(false);
                 if (found != null) found.gameObject.SetActive(true);
             }
+            // kept for the site viewer: the close-up of the damage has to know which way the cut slant faces,
+            // and that is the downhill direction, which only the ground knows
+            tentRoot = tent != null ? tent.transform : null;
+            tentDown = new Vector3(dx, 0, dz).normalized;
+            tentFace = new Vector3(ex, 0, ez).normalized;
             if (tent != null && Vector3.Dot(rot * Vector3.right, new Vector3(dx, 0, dz)) < 0)
             {
                 var box = tent.GetComponent<BoxCollider>();
@@ -165,15 +170,36 @@ namespace Height1079.Runtime
                 string name = spot.Id;
                 foreach (var m in Campaign.Roster) if (m.Id == spot.Id) { name = m.Name; break; }
                 o.name = "Fallen " + spot.Id;
-                var sign = Spawn("Sites/Marker_Event", Ground(dem, spot.X, spot.Z, .02f) + head * 1.35f, Quaternion.LookRotation(-head), fallen);
+                var sign = Spawn("Sites/Marker_Event", Ground(dem, spot.X, spot.Z, .03f) + Vector3.Cross(Vector3.up, head) * .62f - head * .25f, Quaternion.LookRotation(-head), fallen);
                 if (sign != null)
                 {
                     sign.name = "Name " + spot.Id;
                     var label = sign.GetComponentInChildren<TextMesh>();
                     if (label != null) label.text = Wrap(name, 22);
+                    // A board on a post at head height is a grave marker, and nine of them in a row is a cemetery.
+                    // That is not what this is. The outline is a drawing on the snow, so the name is laid on the
+                    // snow beside it, face up, the way you would write it next to a sketch.
+                    var post = sign.transform.Find("Post");
+                    if (post != null) Object.Destroy(post.gameObject);
+                    foreach (Transform child in sign.transform)
+                    {
+                        var lp = child.localPosition;
+                        child.localPosition = new Vector3(lp.x, .62f, lp.z);
+                    }
+                    sign.transform.rotation = Quaternion.LookRotation(-head, Vector3.up) * Quaternion.Euler(90, 0, 0);
                     Ghostify(sign, GhostFirm);
                 }
                 Ghostify(o, GhostFirm);
+                // An outline is a line drawn on snow, and a line drawn on snow is darker than the snow. The rest of
+                // the ghost layer is a thing not there any more; this one is a mark someone made, so it is ink.
+                foreach (var r in o.GetComponentsInChildren<Renderer>(true))
+                    foreach (var m in r.sharedMaterials)
+                    {
+                        if (m == null) continue;
+                        if (m.HasProperty("_Color")) m.SetColor("_Color", new Color(.17f, .21f, .30f));
+                        if (m.HasProperty("_Alpha")) m.SetFloat("_Alpha", .85f);
+                        if (m.HasProperty("_RimBoost")) m.SetFloat("_RimBoost", .8f);
+                    }
             }
         }
 
@@ -210,14 +236,51 @@ namespace Height1079.Runtime
 
         /// <summary>Site viewer (F3): orbit camera around the event sites in turn; the hiker keeps standing where it was. Index -1 = off.</summary>
         public static int ViewIndex { get; private set; } = -1;
-        static Transform campTent, campFire, tracks;
+        static Transform campTent, campFire, tracks, tentRoot;
+        static Vector3 tentDown = Vector3.right, tentFace = Vector3.forward;
         static Vector3? trackSpot;
-        static readonly string[] ViewIds = { "tent", "cedar", "p4", "labaz", "camp-gear", "camp-inside", "camp-things", "camp-kitchen", "dyatlov", "forest-taiga", "forest-edge", "forest-tracks", "sky" };
-        static readonly float[] ViewRadius = { 9f, 14f, 8f, 13f, 2.4f, .7f, .42f, 2.6f, 10f, 22f, 22f, 4f, 0f };
+        static readonly string[] ViewIds = { "tent", "tent-cuts", "cedar", "p4", "labaz", "camp-gear", "camp-inside", "camp-things", "camp-kitchen", "dyatlov", "forest-taiga", "forest-edge", "forest-tracks", "sky" };
+        static readonly float[] ViewRadius = { 9f, 3.35f, 9.5f, 5.6f, 13f, 4.6f, .7f, .42f, 2.6f, 6.5f, 22f, 22f, 4f, 0f };
+
+        /// <summary>Where the camera stands when the book is being shot (`1079 -shots`), in degrees from east
+        /// toward north. A picture of a place should be composed, not caught wherever the orbit happened to be when
+        /// the shutter went; and a fixed angle also means the same frame comes back after the world changes, so two
+        /// runs can be compared. Off the shots run these are ignored and the camera keeps circling.
+        /// Chosen against the light of 2 February 1959 at 11:20 — the sun 8° up in the south-south-east — so that
+        /// nothing is shot straight into it and the snow keeps its rake.</summary>
+        static float ShotAngleDeg(string vid) => vid switch
+        {
+            "cedar" => 218f,          // from the slope side, the broken branches toward us, the taiga behind
+            "p4" => 250f,             // down the streambed, the deck across the frame
+            "labaz" => 320f,          // the mound and the skis against the valley
+            "dyatlov" => 208f,        // looking up the line of the descent, toward the tent
+            "camp-gear" => 35f,
+            "camp-inside" => 0f,
+            "camp-things" => 40f,
+            "camp-kitchen" => 300f,
+            "forest-taiga" => 70f,
+            "forest-edge" => 120f,
+            "forest-tracks" => 330f,
+            _ => 340f,
+        };
+
+        /// <summary>The orbit angle: time while someone is looking around, a chosen constant while the book is shot.</summary>
+        static float Angle(string vid, float speed)
+        {
+            if (!SiteShot.Asked) return Time.unscaledTime * speed;
+            if (vid == "tent")
+            {
+                // three quarters from below and from the entrance end: the south face and the cut slant at once
+                var d = (tentDown * .78f + tentFace * .62f).normalized;
+                return Mathf.Atan2(d.z, d.x);
+            }
+            return ShotAngleDeg(vid) * Mathf.Deg2Rad;
+        }
         /// <summary>Short id of the view the camera is on, for file names.</summary>
         public static string ViewId => ViewIndex < 0 ? "" : ViewIds[ViewIndex];
         public static string ViewName => ViewIndex < 0 ? "" : ViewIds[ViewIndex] switch
         {
+            "tent-cuts" => "Палатка · три разреза и два вырванных куска",
             "labaz" => "Стоянка 31 января и лабаз",
             "camp-gear" => "Стоянка 31 января · рюкзаки, лыжи, палки",
             "camp-inside" => "Стоянка 31 января · в палатке",
@@ -240,13 +303,27 @@ namespace Height1079.Runtime
         {
             if (ViewIndex < 0 || cam == null || dem == null) return false;
             string vid = ViewIds[ViewIndex];
-            float a = Time.unscaledTime * .12f, r = ViewRadius[ViewIndex];
+            float a = Angle(vid, .12f), r = ViewRadius[ViewIndex];
+            if (vid == "tent-cuts")
+            {
+                // The one thing every retelling gets wrong is that there were five damages, not three. So they get
+                // their own frame: close in on the downhill slant, from a little below, where the raking light
+                // turns the three cuts into shadow lines and the two torn rectangles into holes.
+                if (tentRoot == null) return false;
+                var c = tentRoot.position + Vector3.up * .5f + tentFace * .1f;
+                // far enough back that all five damages are in the one frame — that is the whole point of it
+                float off = SiteShot.Asked ? .55f : Mathf.Sin(a * 1.6f) * .5f + .5f;
+                var eye = c + tentDown * r + tentFace * off + Vector3.up * (SiteShot.Asked ? .72f : .34f);
+                cam.transform.position = eye;
+                cam.transform.LookAt(c);
+                return true;
+            }
             if (vid.StartsWith("camp-"))
             {
                 var anchor = vid == "camp-kitchen" ? campFire : campTent;
                 if (anchor == null) return false;
-                Vector3 local = vid == "camp-gear" ? new Vector3(.9f, .35f, 3.4f) : vid == "camp-inside" ? new Vector3(0, .35f, .4f) : vid == "camp-things" ? new Vector3(.3f, .07f, 1.4f) : new Vector3(0, .5f, .3f);
-                float h = vid == "camp-gear" ? 1.1f : vid == "camp-inside" ? .22f : vid == "camp-things" ? .22f : 1.3f;
+                Vector3 local = vid == "camp-gear" ? new Vector3(.6f, .35f, 2.2f) : vid == "camp-inside" ? new Vector3(0, .35f, .4f) : vid == "camp-things" ? new Vector3(.3f, .07f, 1.4f) : new Vector3(0, .5f, .3f);
+                float h = vid == "camp-gear" ? 1.75f : vid == "camp-inside" ? .22f : vid == "camp-things" ? .22f : 1.3f;
                 var c = anchor.TransformPoint(local);
                 var eye = c + new Vector3(Mathf.Cos(a) * r, h, Mathf.Sin(a) * r);
                 if (vid == "camp-things") eye = anchor.TransformPoint(local + new Vector3(Mathf.Cos(a * 2f) * r, h, Mathf.Sin(a * 2f) * r * .8f));
@@ -260,7 +337,7 @@ namespace Height1079.Runtime
                 // stand at the camp and pan slowly around the horizon, looking 28° up
                 var (cx, cz) = WorldData.Camp;
                 var eyeS = new Vector3(cx, TerrainBuilder.Height(dem, cx, cz) + 1.7f, cz);
-                float yaw = Time.unscaledTime * 4f;
+                float yaw = SiteShot.Asked ? 118f : Time.unscaledTime * 4f;
                 cam.transform.SetPositionAndRotation(eyeS, Quaternion.Euler(-28f, yaw, 0));
                 return true;
             }
@@ -268,7 +345,7 @@ namespace Height1079.Runtime
             {
                 var spot = TrackSpot();
                 if (spot == null) return false;
-                float ta = Time.unscaledTime * .1f;
+                float ta = Angle(vid, .1f);
                 var eyeT = spot.Value + new Vector3(Mathf.Cos(ta) * r, 0, Mathf.Sin(ta) * r);
                 eyeT.y = TerrainBuilder.Height(dem, eyeT.x, eyeT.z) + 1.7f;
                 cam.transform.position = eyeT;
@@ -279,7 +356,7 @@ namespace Height1079.Runtime
             {
                 // walk slowly on a circle at eye height, looking ahead and a little inward
                 var centre = ForestSpot(dem, vid == "forest-edge" ? 720f : 0f);
-                float wa = Time.unscaledTime * .035f;
+                float wa = Angle(vid, .035f);
                 var eyeF = centre + new Vector3(Mathf.Cos(wa) * r, 0, Mathf.Sin(wa) * r);
                 eyeF.y = TerrainBuilder.Height(dem, eyeF.x, eyeF.z) + 1.65f;
                 var ahead = centre + new Vector3(Mathf.Cos(wa + .5f) * r * .8f, 0, Mathf.Sin(wa + .5f) * r * .8f);
@@ -292,9 +369,14 @@ namespace Height1079.Runtime
             float x = p.X, z = p.Z;
             if (vid == "p4") { x = WorldData.Den.x; z = WorldData.Den.z; }
             if (vid == "labaz") { x = (p.X + WorldData.CampTentPad.x + WorldData.Camp.x) / 3; z = (p.Z + WorldData.CampTentPad.z + WorldData.Camp.z) / 3; } // the whole 31 Jan camp
-            var target = new Vector3(x, TerrainBuilder.Height(dem, x, z) + 1f, z);
+            float aim = SiteShot.Asked && vid == "cedar" ? 4.2f : 1f;   // the cedar is 18 m tall and reads from below
+            var target = new Vector3(x, TerrainBuilder.Height(dem, x, z) + aim, z);
             var pos = target + new Vector3(Mathf.Cos(a) * r, 0, Mathf.Sin(a) * r);
-            pos.y = Mathf.Max(TerrainBuilder.Height(dem, pos.x, pos.z) + 1.6f, target.y + r * .35f);
+            // circling, the camera rides high enough to look down into the place; photographing it, it stands where
+            // a person stands, because a place seen from three metres up is a diorama and not somewhere you were
+            pos.y = SiteShot.Asked
+                ? TerrainBuilder.Height(dem, pos.x, pos.z) + (vid == "cedar" ? 1.65f : 2.0f)
+                : Mathf.Max(TerrainBuilder.Height(dem, pos.x, pos.z) + 1.6f, target.y + r * .35f);
             cam.transform.position = pos;
             cam.transform.LookAt(target);
             return true;
