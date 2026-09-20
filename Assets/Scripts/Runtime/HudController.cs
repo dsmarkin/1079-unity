@@ -31,7 +31,8 @@ namespace Height1079.Runtime
         float debugNext, panelNext;
         StringBuilder partyText;
         // navigation
-        RectTransform miniRoot, miniMap, miniArrow, bigRoot, bigMark;
+        RectTransform miniRoot, miniMap, miniArrow, miniCone, bigRoot, bigMark;
+        Image miniConeImage, bigConeImage;
         RawImage miniImage, bigImage;
         Text bigNote, heldLabel, miniScale;
         // rucksack window
@@ -44,7 +45,20 @@ namespace Height1079.Runtime
         bool miniOn = true;
         /// <summary>Diameter of the mini-map window in metres. The Elbrus frame is three times the Kholat one, so the
         /// window opens up with it: on the southern slope you want the next station in the circle, not the next boulder.</summary>
-        static float MiniMetres => World.IsElbrus ? 1400f : 700f;
+        /// <summary>How much ground the round window shows, across its diameter.
+        ///
+        /// 436 m is not a round number on purpose: it is where the Kholat sheet is drawn 1:1. The sheet is
+        /// 2048 px over 4096 m — half a pixel per metre — and the window inside its rim is 218 px, so 218 / 0.5
+        /// is 436 m and anything closer is Unity inventing pixels that are not in the raster. At 700 m the
+        /// thirty metres you can actually see at night came to nine pixels, all of them under the arrow.
+        ///
+        /// Elbrus keeps 1400: its own sheet is 2048 px over 12 288 m, a sixth of a pixel per metre, so 1307 m
+        /// is its 1:1 and 1400 is already as close as that sheet goes.
+        ///
+        /// Zooming further would need more than a number. The labels are printed into the raster, so they
+        /// magnify with it — past this point the word «лабаз» starts filling the window instead of naming a
+        /// place, and no filtering setting helps with that.</summary>
+        static float MiniMetres => World.IsElbrus ? 1400f : 436f;
         /// <summary>Side of the unfolded map sheet, in reference pixels of the canvas (1600 × 900).</summary>
         const float BigSheet = 820f;
         bool protocolShown;
@@ -313,6 +327,53 @@ namespace Height1079.Runtime
             return triangle;
         }
 
+        static Sprite cone;
+        static float coneDegrees;
+        /// <summary>The field of view as a wedge opening upward (+y) with its apex at the sprite's centre, so
+        /// rotating the sprite turns the wedge about the point where the hiker stands. Its angle is the camera's
+        /// real horizontal field of view; its length is not a distance and does not pretend to be one — at night
+        /// with a torch you see thirty metres, which on the folded sheet is six pixels. It is drawn long enough to
+        /// be read and faded out at the end so it is not mistaken for a range.
+        ///
+        /// A heading is the one thing a paper map cannot give you. The compass gives it as a number — «курс 232°» —
+        /// and a number has to be converted into «that way» in the player's head every time. The wedge is the same
+        /// fact, already converted, which is why nearly every game with a map draws one.</summary>
+        static Sprite Cone(float degrees)
+        {
+            if (cone != null && Mathf.Abs(coneDegrees - degrees) < 1f) return cone;
+            coneDegrees = degrees;
+            const int S = 256;
+            float half = degrees * .5f * Mathf.Deg2Rad;
+            var t = new Texture2D(S, S, TextureFormat.RGBA32, false);
+            for (int y = 0; y < S; y++) for (int x = 0; x < S; x++)
+                {
+                    float dx = x + .5f - S / 2f, dy = y + .5f - S / 2f;
+                    float r = Mathf.Sqrt(dx * dx + dy * dy) / (S / 2f);
+                    float a = 0f;
+                    if (dy > 0f && r <= 1f)
+                    {
+                        float ang = Mathf.Atan2(Mathf.Abs(dx), dy);
+                        a = Mathf.Clamp01((half - ang) * 12f)          // soft sides
+                          * Mathf.Clamp01((1f - r) * 2.2f)             // fades out with distance
+                          * Mathf.Clamp01(r * 10f);                    // and is not a blob on the apex
+                    }
+                    t.SetPixel(x, y, new Color(1, 1, 1, a));
+                }
+            t.Apply();
+            cone = Sprite.Create(t, new Rect(0, 0, S, S), new Vector2(.5f, .5f));
+            return cone;
+        }
+
+        /// <summary>Horizontal field of view of the hiker's camera, which is what the wedge has to match: the
+        /// vertical 60° of <see cref="HikerController"/> widened by the aspect of the window it is drawn in.</summary>
+        static float ViewDegrees()
+        {
+            var cam = Camera.main;
+            float vert = cam != null ? cam.fieldOfView : 60f;
+            float aspect = cam != null ? cam.aspect : 16f / 9f;
+            return Mathf.Clamp(2f * Mathf.Atan(Mathf.Tan(vert * .5f * Mathf.Deg2Rad) * aspect) * Mathf.Rad2Deg, 30f, 140f);
+        }
+
         static Font handFont;
         static Font Hand
         {
@@ -337,11 +398,27 @@ namespace Height1079.Runtime
             maskRt.gameObject.AddComponent<Mask>().showMaskGraphic = false;
             miniMap = Rect("Map", maskRt, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
             miniImage = miniMap.gameObject.AddComponent<RawImage>();
+            // Inside the mask and after the sheet in the hierarchy: it has to be clipped by the round window
+            // and drawn over the paper, not under it.
+            miniCone = Rect("View", maskRt, new Vector2(.5f, .5f), new Vector2(.5f, .5f), Vector2.zero, new Vector2(150, 150));
+            miniCone.pivot = new Vector2(.5f, .5f);
+            miniConeImage = miniCone.gameObject.AddComponent<Image>();
+            miniConeImage.sprite = Cone(ViewDegrees());
+            miniConeImage.color = new Color(.72f, .17f, .13f, .26f);
+            miniConeImage.raycastTarget = false;
             // texture and scale come from ApplyPlace at the end of the method
-            miniArrow = Rect("You", miniRoot, new Vector2(.5f, .5f), new Vector2(.5f, .5f), Vector2.zero, new Vector2(30, 30));
+            // The arrow sits on a drawn sheet, not on a dark game map: at 30 px it covered the name of
+            // whatever the player was standing next to. Smaller, on a pale backing of its own shape, so it
+            // separates from the paper without swallowing what is printed under it.
+            miniArrow = Rect("You", miniRoot, new Vector2(.5f, .5f), new Vector2(.5f, .5f), Vector2.zero, new Vector2(24, 24));
             miniArrow.pivot = new Vector2(.5f, .5f);
-            var arrow = miniArrow.gameObject.AddComponent<Image>();
-            arrow.sprite = Triangle(); arrow.color = new Color(.65f, .1f, .08f); arrow.raycastTarget = false;
+            var arrowBack = Rect("Halo", miniArrow, new Vector2(.5f, .5f), new Vector2(.5f, .5f), Vector2.zero, new Vector2(31, 31));
+            arrowBack.pivot = new Vector2(.5f, .5f);
+            var halo = arrowBack.gameObject.AddComponent<Image>();
+            halo.sprite = Triangle(); halo.color = new Color(.96f, .95f, .90f, .85f); halo.raycastTarget = false;
+            var arrowRt = Rect("Mark", miniArrow, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
+            var arrow = arrowRt.gameObject.AddComponent<Image>();
+            arrow.sprite = Triangle(); arrow.color = new Color(.62f, .09f, .07f); arrow.raycastTarget = false;
             var n = Label("N", miniRoot, new Vector2(0, -2), new Vector2(40, 30), 24, new Color(.93f, .9f, .82f), TextAnchor.MiddleCenter, FontStyle.Bold, new Vector2(.5f, 1f));
             n.rectTransform.pivot = new Vector2(.5f, 1f); n.font = Hand; n.text = "С";
             miniScale = Label("Scale", miniRoot, new Vector2(0, -8), new Vector2(200, 20), 12, new Color(.75f, .8f, .82f), TextAnchor.UpperCenter, FontStyle.Normal, new Vector2(.5f, 0f));
@@ -354,10 +431,24 @@ namespace Height1079.Runtime
             sheet.pivot = new Vector2(.5f, .5f); sheet.localRotation = Quaternion.Euler(0, 0, -1.2f);
             bigSheet = sheet;
             bigImage = sheet.gameObject.AddComponent<RawImage>(); bigImage.raycastTarget = false;
-            bigMark = Rect("Mark", sheet, Vector2.zero, Vector2.zero, Vector2.zero, new Vector2(44, 44));
+            // Where you are, and which way you are facing — one mark, turned by the hiker's yaw, the same
+            // shape the mini-map uses. The whole group rotates, so the wedge and the arrowhead stay together.
+            bigMark = Rect("Mark", sheet, Vector2.zero, Vector2.zero, Vector2.zero, new Vector2(150, 150));
             bigMark.pivot = new Vector2(.5f, .5f);
-            var mark = Label("X", bigMark, Vector2.zero, new Vector2(44, 44), 40, new Color(.12f, .15f, .35f), TextAnchor.MiddleCenter, FontStyle.Normal, new Vector2(.5f, .5f));
-            mark.rectTransform.pivot = new Vector2(.5f, .5f); mark.font = Hand; mark.text = "×";
+            var bigCone = Rect("View", bigMark, new Vector2(.5f, .5f), new Vector2(.5f, .5f), Vector2.zero, new Vector2(150, 150));
+            bigCone.pivot = new Vector2(.5f, .5f);
+            bigConeImage = bigCone.gameObject.AddComponent<Image>();
+            bigConeImage.sprite = Cone(ViewDegrees());
+            bigConeImage.color = new Color(.70f, .16f, .12f, .30f);
+            bigConeImage.raycastTarget = false;
+            var youHalo = Rect("Halo", bigMark, new Vector2(.5f, .5f), new Vector2(.5f, .5f), Vector2.zero, new Vector2(33, 33));
+            youHalo.pivot = new Vector2(.5f, .5f);
+            var youHaloImg = youHalo.gameObject.AddComponent<Image>();
+            youHaloImg.sprite = Triangle(); youHaloImg.color = new Color(.96f, .95f, .90f, .88f); youHaloImg.raycastTarget = false;
+            var you = Rect("You", bigMark, new Vector2(.5f, .5f), new Vector2(.5f, .5f), Vector2.zero, new Vector2(26, 26));
+            you.pivot = new Vector2(.5f, .5f);
+            var youImg = you.gameObject.AddComponent<Image>();
+            youImg.sprite = Triangle(); youImg.color = new Color(.62f, .09f, .07f); youImg.raycastTarget = false;
             bigNote = Label("Note", bigRoot, new Vector2(0, 36), new Vector2(900, 30), 22, new Color(.9f, .88f, .8f), TextAnchor.MiddleCenter, FontStyle.Normal, new Vector2(.5f, 0f));
             bigNote.rectTransform.pivot = new Vector2(.5f, 0f); bigNote.font = Hand;
             bigRoot.gameObject.SetActive(false);
@@ -366,6 +457,18 @@ namespace Height1079.Runtime
             heldLabel.rectTransform.pivot = new Vector2(.5f, 0f);
 
             ApplyPlace();
+        }
+
+        /// <summary>The wedge is built when the HUD is, and the HUD is built before the hiker's camera exists,
+        /// so the first sprite is made from the fallback aspect. This corrects it once the real camera is up —
+        /// and then does nothing, because the guard matches and the sprite is never reassigned again.</summary>
+        void RefreshCone()
+        {
+            float deg = ViewDegrees();
+            if (Mathf.Abs(deg - coneDegrees) < 1f) return;
+            var sp = Cone(deg);
+            if (bigConeImage != null) bigConeImage.sprite = sp;
+            if (miniConeImage != null) miniConeImage.sprite = sp;
         }
 
         void UpdateNavigation(HikerController me, float x, float z)
@@ -380,17 +483,20 @@ namespace Height1079.Runtime
                 float span = MiniMetres / W;
                 miniImage.uvRect = new Rect((x + W / 2) / W - span / 2, (z + W / 2) / W - span / 2, span, span);
                 miniArrow.localRotation = Quaternion.Euler(0, 0, -me.Yaw);
+                miniCone.localRotation = Quaternion.Euler(0, 0, -me.Yaw);
             }
             bigRoot.gameObject.SetActive(big);
+            if (miniOn || big) RefreshCone();
             if (big)
             {
                 bigMark.anchoredPosition = new Vector2((x + W / 2) / W * BigSheet, (z + W / 2) / W * BigSheet);
+                bigMark.localRotation = Quaternion.Euler(0, 0, -me.Yaw);
                 float heading = (me.Yaw % 360f + 360f) % 360f;
                 // On Elbrus the sheet is printed and folded, with a grid and a height on it, so the × is simply where
                 // you are; on Kholat it is a tracing paper with no grid, and the cross is a guess from memory.
                 bigNote.text = World.IsElbrus
-                    ? $"× — вы здесь · курс {heading:0}° · высота {me.transform.position.y:0} м · кружки — программа, красный — сейчас · 3/M — сложить карту"
-                    : $"× — где вы, по памяти и ориентирам · курс {heading:0}° · 3/M — сложить карту";
+                    ? $"Стрелка — вы, клин — куда смотрите · курс {heading:0}° · высота {me.transform.position.y:0} м · кружки — программа, красный — сейчас · 3/M — сложить карту"
+                    : $"Стрелка — где вы, по памяти и ориентирам · клин — куда смотрите · курс {heading:0}° · 3/M — сложить карту";
             }
             var gear = me.Gear;
             heldLabel.text = held == HeldItem.Compass ? CompassLine(me)

@@ -91,6 +91,8 @@ namespace Height1079.Sandbox
                 sun.shadows = n > .5f ? LightShadows.None : LightShadows.Soft;
             }
             film?.Set(n, storm);
+            var fire = SandboxHuntYard.FireLight;
+            if (fire != null) fire.intensity = (3.2f + .8f * Mathf.PerlinNoise(Time.time * 6f, 0f)) * Mathf.Lerp(1f, 1.4f, n);
             var prints = SnowPrints.Instance;
             if (prints != null) { prints.Snowing = n > .5f; prints.Storm = storm > .5f; }
         }

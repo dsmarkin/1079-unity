@@ -15,7 +15,7 @@
 | **Unity 6000.0.84f1** (ровно эта версия, см. `ProjectSettings/ProjectVersion.txt`) | редактор, тесты, сборки | Unity Hub → Installs → Install Editor → Archive → 6000.0.84f1. Модули: *Mac Build Support (Mono)* на Mac, *Windows Build Support (Mono)* на Windows. Нужен бесплатный Unity ID (Personal-лицензия), войти в Hub |
 | **git** | работа с репозиторием | обычный |
 | **.NET 8 SDK** | тесты ядра без Unity (секунды) | https://dotnet.microsoft.com/download |
-| Python 3 + numpy + scipy | *только* для пересборки данных рельефа (`Tools/terrain`) | обычно не нужно, готовые данные лежат в `Assets/Data/World` |
+| Python 3 + numpy + scipy + scikit-image + pillow | *только* для пересборки данных рельефа и листа карты (`Tools/terrain`) | обычно не нужно, готовые данные лежат в `Assets/Data/World`, готовый лист — в `Assets/Art/Maps` |
 
 Git LFS не нужен: бинарные исходники (рельеф, текстуры, модели, всего ~95 МБ) лежат в git обычными файлами.
 
@@ -53,6 +53,35 @@ powershell -ExecutionPolicy Bypass -File Tools\win\build.ps1   # Builds\windows\
 powershell -ExecutionPolicy Bypass -File Tools\win\run.ps1
 ```
 
+### Поручения без терминала (`Tools/mac/errand`)
+
+Агент может класть файлы в проект, но **не может печатать в Терминал**: computer-use выдаёт терминалы только в режиме
+«смотреть и кликать». Чтобы агент мог собрать и запустить игру сам, есть очередь поручений.
+
+Ставится один раз, без sudo:
+
+```bash
+bash Tools/mac/errand-install.sh          # поставить и начать следить
+bash Tools/mac/errand-install.sh remove   # снять
+```
+
+Дальше агент пишет одно слово со штампом в `Tools/mac/errand/next` — например `build+run 20260920-0925` — launchd
+видит, что папка изменилась, и запускает `Tools/mac/errand.sh`. Тот сверяет слово с **фиксированным списком**
+(`ping`, `check`, `build`, `run`, `build+run`, `quit`, `push`) и запускает соответствующий скрипт проекта. Содержимое `next`
+**никогда не выполняется как команда**: что-то помимо списка — ошибка. Результат ложится рядом:
+
+| Файл | Что в нём |
+|---|---|
+| `state` | `running <токен>`, потом `done rc=<код> <токен> <когда>` |
+| `done` | токен последнего выполненного — повторный триггер на тот же токен игнорируется |
+| `last.log` | весь вывод команды |
+
+`push` живёт здесь намеренно: оболочка агента — это Linux-VM, которая монтирует папку, и связка ключей macOS
+оттуда недоступна. Когда пуш выполняется здесь, git работает на маке и сам берёт учётные данные из связки —
+агент не трогает токен и не пишет его ни в какой конфиг.
+
+Очередь в `.gitignore`, в репозитории лежат только два скрипта.
+
 Методы для batch-режима, если вызываешь Unity сам:
 
 - `-executeMethod Height1079.EditorTools.Builds.Mac`;
@@ -84,7 +113,7 @@ Assets/
                                      облачка, карта троп и правило глубины), SnowPrintArt (картинки отпечатков). Только UnityEngine.
     Night/     Height1079.Night    — ночь, общая для игры и песочницы: Weather (ветер, метель, позёмка; кто владеет ночью, задаёт
                                      Want/Live — в игре это Runtime/WeatherDriver), Synth (синтез звука), NightFilm (виньетка, зерно),
-                                     MenkPuppet (скелет Менка и его позы), WindSound (ветер в ушах). Только UnityEngine.
+                                     CampSmoke (пламя и дым костра), MenkPuppet (скелет Менка и его позы), WindSound (ветер в ушах). Только UnityEngine.
     Puppet/    Height1079.Puppet   — новое тело по образцу PEAK (капсула на пружине ног, фигура, одежда), пока живёт в песочнице.
     Torchlight/ Height1079.Torchlight — луч фонаря (TorchBeam: свет, кука рефлектора, батарея и мерцание), общий для Equipment
                                      игры и фонарика песочницы. Только UnityEngine.

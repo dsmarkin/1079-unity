@@ -68,7 +68,7 @@ namespace Height1079.Sandbox
             if (Run != null) End();
             if (seconds <= 0f) seconds = RunMinutes * 60f;
             var fire = SandboxHuntYard.Fire; var tent = SandboxHuntYard.Tent;
-            Run = new HuntRun(fire.x, fire.z, tent.x, tent.z, seconds, Random.Range(1, 100000));
+            Run = new HuntRun(fire.x, fire.z, tent.x, tent.z, seconds, Random.Range(1, 100000), errand: Errand.Stove(fire.x, fire.z, tent.x, tent.z));
             Run.Join(Me);
             Report = null; Dead = false; Crouch = Prone = false;
             trackMeter = 0f;
@@ -77,7 +77,7 @@ namespace Height1079.Sandbox
             LayOut();
             boot.Revive(SandboxHuntYard.Spawn);
             lastPos = boot.Body.Torso.position;
-            SandboxHud.Say("Ночь. Вещи в палатке впереди; принеси их к костру. F — фонарик, C — присесть, Z — лечь, R — взять и положить, X — бросить.");
+            SandboxHud.Say("Ночь. В палатке впереди — печка. Принеси её к костру. F — фонарик, C — присесть, Z — лечь, R — взять/положить.");
         }
 
         /// <summary>Back to the day, the yard left standing.</summary>
@@ -87,48 +87,53 @@ namespace Height1079.Sandbox
             Night.Want = 0f; Night.Storm = 0f;
             if (menkView != null) Destroy(menkView.gameObject);
             menkView = null;
-            foreach (var p in props.Values) if (p != null) Destroy(p.gameObject);
+            // the yard's things go back where they lay; only stand-ins made here are thrown away
+            foreach (var kv in props)
+            {
+                if (kv.Value == null) continue;
+                if (SandboxHuntYard.Props.TryGetValue(kv.Key.Name, out var yardProp) && yardProp == kv.Value)
+                {
+                    kv.Value.gameObject.SetActive(true);
+                    kv.Value.SetParent(SandboxHuntYard.Root, true);
+                    kv.Value.position = SandboxHuntYard.Home[kv.Key.Name]; kv.Value.rotation = Quaternion.identity;
+                }
+                else Destroy(kv.Value.gameObject);
+            }
             props.Clear();
         }
 
         /// <summary>The run clock jumps ahead — for the shots and the self-test, which cannot wait ten minutes for a front.</summary>
         public void Skip(float seconds) => Run?.Skip(seconds);
 
-        /// <summary>The things, as objects: each a small block of its own colour on the snow where the list says.</summary>
+        /// <summary>The things to bring are the yard's own objects (the camp's stove, diary and Zorkiy out of the
+        /// tent, the rolled tent from the cargo library): a run puts each back where it lay and tells the list where
+        /// that is. A yard without them (no generated world) gets a block per thing, and says so in the log.</summary>
         void LayOut()
         {
             foreach (var item in Run.Errand.Items)
             {
-                var go = GameObject.CreatePrimitive(item.Carry == Carry.Pair ? PrimitiveType.Capsule : PrimitiveType.Cube);
+                if (SandboxHuntYard.Props.TryGetValue(item.Name, out var prop) && prop != null)
+                {
+                    prop.gameObject.SetActive(true);
+                    prop.SetParent(SandboxHuntYard.Root, true);
+                    prop.position = SandboxHuntYard.Home[item.Name];
+                    prop.rotation = Quaternion.identity;
+                    item.X = prop.position.x; item.Z = prop.position.z;
+                    props[item] = prop;
+                    continue;
+                }
+                Debug.LogWarning("1079 sandbox: нет объекта для «" + item.Name + "» — ставлю заглушку");
+                var go = GameObject.CreatePrimitive(PrimitiveType.Cube);
                 go.name = "Item " + item.Name;
                 go.transform.SetParent(transform, true);
-                Color c; Vector3 size;
-                switch (item.Name)
-                {
-                    case "дневник": c = new Color(.36f, .22f, .14f); size = new Vector3(.24f, .05f, .32f); break;
-                    case "фотоаппарат": c = new Color(.12f, .12f, .13f); size = new Vector3(.15f, .1f, .09f); break;
-                    case "печка": c = new Color(.45f, .45f, .47f); size = new Vector3(.5f, .42f, .5f); break;
-                    default: c = new Color(.35f, .4f, .32f); size = new Vector3(.5f, .8f, .5f); break;
-                }
-                var m = new Material(Shader.Find("Standard")) { color = c };
-                m.SetFloat("_Glossiness", item.Name == "фотоаппарат" ? .5f : .1f);
-                go.GetComponent<Renderer>().sharedMaterial = m;
-                go.transform.localScale = size;
-                go.transform.position = new Vector3(item.X, SandboxHuntYard.SnowTop + size.y * .5f - .03f, item.Z);
-                if (item.Carry == Carry.Pair) go.transform.rotation = Quaternion.Euler(0f, 0f, 90f);
-                var rb = go.AddComponent<Rigidbody>();
-                rb.mass = item.Carry == Carry.Light ? 1f : item.Carry == Carry.Heavy ? 14f : 20f;
-                rb.interpolation = RigidbodyInterpolation.Interpolate;
-                // a label, so the thing is readable in torchlight from a few metres
-                var tag = new GameObject("Label", typeof(TextMesh)).GetComponent<TextMesh>();
-                tag.transform.SetParent(go.transform, false);
-                tag.transform.localScale = new Vector3(1f / size.x, 1f / size.y, 1f / size.z) * .012f;
-                tag.transform.localPosition = new Vector3(0f, .5f + .35f / size.y, 0f);
-                tag.text = item.Name; tag.characterSize = 1f; tag.fontSize = 48; tag.anchor = TextAnchor.LowerCenter;
-                tag.color = new Color(.9f, .9f, .85f, .85f);
+                go.transform.localScale = new Vector3(.3f, .2f, .3f);
+                go.transform.position = new Vector3(item.X, SandboxHuntYard.SnowTop + .1f, item.Z);
+                Destroy(go.GetComponent<Collider>());
                 props[item] = go.transform;
             }
         }
+
+        float HeightOf(ErrandItem item) => SandboxHuntYard.Heights.TryGetValue(item.Name, out float h) ? h : .2f;
 
         // ── the player's verbs ──
 
@@ -168,7 +173,7 @@ namespace Height1079.Sandbox
                 if (Prone && !Errand.MayLie(item.Carry)) Prone = false;
                 return;
             }
-            ErrandItem nearest = null; float nearD = 2.2f;
+            ErrandItem nearest = null; float nearD = Reach;
             foreach (var i in Run.Errand.Items)
             {
                 if (!i.OnSnow) continue;
@@ -176,12 +181,27 @@ namespace Height1079.Sandbox
                 if (d < nearD) { nearD = d; nearest = i; }
             }
             if (nearest == null) { SandboxHud.Say("здесь ничего нет"); return; }
+            Take(nearest);
+        }
+
+        /// <summary>An arm's reach and a step: how far a thing may lie to be picked up.</summary>
+        public const float Reach = 2.6f;
+
+        /// <summary>Take this thing, if it lies within reach (the self-test names the thing; R takes the nearest).</summary>
+        public bool Take(ErrandItem nearest)
+        {
+            if (!Active || Dead || nearest == null) return false;
+            var body = boot.Body;
+            var feet = body.Torso.position + Vector3.down * boot.Tuning.HoverHeight;
+            float d = HuntRules.Dist(nearest.X, nearest.Z, feet.x, feet.z);
+            if (d > Reach) { SandboxHud.Say($"{nearest.Name} — не дотянуться ({d:0.0} м)"); return false; }
             string why = Run.Take(Me, nearest);
-            if (why != null) { SandboxHud.Say(why + (nearest.Carry == Carry.Pair ? " — свёрнутую палатку несут вдвоём" : "")); return; }
+            if (why != null) { SandboxHud.Say(why + (nearest.Carry == Carry.Pair ? " — свёрнутую палатку несут вдвоём" : "")); return false; }
             if (!Errand.MayTorch(nearest.Carry) && Torch) boot.Gear.ToggleTorch();
             if (!Errand.MayLie(nearest.Carry)) Prone = false;
             Hold(nearest);
             SandboxHud.Say("в руках: " + nearest.Name + (nearest.Carry == Carry.Heavy ? " — шагом, без фонаря" : ""));
+            return true;
         }
 
         /// <summary>X: thrown a few metres ahead; the snow hears it from thirty.</summary>
@@ -193,32 +213,53 @@ namespace Height1079.Sandbox
             var from = boot.Body.Torso.position + Vector3.up * .3f + cam.forward * .6f;
             var land = from + Vector3.ProjectOnPlane(cam.forward, Vector3.up).normalized * 4f;
             Run.Throw(Me, land.x, land.z);
-            if (props.TryGetValue(item, out var p) && p != null)
-            {
-                p.SetParent(transform, true);
-                p.position = from;
-                var rb = p.GetComponent<Rigidbody>();
-                rb.isKinematic = false;
-                rb.linearVelocity = cam.forward * 6.5f + Vector3.up * 2f;
-            }
+            // it lands where the noise says it does: on the snow four metres ahead
+            Place(item, new Vector3(land.x, 0f, land.z), false);
         }
 
+        /// <summary>Into the kit, at hand: the thing is in a slot with its name, the way everything carried is.</summary>
         void Hold(ErrandItem item)
         {
-            if (!props.TryGetValue(item, out var p) || p == null) return;
-            var rb = p.GetComponent<Rigidbody>();
-            rb.isKinematic = true;
+            var kit = boot.Gear != null ? boot.Gear.Kit : null;
+            if (kit == null) return;
+            var id = KitId(item);
+            if (id == ItemId.None) return;
+            if (kit.SlotOf(id) == Kit.Nothing) kit.Give(new ItemStack(id));
+            int slot = kit.SlotOf(id);
+            if (slot != Kit.Nothing && kit.Selected != slot) kit.Select(slot);
+        }
+
+        void Unhold(ErrandItem item)
+        {
+            var kit = boot.Gear != null ? boot.Gear.Kit : null;
+            if (kit == null) return;
+            var id = KitId(item);
+            int slot = id == ItemId.None ? Kit.Nothing : kit.SlotOf(id);
+            if (slot != Kit.Nothing) kit.Consume(slot);
+        }
+
+        static ItemId KitId(ErrandItem item)
+        {
+            switch (item.Name)
+            {
+                case "печка": return ItemId.Stove;
+                case "дрова": return ItemId.Firewood;
+                case "сухари": return ItemId.Rusks;
+                case "свечи": return ItemId.Candles;
+                case "свёрнутая палатка": return ItemId.Tent;
+                default: return ItemId.None;
+            }
         }
 
         void Place(ErrandItem item, Vector3 at, bool home)
         {
+            Unhold(item);
             if (!props.TryGetValue(item, out var p) || p == null) return;
-            if (home) { Destroy(p.gameObject); props.Remove(item); return; }
-            p.SetParent(transform, true);
-            p.position = at + Vector3.up * (p.localScale.y * .5f + SandboxHuntYard.SnowTop);
-            p.rotation = item.Carry == Carry.Pair ? Quaternion.Euler(0f, 0f, 90f) : Quaternion.identity;
-            var rb = p.GetComponent<Rigidbody>();
-            rb.isKinematic = false; rb.linearVelocity = Vector3.zero; rb.angularVelocity = Vector3.zero;
+            if (home) { p.gameObject.SetActive(false); props.Remove(item); return; }
+            p.SetParent(SandboxHuntYard.Root, true);
+            // the object's foot is at its origin (the yard wraps every thing that way): the foot goes on the snow
+            p.position = new Vector3(at.x, SandboxHuntYard.SnowTop, at.z);
+            p.rotation = Quaternion.Euler(0f, boot.Body != null ? boot.Body.FacingYaw : 0f, 0f);
         }
 
         // ── every frame ──
@@ -236,7 +277,11 @@ namespace Height1079.Sandbox
 
             if (Run.Over)
             {
-                if (Report == null) Report = Run.Report();
+                if (Report == null)
+                {
+                    Report = Run.Report();
+                    if (!Dead) boot.ShowEnd("ПЕЧКА У КОСТРА", "Донёс. Ночь окончена: " + HuntRules.Clock(Run.Elapsed) + " от выхода до костра.");
+                }
                 menkView?.Show(Run.Menk, dt);
                 CarryHeld();
                 return;
@@ -310,25 +355,23 @@ namespace Height1079.Sandbox
             var cam = boot.Cam.transform;
             var body = boot.Body;
             bool heavy = item.Carry != Carry.Light;
+            // the origin is the thing's foot: carried, its middle is in front of the chest
+            float lift = HeightOf(item) * .5f;
             if (boot.FirstPerson)
-                p.SetPositionAndRotation(cam.position + cam.forward * (heavy ? .55f : .45f) + cam.right * (heavy ? 0f : .28f) - cam.up * (heavy ? .35f : .3f),
+                p.SetPositionAndRotation(cam.position + cam.forward * (heavy ? .6f : .45f) + cam.right * (heavy ? 0f : .28f) - cam.up * ((heavy ? .35f : .3f) + lift),
                     Quaternion.LookRotation(Vector3.ProjectOnPlane(cam.forward, Vector3.up), Vector3.up));
             else
-                p.SetPositionAndRotation(body.Torso.position + body.Facing * new Vector3(heavy ? 0f : .25f, heavy ? -.1f : .05f, .4f), body.Facing);
+                p.SetPositionAndRotation(body.Torso.position + body.Facing * new Vector3(heavy ? 0f : .25f, (heavy ? -.1f : .05f) - lift, .45f), body.Facing);
         }
 
-        // ── for the panel ──
+        /// <summary>For the F1 panel only: the state the Menk reads off the body.</summary>
         public string Status()
         {
             if (Run == null) return "";
             var held = Held;
-            string s = "ночь · " + (held != null ? "в руках: " + held.Name : "руки свободны") + (Torch ? " · фонарь" : "")
-                     + (boot.Body != null && boot.Body.Prone ? " · лёжа" : boot.Body != null && boot.Body.Low ? " · присев" : "")
-                     + (Covered ? " · за укрытием" : "");
-            s += $"\nпринесли {Run.Errand.Delivered} из {Run.Errand.Total}";
-            if (Run.Wall) s += " · ПУРГА: к костру!";
-            else if (Run.Storm > .05f) s += " · ветер крепчает";
-            return s;
+            return (held != null ? "в руках: " + held.Name : "руки свободны") + (Torch ? " · фонарь" : "")
+                 + (boot.Body != null && boot.Body.Prone ? " · лёжа" : boot.Body != null && boot.Body.Low ? " · присев" : "")
+                 + (Covered ? " · за укрытием" : "") + (Run.Wall ? " · СТЕНА" : Run.Storm > .05f ? " · ветер крепчает" : "");
         }
     }
 }

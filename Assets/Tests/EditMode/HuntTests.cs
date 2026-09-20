@@ -8,7 +8,7 @@ namespace Height1079.Tests
     /// rules, the marks in the snow, the list of things and the debrief. Engine-free, so they run in dotnet.</summary>
     public class HuntTests
     {
-        const float FireX = 0f, FireZ = -110f, TentX = 0f, TentZ = -60f;
+        const float FireX = 0f, FireZ = -110f, TentX = 0f, TentZ = -60f, LabazX = 24f, LabazZ = -83f;
 
         static HuntSeen Standing(float x, float z, float look = 0f, bool torch = false, bool running = false, bool walking = false, bool low = false, bool covered = false)
             => new HuntSeen { Name = "Путник", X = x, Z = z, LookYaw = look, Torch = torch, Running = running, Walking = walking, Low = low, Covered = covered, Alive = true };
@@ -262,6 +262,90 @@ namespace Height1079.Tests
             Assert.IsTrue(report.Exists(l => l.StartsWith("Менк шёл на свет")));
             Assert.IsTrue(run.Events.Exists(e => e.Text.Contains("взял: дневник")));
             Assert.IsTrue(run.Events.Exists(e => e.Text.Contains("У костра: дневник")));
+        }
+
+        [Test]
+        public void TheCampHasTwoSectionsAndTheLabazJoinsTheBeatAfterTheTentsFirstThing()
+        {
+            var run = new HuntRun(FireX, FireZ, TentX, TentZ, length: 900f, labazX: LabazX, labazZ: LabazZ);
+            run.Join("Путник");
+            Assert.AreEqual(8, run.Errand.Total);
+            Assert.AreEqual(4, run.Errand.TotalIn("лабаз"));
+            foreach (var i in run.Errand.Items.FindAll(x => x.Section == "лабаз"))
+                Assert.Less(HuntRules.Dist(i.X, i.Z, LabazX, LabazZ), 3f, i.Name + " lies at the labaz");
+            Assert.IsFalse(run.LabazOpen);
+            Assert.AreEqual(1, run.Menk.Posts);
+            var diary = run.Errand.Items.Find(i => i.Name == "дневник");
+            Assert.IsNull(run.Take("Путник", diary));
+            Assert.IsTrue(run.PutDown("Путник", FireX + 1f, FireZ));
+            Assert.IsTrue(run.LabazOpen, "the first thing home opens the labaz");
+            Assert.AreEqual(2, run.Menk.Posts);
+            Assert.IsTrue(run.Events.Exists(e => e.Text.StartsWith("Теперь лабаз")));
+
+            // nobody about: the Menk's beat now reaches the labaz as well as the tent
+            var nobody = new List<HuntSeen>();
+            bool atTent = false, atLabaz = false;
+            for (float t = 0f; t < 240f; t += .1f)
+            {
+                run.Tick(.1f, nobody);
+                var m = run.Menk;
+                if (HuntRules.Dist(m.X, m.Z, TentX, TentZ) < HuntRules.PatrolRadius + 3f) atTent = true;
+                if (HuntRules.Dist(m.X, m.Z, LabazX, LabazZ) < HuntRules.PatrolRadius + 3f) atLabaz = true;
+            }
+            Assert.IsTrue(atTent && atLabaz, $"walks both rings: tent {atTent}, labaz {atLabaz}");
+        }
+
+        [Test]
+        public void ThreeThingsHomeAndEveryoneAtTheFireEndsTheNightBeforeTheWall()
+        {
+            var run = new HuntRun(FireX, FireZ, TentX, TentZ, length: 900f, labazX: LabazX, labazZ: LabazZ);
+            run.Join("Путник");
+            foreach (var name in new[] { "дневник", "фотоаппарат" })
+            {
+                Assert.IsNull(run.Take("Путник", run.Errand.Items.Find(i => i.Name == name)));
+                Assert.IsTrue(run.PutDown("Путник", FireX + 1f, FireZ));
+            }
+            Assert.IsFalse(run.QuotaMet);
+            // at the fire with two home: the night goes on
+            var atFire = new List<HuntSeen> { Standing(FireX + 2f, FireZ, covered: true, low: true) };
+            for (float t = 0f; t < 8f; t += .1f) run.Tick(.1f, atFire);
+            Assert.IsFalse(run.Over, "two is not the quota");
+            Assert.IsNull(run.Take("Путник", run.Errand.Items.Find(i => i.Name == "сухари")));
+            Assert.IsTrue(run.PutDown("Путник", FireX + 1f, FireZ));
+            Assert.IsTrue(run.QuotaMet);
+            Assert.IsTrue(run.Events.Exists(e => e.Text.StartsWith("Хватит.")));
+            // away from the fire the finish does not count down
+            var away = new List<HuntSeen> { Standing(FireX + 12f, FireZ, covered: true, low: true) };
+            for (float t = 0f; t < 8f; t += .1f) run.Tick(.1f, away);
+            Assert.IsFalse(run.Over, "the quota is met but the player is not at the fire");
+            for (float t = 0f; t < HuntRules.FinishHold + .5f; t += .1f) run.Tick(.1f, atFire);
+            Assert.IsTrue(run.Over);
+            Assert.AreEqual("вернулись", run.Outcome);
+            Assert.Less(run.Elapsed, 60f, "well before the wall");
+            var report = run.Report();
+            Assert.IsTrue(report[0].StartsWith("Принесли 3 из 8 (нужно 3)"), report[0]);
+            Assert.IsTrue(report.Exists(l => l.StartsWith("Из палатки 2 из 4, из лабаза 1 из 4")), string.Join(" | ", report));
+        }
+
+        [Test]
+        public void OneStoveHomeEndsTheNightAtOnce()
+        {
+            var run = new HuntRun(FireX, FireZ, TentX, TentZ, length: 900f, errand: Errand.Stove(FireX, FireZ, TentX, TentZ));
+            run.Join("Путник");
+            Assert.AreEqual(1, run.Errand.Total);
+            Assert.AreEqual(1, run.QuotaNeeded);
+            var stove = run.Errand.Items[0];
+            Assert.AreEqual(Carry.Heavy, stove.Carry);
+            Assert.Less(HuntRules.Dist(stove.X, stove.Z, TentX, TentZ), 2f, "at the back of the tent");
+            var atFire = new List<HuntSeen> { Standing(FireX + 2f, FireZ, covered: true, low: true) };
+            run.Tick(.1f, atFire);
+            Assert.IsFalse(run.Over);
+            Assert.IsNull(run.Take("Путник", stove));
+            Assert.IsTrue(run.PutDown("Путник", FireX + 1f, FireZ));
+            run.Tick(.1f, atFire);
+            Assert.IsTrue(run.Over);
+            Assert.AreEqual("вернулись", run.Outcome);
+            Assert.AreEqual("Печка у костра.", run.Report()[0]);
         }
     }
 }

@@ -43,7 +43,9 @@ namespace Height1079.Sandbox
         /// <summary>The night yard's stand: the fire, with the tent fifty metres north (N starts the run).</summary>
         public static int YardStand { get; private set; } = -1;
 
-        public static void Build()
+        /// <summary>The scenery and the yard always; the measured stands only when asked — the self-test and the
+        /// shot script need them, a player on the yard does not.</summary>
+        public static void Build(bool withRange = true)
         {
             Stands.Clear();
             Ramps.Clear();
@@ -59,16 +61,19 @@ namespace Height1079.Sandbox
             mark = Mat("mark", new Color(.85f, .55f, .2f), .05f);
 
             SandboxTerrainSnow.BuildHorizon(snow, distant);
-            Ground();
-            Steps(new Vector3(-26f, 0f, 0f));
-            Slopes(new Vector3(-10f, 0f, 0f));
-            Wall(new Vector3(8f, 0f, 0f));
-            Overhang(new Vector3(20f, 0f, 0f));
-            Chimney(new Vector3(30f, 0f, 0f));
-            Boulders(new Vector3(40f, 0f, 0f));
-            Drops(new Vector3(52f, 0f, 0f));
-            Movables(new Vector3(66f, 0f, 0f));
-            Snow();
+            if (withRange)
+            {
+                Ground();
+                Steps(new Vector3(-26f, 0f, 0f));
+                Slopes(new Vector3(-10f, 0f, 0f));
+                Wall(new Vector3(8f, 0f, 0f));
+                Overhang(new Vector3(20f, 0f, 0f));
+                Chimney(new Vector3(30f, 0f, 0f));
+                Boulders(new Vector3(40f, 0f, 0f));
+                Drops(new Vector3(52f, 0f, 0f));
+                Movables(new Vector3(66f, 0f, 0f));
+                Snow();
+            }
             Yard();
         }
 

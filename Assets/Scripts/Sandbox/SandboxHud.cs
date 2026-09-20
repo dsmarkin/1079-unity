@@ -80,7 +80,7 @@ namespace Height1079.Sandbox
         // ── the end of the day ──────────────────────────────────────────────────────────────────────────────────────
         RectTransform deathPanel;
         Image deathShade, deathButtonImage;
-        Text deathTitle, deathLine, deathButtonText;
+        Text deathTitle, deathLine, deathButtonText, deathReport;
         Button deathButton;
         float deathSince = -1f;
 
@@ -318,6 +318,10 @@ namespace Height1079.Sandbox
             c.highlightedColor = Color.white; c.pressedColor = new Color(.8f, .8f, .8f, 1f);
             deathButton.colors = c;
             deathButton.onClick.AddListener(() => SandboxBoot.Instance?.Restart());
+            deathReport = Label("report", deathPanel, new Vector2(.5f, .5f), new Vector2(0f, -100f), new Vector2(860f, 40f), 14, new Color(1f, 1f, 1f, .8f), TextAnchor.UpperCenter);
+            deathReport.rectTransform.pivot = new Vector2(.5f, 1f);
+            deathReport.horizontalOverflow = HorizontalWrapMode.Wrap;   // eight things left lying is a long line
+            deathReport.text = "";
             deathButtonText = Label("text", btn, new Vector2(.5f, .5f), Vector2.zero, new Vector2(320f, 50f), 18, Ink, TextAnchor.MiddleCenter, FontStyle.Bold);
             deathButtonText.text = "НАЧАТЬ ЗАНОВО";
             Destroy(deathButtonText.GetComponent<Shadow>());       // dark words on a pale button want no dark edge
@@ -373,8 +377,8 @@ namespace Height1079.Sandbox
             if (packPanel.gameObject.activeSelf != open) { packPanel.gameObject.SetActive(open); packShown = ""; }
             if (open && kit != null) RefreshPack(kit);
 
-            // the end of the day — or of the night run, which has its own words for it
-            bool dead = boot.Dead;
+            // the end of the day — or of the night run, which has its own words for it, lost or won
+            bool dead = boot.Dead || boot.Ended;
             if (deathPanel.gameObject.activeSelf != dead)
             {
                 deathPanel.gameObject.SetActive(dead); deathSince = Time.unscaledTime;
@@ -382,13 +386,20 @@ namespace Height1079.Sandbox
             }
             if (dead)
             {
+                // the night's debrief under the words, when there was a night
+                var hunt = boot.Hunt;
+                string report = hunt != null && hunt.Report != null ? "Итог забега\n" + string.Join("\n", hunt.Report) : "";
+                if (deathReport.text != report) deathReport.text = report;
                 float since = Time.unscaledTime - deathSince;
-                deathShade.color = new Color(0f, 0f, 0f, Mathf.SmoothStep(0f, .86f, Mathf.Clamp01(since / 2.2f)));
-                float words = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01((since - 1.2f) / 1f));
+                // a night won comes up at once and shades less: the fire is still there behind the words
+                bool won = boot.Ended && !boot.Dead;
+                deathShade.color = new Color(0f, 0f, 0f, Mathf.SmoothStep(0f, won ? .6f : .86f, Mathf.Clamp01(since / (won ? .6f : 2.2f))));
+                float words = won ? Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(since / .6f)) : Mathf.SmoothStep(0f, 1f, Mathf.Clamp01((since - 1.2f) / 1f));
                 deathTitle.color = new Color(Cream.r, Cream.g, Cream.b, words);
                 deathLine.color = new Color(1f, 1f, 1f, .85f * words);
                 deathButtonImage.color = new Color(Cream.r, Cream.g, Cream.b, words);
                 deathButtonText.color = new Color(Ink.r, Ink.g, Ink.b, words);
+                deathReport.color = new Color(1f, 1f, 1f, .8f * words);
                 deathButton.interactable = words > .5f;
             }
 
@@ -483,22 +494,6 @@ namespace Height1079.Sandbox
             var t = boot.Tuning;
             var hunt = boot.Hunt;
 
-            // ── the night run: its line top left while it runs, and the debrief in the middle when it is over ─────
-            if (hunt != null && hunt.Run != null)
-            {
-                GUILayout.BeginArea(new Rect(10, 10, 420, 52), GUI.skin.box);
-                GUILayout.Label(hunt.Status(), small);
-                GUILayout.EndArea();
-                if (hunt.Report != null)
-                {
-                    float w = 560f, h = 60f + 22f * (hunt.Report.Count + 1);
-                    GUILayout.BeginArea(new Rect((Screen.width - w) * .5f, (Screen.height - h) * .5f, w, h), GUI.skin.box);
-                    GUILayout.Label("Итог забега: " + hunt.Run.Outcome, head);
-                    foreach (var line in hunt.Report) GUILayout.Label(line, small);
-                    GUILayout.Label("N — ещё раз · протокол в панели F1", small);
-                    GUILayout.EndArea();
-                }
-            }
             if (!Panel) return;
 
             GUILayout.BeginArea(new Rect(Screen.width - 340, 10, 330, Screen.height - 20), GUI.skin.box);
