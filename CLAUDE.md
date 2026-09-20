@@ -15,7 +15,7 @@
 | **Unity 6000.0.84f1** (ровно эта версия, см. `ProjectSettings/ProjectVersion.txt`) | редактор, тесты, сборки | Unity Hub → Installs → Install Editor → Archive → 6000.0.84f1. Модули: *Mac Build Support (Mono)* на Mac, *Windows Build Support (Mono)* на Windows. Нужен бесплатный Unity ID (Personal-лицензия), войти в Hub |
 | **git** | работа с репозиторием | обычный |
 | **.NET 8 SDK** | тесты ядра без Unity (секунды) | https://dotnet.microsoft.com/download |
-| Python 3 + numpy + scipy | *только* для пересборки данных рельефа (`Tools/terrain`) | обычно не нужно, готовые данные лежат в `Assets/Data/World` |
+| Python 3 + numpy + scipy + scikit-image + pillow | *только* для пересборки данных рельефа и листа карты (`Tools/terrain`) | обычно не нужно, готовые данные лежат в `Assets/Data/World`, готовый лист — в `Assets/Art/Maps` |
 
 Git LFS не нужен: бинарные исходники (рельеф, текстуры, модели, всего ~95 МБ) лежат в git обычными файлами.
 
