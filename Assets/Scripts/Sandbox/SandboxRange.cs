@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using UnityEngine;
+using Height1079.Art;
 using Height1079.Snow;
 using Height1079.Puppet;
 
@@ -51,14 +52,15 @@ namespace Height1079.Sandbox
             Ramps.Clear();
             SandboxTerrainSnow.ClearSkins();
             SnowPrints.Instance?.Clear();
-            // stone, not office grey: a warm dark rock, a colder ledge, bare ice that reads as ice at a glance,
-            // and the ground the whole range stands on is snow
-            rock = Mat("rock", new Color(.37f, .35f, .33f), .06f);
-            ice = Mat("ice", new Color(.68f, .80f, .86f), .6f);
-            ledge = Mat("ledge", new Color(.50f, .47f, .43f), .05f);
-            snow = Mat("snow", new Color(.92f, .94f, .97f), .16f);
-            distant = Mat("distant", new Color(.80f, .85f, .92f), .04f);
-            mark = Mat("mark", new Color(.85f, .55f, .2f), .05f);
+            // Every surface of the map is a colour of the sheet and nothing else (docs/SANDBOX.md §12): the snow of
+            // the field, the drifts and the yard is the one «Снег на свету», so walking off the yard crosses no edge;
+            // the ridges on the horizon are «Снег вдали, ночь»; stone is darker than a ledge so the steps still read.
+            rock = Mat(Palette.Stone);
+            ice = Mat(Palette.SnowShade);
+            ledge = Mat(Palette.Metal);
+            snow = Mat(Palette.SnowLit);
+            distant = Mat(Palette.SnowFar);
+            mark = Mat(Palette.Red);
 
             SandboxTerrainSnow.BuildHorizon(snow, distant);
             if (withRange)
@@ -75,6 +77,7 @@ namespace Height1079.Sandbox
                 Snow();
             }
             Yard();
+            Audit();
         }
 
         /// <summary>The yard of the brief (docs/SANDBOX.md), south of the range: fire, tent, shelters. Built with
@@ -285,30 +288,41 @@ namespace Height1079.Sandbox
             post.transform.SetParent(go.transform, true);
         }
 
-        /// <summary>The scanned material the editor wrote into Resources for us (Sandbox/Snow, /Crust, /Rock), or a
-        /// flat colour when it is missing. The sandbox lives in its own assembly and cannot reach the world library
-        /// directly, so this is the bridge: the ground here is the same snow the mountain is covered in, not a
-        /// lookalike, and a fresh clone that has not generated anything yet still gets a usable range.</summary>
-        static Material Mat(string name, Color c, float gloss)
-        {
-            var scanned = Resources.Load<Material>("Sandbox/" + Scan(name));
-            if (scanned != null) return scanned;
-            var m = new Material(Shader.Find("Standard")) { name = name, color = c };
-            m.SetFloat("_Glossiness", gloss);
-            m.SetFloat("_Metallic", 0f);
-            return m;
-        }
+        /// <summary>A surface of the map, in a colour of the sheet. This used to prefer a PolyHaven scan the editor
+        /// had baked into Resources (Sandbox/Snow, /Crust, /Rock), on the argument that the sandbox should walk on the
+        /// mountain's own snow. Once the objects on the map became flat low-poly in the palette (docs/ART.md §3), that
+        /// argument inverted: photoreal ground under flat things is the patchwork, so the scans are gone from here and
+        /// the ground is one palette colour to the horizon.</summary>
+        static Material Mat(string colour) => Palette.Flat(colour);
 
-        static string Scan(string name)
+        /// <summary>Says in the log what on the map is painted with something that is not the palette. The rule of
+        /// this map is that there is exactly one box of colours (docs/SANDBOX.md §12), and a rule nobody can see
+        /// broken is not a rule — so every surface built above is counted here, by material, at start-up.
+        ///
+        /// Run before the sky, the body, the prints and the Menk exist (<c>SandboxBoot.Awake</c> builds the map
+        /// first), so what it walks is the map and only the map. Text labels of the measured stands are skipped: a
+        /// font draws with the font's own material and is a label, not a surface.</summary>
+        static void Audit()
         {
-            switch (name)
+            var strangers = new Dictionary<string, int>();
+            int surfaces = 0;
+            foreach (var r in Object.FindObjectsByType<MeshRenderer>(FindObjectsInactive.Include, FindObjectsSortMode.None))
             {
-                case "snow": return "Snow";
-                case "ice": return "Crust";
-                case "rock": return "Rock";
-                case "ledge": return "Rock";
-                default: return name;
+                if (r.GetComponent<TextMesh>() != null) continue;
+                foreach (var m in r.sharedMaterials)
+                {
+                    surfaces++;
+                    if (Palette.IsPalette(m)) continue;
+                    string name = m == null ? "без материала" : m.name;
+                    strangers.TryGetValue(name, out int n);
+                    strangers[name] = n + 1;
+                }
             }
+            if (strangers.Count == 0) { Debug.Log($"1079 sandbox: краска — вся из палитры, {surfaces} поверхностей"); return; }
+            var list = new List<string>();
+            foreach (var kv in strangers) list.Add(kv.Key + " ×" + kv.Value);
+            list.Sort();
+            Debug.LogWarning($"1079 sandbox: краска мимо палитры на {strangers.Count} материалах из {surfaces} поверхностей — {string.Join(", ", list)}");
         }
 
         /// <summary>Snow lying on top of something, as a skin with no collider. A real slab on a step would raise that

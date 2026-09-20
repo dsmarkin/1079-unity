@@ -113,6 +113,28 @@ namespace Height1079.EditorTools.World
             new Entry("Rock_Snow_1", KenneyModels + "rock-a.glb", 1.0f, Fit.Height) { Shape = Shape.Convex, SnowCap = .6f, Colours = new[] { ("*", Palette.Stone) } },
             new Entry("Rock_Snow_2", KenneyModels + "rock-b.glb", 1.4f, Fit.Height) { Shape = Shape.Convex, SnowCap = .6f, Colours = new[] { ("*", Palette.Stone) } },
             new Entry("Rock_Snow_3", KenneyModels + "rock-c.glb", 1.8f, Fit.Height) { Shape = Shape.Convex, SnowCap = .6f, Colours = new[] { ("*", Palette.Stone) } },
+            // ── the camp's own things (20.09.2026). These used to be lifted out of the game's site prefabs and
+            // repainted, which left photo-scanned texture on the small map beside the flat set — the thing the owner
+            // saw as a patchwork. No pack has a 1959 tent stove, a labaz or a Zorkiy, so each is the nearest shape of
+            // the packs in the palette's colours: honest low-poly stand-ins, not scans (docs/ART.md §9) ──
+            // the stove: a sheet-metal box, the pipe a separate piece the yard stands on top of it
+            new Entry("Stove", KenneyModels + "box.glb", .52f, Fit.Height) { Shape = Shape.Box, Colours = new[] { ("*", Palette.Metal) } },
+            new Entry("StovePipe", Survival + "Battery_Big.fbx", .9f, Fit.Height) { Shape = Shape.None, Stretch = new Vector3(.3f, 1f, .3f),
+                Colours = new[] { ("*", Palette.Metal) } },
+            // a drift of snow, for the labaz: a rock of the pack painted snow all over, lit on top and shaded on the
+            // flanks — the shape wind leaves over a cache, which is what a labaz is
+            new Entry("SnowMound", KenneyModels + "rock-b.glb", 1f, Fit.Height) { Shape = Shape.Convex, SnowCap = .3f, Colours = new[] { ("*", Palette.SnowShade) } },
+            // an armful of split wood, a crate of rusks, a candle, a pair of spare boards
+            new Entry("Firewood", KenneyModels + "resource-wood.glb", .8f, Fit.Length) { AlignZ = true, Shape = Shape.Box, Colours = new[] { ("*", Palette.Wood) } },
+            new Entry("Rusks", KenneyModels + "box-open.glb", .34f, Fit.Height) { Shape = Shape.Box, Colours = new[] { ("*", Palette.Wood) } },
+            new Entry("Candles", Survival + "Battery_Small.fbx", .18f, Fit.Height) { Shape = Shape.Box, Colours = new[] { ("*", Palette.Enamel) } },
+            new Entry("Skis", KenneyModels + "resource-planks.glb", 1.9f, Fit.Length) { AlignZ = true, Shape = Shape.Box, Colours = new[] { ("*", Palette.Wood) } },
+            // the diary: the pack's matchbox at the size of a field notebook, a dark cover with a pale edge
+            new Entry("Diary", Survival + "Matchbox.fbx", .2f, Fit.Length) { AlignZ = true, Shape = Shape.Box,
+                Colours = new[] { ("DarkYellow", Palette.Enamel), ("*", Palette.Quilt) } },
+            // the Zorkiy: the pack's phone laid on its back — a black body with a bright lens and chrome
+            new Entry("PhotoCamera", Survival + "Phone.fbx", .14f, Fit.Length) { Lay = true, Shape = Shape.Box,
+                Colours = new[] { ("White", Palette.SnowShade), ("Grey", Palette.Metal), ("*", Palette.Black) } },
         };
 
         /// <summary>The version the set on disk was baked at, beside the prefabs.</summary>

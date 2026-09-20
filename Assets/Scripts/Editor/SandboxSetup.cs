@@ -1,5 +1,4 @@
 using System.IO;
-using System.Linq;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
@@ -27,11 +26,15 @@ namespace Height1079.EditorTools
             EditorUtility.RevealInFinder("Builds/sandbox/mac");
         }
 
-        /// <summary>The sandbox runs in its own assembly and cannot see the editor's world library, so the ground it
-        /// walks on used to be flat grey paint while the game walks on PolyHaven scans. These materials are built from
-        /// the same scans and written into Resources, where the sandbox can load them by name — the snow underfoot is
-        /// then literally the game's snow, not a lookalike.</summary>
+        /// <summary>What the small map needs baked before its player is built. It used to include three materials made
+        /// from PolyHaven scans (Snow, Crust, Rock) so its ground would be literally the game's snow. It is not baked
+        /// any more and must not be: once the objects on that map became flat low-poly in the palette (docs/ART.md §3),
+        /// photoreal ground under them was the patchwork the owner saw. The map paints its ground from the sheet
+        /// (<c>SandboxRange.Mat</c>), nothing loads <c>Sandbox/Snow</c> and the like, and a copy left over from an
+        /// older checkout is deleted below — everything under Assets/Resources ships in every player whether it is
+        /// used or not (CLAUDE.md §4).</summary>
         const string MatDir = "Assets/Resources/Sandbox";
+        static readonly string[] RetiredScans = { "Snow", "Crust", "Rock" };
 
         static void EnsureMaterials()
         {
@@ -50,10 +53,21 @@ namespace Height1079.EditorTools
             // the sky over the yard is the game's own dome, stars, moon and clouds (Night/SkyDome), and its five
             // materials are also what keep the Height1079/Sky* shaders in the player (CLAUDE.md §4)
             if (!World.SkyFactory.IsBuilt) World.SkyFactory.Build();
-            Mat("Snow", "snow_02", 6f, .22f, new Color(.97f, .98f, 1f));
-            Mat("Crust", "snow_03", 9f, .34f, new Color(.93f, .95f, 1f));
-            Mat("Rock", "lichen_rock", 4f, .12f, new Color(.72f, .70f, .66f));
+            DropRetiredScans();
             Cloth();
+        }
+
+        /// <summary>Throws away the scanned ground materials of the older sandbox. Nothing loads them, and left in
+        /// Resources they would still be carried by every build.</summary>
+        static void DropRetiredScans()
+        {
+            foreach (var name in RetiredScans)
+            {
+                string path = MatDir + "/" + name + ".mat";
+                if (AssetDatabase.LoadAssetAtPath<Material>(path) == null) continue;
+                AssetDatabase.DeleteAsset(path);
+                Debug.Log("1079 sandbox: удалён старый материал со сканом " + path + " — земля красится из палитры");
+            }
         }
 
         /// <summary>The climber's material is made at run time (its atlas is painted in code), but the shader variant
@@ -70,25 +84,6 @@ namespace Height1079.EditorTools
             m.SetFloat("_Metallic", 0f);
             m.SetFloat("_UVSec", 1f);
             m.EnableKeyword("_DETAIL_MULX2");
-            if (existing == null) AssetDatabase.CreateAsset(m, path);
-            else EditorUtility.SetDirty(m);
-        }
-
-        static void Mat(string name, string id, float tile, float smoothness, Color tint)
-        {
-            string path = MatDir + "/" + name + ".mat";
-            var existing = AssetDatabase.LoadAssetAtPath<Material>(path);
-            string dir = "Assets/Art/ThirdParty/PolyHaven/Textures/" + id;
-            var diff = AssetDatabase.LoadAssetAtPath<Texture2D>($"{dir}/{id}_diff_1k.jpg");
-            var nor = AssetDatabase.LoadAssetAtPath<Texture2D>($"{dir}/{id}_nor_gl_1k.jpg");
-            if (diff == null) { if (existing == null) Debug.LogWarning("1079 sandbox: нет текстуры " + id); return; }
-            var m = existing ?? new Material(Shader.Find("Standard"));
-            m.mainTexture = diff;
-            m.mainTextureScale = Vector2.one * tile;
-            m.color = tint;
-            m.SetFloat("_Glossiness", smoothness);
-            m.SetFloat("_Metallic", 0f);
-            if (nor != null) { m.EnableKeyword("_NORMALMAP"); m.SetTexture("_BumpMap", nor); m.SetTextureScale("_BumpMap", Vector2.one * tile); }
             if (existing == null) AssetDatabase.CreateAsset(m, path);
             else EditorUtility.SetDirty(m);
         }

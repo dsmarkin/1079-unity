@@ -95,6 +95,24 @@ namespace Height1079.Art
             return m;
         }
 
+        /// <summary>The name every material of the palette carries: the one shared material the imported set is drawn
+        /// with (<c>Palette</c>, the colour in the vertices, baked by the editor) and the flat ones made at run time by
+        /// <see cref="Flat"/> (<c>Palette «имя цвета»</c>). The small map's check at start-up reads this and nothing
+        /// else: a renderer painted with anything else is paint from somewhere else, and on that map there is nowhere
+        /// else (docs/SANDBOX.md §12).</summary>
+        public const string MaterialName = "Palette";
+
+        /// <summary>True when this material is the palette's — the shared vertex-colour one or a flat colour of the
+        /// sheet. Unity adds " (Instance)" to a material it had to instance, so that suffix is ignored.</summary>
+        public static bool IsPalette(Material m)
+        {
+            if (m == null) return false;
+            string n = m.name;
+            int copy = n.IndexOf(" (Instance)", StringComparison.Ordinal);
+            if (copy >= 0) n = n.Substring(0, copy);
+            return n == MaterialName || n.StartsWith(MaterialName + " ", StringComparison.Ordinal);
+        }
+
         /// <summary>Repaints every renderer under <paramref name="root"/> in palette colours: a part whose name starts
         /// with a key of <paramref name="map"/> takes that colour (null keeps what it has); any other untextured
         /// material snaps to the nearest colour of the sheet; a textured material — a scan, a decal — is left alone,

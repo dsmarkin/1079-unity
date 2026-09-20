@@ -430,7 +430,7 @@ namespace Height1079.Sandbox
             Check(!Height1079.Core.Errand.MayRun(stove.Carry) && !Height1079.Core.Errand.MayTorch(stove.Carry), "с печкой — шагом и без фонаря", stove.Carry.ToString());
             hunt.ToggleTorch();
             Check(!hunt.Torch, "фонарь с печкой не включается", hunt.Torch ? "включился" : "не включился");
-            Check(SandboxHuntYard.RealObjects, "площадка собрана из объектов игры", SandboxHuntYard.RealObjects ? "префабы мира на месте" : "заглушки: мир не сгенерирован");
+            Check(SandboxHuntYard.Palettised, "площадка собрана из импортированного набора", SandboxHuntYard.Palettised ? "префабы в цветах палитры на месте" : "заглушки: набор не собран");
             // home: put down in the ring and the night is won at once
             Park();
             boot.PlaceAt(SandboxHuntYard.Spawn);
