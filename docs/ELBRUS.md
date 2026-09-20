@@ -8,20 +8,46 @@
 
 ## Эльбрус — отдельный слой, который можно выключить
 
-Локация — **необязательный слой**, как Steam: лежит в репозитории, включена по умолчанию, но собирается отдельной
-сборкой и не видна общему коду. Смысл — чтобы правки основной игры не приходилось тащить через 22 тысячи строк
-Эльбруса.
+Локация — **необязательный слой**, как Steam: лежит в репозитории, включена по умолчанию, но собирается своими
+сборками и не видна общему коду. Смысл — чтобы правки основной игры не приходилось тащить через 22 тысячи строк
+Эльбруса, а сборка без него не несла 136 МБ горы.
 
 **Флаг сборки — `HEIGHT1079_NO_ELBRUS`.** Его нет — локация есть (так у всех, кто клонирует репозиторий).
 Поставил — локация из сборки выпадает. Сборки Эльбруса несут `"defineConstraints": ["!HEIGHT1079_NO_ELBRUS"]`
 (Unity понимает `!`), как `Height1079.Steam` несёт `STEAM_FACEPUNCH`.
 
-### Договор: `ILocation` и `Locations`
+### Как включить и выключить — по одной команде
+
+| Что нужно | Команда |
+|---|---|
+| выключить локацию в редакторе | меню **1079 → Локация Эльбрус → Выключить** (галочка показывает, что стоит сейчас) |
+| включить обратно | меню **1079 → Локация Эльбрус → Включить** |
+| собрать игру без локации | `Tools/mac/build.command --no-elbrus` (Windows: `powershell -ExecutionPolicy Bypass -File Tools\win\build.ps1 -NoElbrus`) |
+| собрать игру с локацией | `Tools/mac/build.command` (Windows: `… \build.ps1`) |
+| проверить, что игра собирается без локации | `Tools/mac/check.command --no-elbrus` (Windows: `… \check.ps1 -NoElbrus`) |
+| проверить правила без локации, без Unity | `cd Tools/CoreTests && dotnet run -p:NoElbrus=true` |
+
+**Скрипты всегда ставят флаг явно, в обе стороны.** Сборка без `--no-elbrus` не «оставляет как было», а включает
+локацию. Это сделано нарочно: два плеера выглядят одинаково, и разница видна только тогда, когда они не могут
+соединиться друг с другом.
+
+Флаг ставится **отдельным запуском Unity** (`Builds.WithElbrus` / `Builds.WithoutElbrus`, потом выход). Иначе никак:
+define решает, какие сборки существуют, а Unity узнаёт об этом только после перезагрузки домена — сборка в той же
+сессии собрала бы старый набор.
+
+### Сборки с локацией и без неё не играют друг с другом
+
+**Это главное, что надо знать.** У `NightSession` и у объекта игрока набор `NetworkVariable` разный: с локацией есть
+`Climb`, `Plan`, `MountainStorm`, `FreshSnow`, `WeatherSeed`, `WeatherDay`, лагеря и спасательный лист — без неё их
+нет. Netcode сопоставляет переменные по порядку, так что хост и гость разошлись бы в разборе каждого пакета.
+Проверки версии в протоколе пока нет (`docs/BACKLOG.md`): собирайте обе копии одинаково.
+
+### Договор: `ILocation` и `Locations` (правила)
 
 Общий код больше не спрашивает «это Эльбрус?». Он спрашивает у **активной локации**.
 
 `Assets/Scripts/Core/ILocation.cs` — интерфейс локации. В нём ровно то, на что раньше отвечал `World` через
-`if (IsElbrus)`, плюс два крючка снега и стартовый рюкзак:
+`if (IsElbrus)`, плюс два крючка снега, стартовый рюкзак и точка цели:
 
 | Член | Что отдаёт |
 |---|---|
@@ -30,6 +56,7 @@
 | `TerrainAsset`, `HeightAsset` | имена сгенерированных ассетов |
 | `Ground(dem, x, z)` | высота земли (у Холатчахля в рельеф врезаны ручей и площадки, на Эльбрусе земля — сам DEM) |
 | `Scenario` | сценарий `NightRun`: старт, укрытие, цель, часы |
+| `Goal` | точка, к которой идут: палатка на склоне, Западная вершина. На неё смотрит стрелка HUD |
 | `SnowDepth`, `SnowCrust`, `Canopy` | крючки для `Core/SnowCover.cs` |
 | `Starter(index)` | стартовый рюкзак для `Core/Packs.cs` |
 
@@ -38,69 +65,98 @@
 - Холатчахль (`Core/KholatLocation.cs`) регистрируется сам и всегда в сборке — он же `Default`.
 - `Of(Place)` **никогда не возвращает null**: места, которого в сборке нет, читается как `Default`, чтобы старый
   сейв не ронял игру.
-- `World.Current` **не даёт выбрать** место, которого в сборке нет: присваивание просто не проходит. Так два ответа
-  не расходятся.
-- `Register` **идемпотентен**: один и тот же процесс может позвать его из игры, из редактора и из теста — локация
-  будет одна.
+- `World.Current` **не даёт выбрать** место, которого в сборке нет: присваивание просто не проходит.
+- `Register` **идемпотентен**: один и тот же процесс может позвать его из игры, из редактора и из теста.
+- **Меню строится из `Locations.Available`**, а не из членов `Place`. Одна локация — ряда выбора нет вовсе.
 
-`Core/World.cs` теперь тонкая обёртка над `Locations.Active`, и слово «Эльбрус» осталось в ядре только как член
-перечисления `Place.Elbrus` — формат сейва его требует. (`World.IsElbrus` пока жив: на него опираются полсотни мест
-в `Runtime` и `Editor`; само по себе это просто сравнение с членом перечисления, зависимости от сборки Эльбруса оно
-не создаёт.)
+`World.IsElbrus` жив и остаётся простым сравнением с членом перечисления: зависимости от сборки Эльбруса он не
+создаёт. В сборке без локации он всегда `false`, потому что выбрать её нельзя.
+
+### Договор: `ILocationView` (движок)
+
+То же самое, но там, где нужен UnityEngine: `Assets/Scripts/Runtime/LocationView.cs`.
+
+| Член | Что делает |
+|---|---|
+| `GroundMargin` | на сколько метров террейн ниже нижнего узла сетки (должно совпадать с импортёром) |
+| `Inspect(terrain)` | что карта хочет знать о только что собранном рельефе (у Эльбруса — не потерялась ли splat-карта) |
+| `Build(dem)` | всё, что стоит на рельефе, и свет, которым это видно; возвращает солнце |
+| `RunsNight` | идёт ли здесь машинерия ночи 1959 года: снег, лыжня, туман, Менк, звёздный купол |
+| `DayWind` | своя погода карты поверх ночной |
+| `MenuCamera`, `Frame` | камера меню и кадр дня |
+| `Course(hiker, out heading)` | азимут, который держит стрелка компаса |
+| `Saved`, `Resume()`, `Drop()` | что предлагает «Продолжить» |
+
+Карта без своего вида не регистрирует ничего — это Холатчахль, и оболочка идёт своим путём.
 
 ### Кто зовёт `Register`
 
-Движок-независимой половине локации нельзя `using UnityEngine`, поэтому крючки живут там, где можно:
-
 | Где работает | Чем цепляется | Где лежит |
 |---|---|---|
-| сборка игры | `[RuntimeInitializeOnLoadMethod(BeforeSceneLoad)]` | сборка `Height1079.Elbrus.Runtime` (**ещё не сделана**, см. ниже) |
-| редактор | `[InitializeOnLoadMethod]` | там же |
+| сборка игры | `[RuntimeInitializeOnLoadMethod(BeforeSceneLoad)]` | `Runtime/Elbrus/ElbrusView.cs` |
+| редактор | `[InitializeOnLoadMethod]` | там же и `Editor/Elbrus/ElbrusEditorBoot.cs` |
+| пайплайн мира | `WorldImporter.Extras` / `ExtrasBuilt` | `Editor/Elbrus/ElbrusEditorBoot.cs` |
 | тесты Unity | `[SetUpFixture]` + `[OneTimeSetUp]` | `Assets/Tests/EditMode/Elbrus/ElbrusFixture.cs` |
 | `dotnet` | `[ModuleInitializer]` | `Tools/CoreTests/Shim.cs` |
+
+Без этого локация не зарегистрируется, и `World.Current = Place.Elbrus` молча не сработает.
 
 ### Что где лежит
 
 | Сборка | Папка | Что в ней |
 |---|---|---|
-| `Height1079.Core` | `Assets/Scripts/Core` | правила без движка и без Эльбруса; `ILocation`, `Locations`, `KholatLocation`, `World` |
-| `Height1079.Elbrus.Core` | `Assets/Scripts/Core/Elbrus` | 17 файлов: `Elbrus`, `Ascent`, `AscentRoute`, `AscentCold`, `Programme`, `ProgrammeDays`, `Forecast`, `Camp`, `CampSave`, `Ropeway`, `Lodging`, `Rescue`, `Rental`, `Refreshments`, `SaveGame`, `SaveStore` и новый `ElbrusLocation` |
-| `Height1079.Elbrus.Tests` | `Assets/Tests/EditMode/Elbrus` | десять файлов тестов Эльбруса + `ElbrusFixture` и `ElbrusLocationTests` |
+| `Height1079.Elbrus.Core` | `Assets/Scripts/Core/Elbrus` | 17 файлов правил без движка: `Elbrus`, `Ascent*`, `Programme*`, `Forecast`, `Camp*`, `Ropeway`, `Lodging`, `Rescue`, `Rental`, `Refreshments`, сейвы и `ElbrusLocation` |
+| `Height1079.Elbrus` | `Assets/Scripts/Runtime/Elbrus` | мир и стойки: `ElbrusWorld`, `ElbrusDressing`, `CafeService`, `RentalService`, `LodgeService`, `RatrakService`, `Parties`, `RopewayRig`, `RatrakRide`, `ElbrusRides`, `CampView`, `WeatherBoards`, четыре кадра демо-ролика (`ElbrusShots`) и `ElbrusView` |
+| `Height1079.Elbrus.Editor` | `Assets/Scripts/Editor/Elbrus` | генерация: `ElbrusImporter`, `ElbrusValley`, `ElbrusFactory`, `ElbrusLodge`, `ElbrusProps`, `ElbrusAscent(+Saddle)`, `ElbrusMapFactory`, `ElbrusEditorBoot` |
+| `Height1079.Elbrus.Tests` | `Assets/Tests/EditMode/Elbrus` | десять файлов тестов + `ElbrusFixture` и `ElbrusLocationTests` |
 
-Обе сборки Эльбруса — `noEngineReferences: true` (движка не знают) и ссылаются только на `Height1079.Core`
-(тестовая — ещё на `Height1079.Tests`, ради `TestData`).
+**Пространство имён везде осталось прежним** (`Height1079.Core`, `Height1079.Runtime`, `Height1079.EditorTools.World`).
+Сборка и пространство имён — разные вещи; так вызывающему нужна только ссылка на сборку, а не правка каждого `using`.
+И это не случайность: папка `Elbrus` **не должна** становиться сегментом пространства имён — соседнее пространство
+имён `Elbrus` победило бы класс `Elbrus` на каждом вызове (CLAUDE.md §4).
 
-**Пространство имён осталось `Height1079.Core`.** Сборка и пространство имён — разные вещи; так вызывающему нужна
-только ссылка на сборку, а не правка каждого `using`.
+### Что осталось в `Height1079.Runtime` за `#if`
 
-**Сейвы уехали вместе с локацией.** `SaveGame.cs` и `SaveStore.cs` через строчку читают `Ascent`, `AscentRoute`,
-`Rescue`, `Rental` и `Programme`, а `Camp.AllowedIn` разрешает лагерь только на Эльбрусе — в ядре без этих типов
-они просто не компилируются. Оставить их в `Core` было нельзя.
+**Частичный класс нельзя разрезать между сборками.** Поэтому куски `NightSession`, `HudController` и
+`HikerController`, которые про Эльбрус, лежат в `Assets/Scripts/Runtime` и обёрнуты в `#if !HEIGHT1079_NO_ELBRUS`:
+
+- `NightSession.{Ascent,Camp,Rescue,Plan,Lodge,Cafe,Rental}.cs`;
+- `HudController.{Plan,Climb}.cs`, `HikerController.Climb.cs`;
+- и типы, которые эти файлы называют: `Climb` (`ClimbNet`, `ClimbJob`), `ClimbGear`, `Camps`, `Programmes`,
+  `Saves`, `MountainDay`, `RescueDesk`, `Lodges`, `Purse`;
+- в редакторе — `TreeFactory.Elbrus.cs` и `RockFactory.Elbrus.cs`: летние библиотеки собраны из приватных
+  частей своей же фабрики.
+
+`Height1079.Elbrus` ссылается на `Height1079.Runtime`, значит обратной ссылки быть не может. Там, где общий код
+раньше звал эти файлы, теперь **`partial void`-крючки**: реализации нет — вызов исчезает при компиляции. Список
+крючков — в `NightSession.cs`, `HudController.cs`, `HikerController.cs`, каждый с комментарием.
+
+Ещё один шов — `UiWindows`: общий код спрашивает «открыто ли чьё-нибудь окно», а какие это окна, говорит карта.
+Без него `Camps` и `Programmes` называли бы стойки, которые уехали в сборку локации.
+
+### Что не уезжает в плеер, когда локация выключена
+
+Сгенерированный Эльбрус — около 136 МБ, и `Assets/Resources` Unity кладёт в каждый плеер целиком (CLAUDE.md §4).
+Поэтому `WorldKitBuilder`:
+
+- **описывает только зарегистрированные карты** — корневые файлы берутся из `Locations.Available`, а не из списка;
+- с флагом `HEIGHT1079_NO_ELBRUS` **удаляет с диска** то, что осталось от сборки с локацией, в обоих деревьях:
+  `Elbrus.asset`, `elbrus_height_2049.bytes`, `Prefabs/Elbrus`, `Meshes/{Elbrus,Valley,Ascent,Lodge}`,
+  `Textures/elb*`, `Materials/Elb*`, `TerrainLayers/Elb*`.
+
+Всё это генерируется и лежит в `.gitignore`: худшее, что может случиться от лишнего удаления, — одна пересборка
+мира из меню **1079 → Rebuild world**.
 
 ### Как проверить без Unity
 
 ```bash
 cd Tools/CoreTests
-dotnet run                      # всё вместе:      # pass 223 fail 0
+dotnet run                      # всё вместе:        # pass 223 fail 0
 dotnet run -p:NoElbrus=true     # ядро без Эльбруса: # pass 86 fail 0
 ```
 
 Второй прогон выкидывает `Core/Elbrus/**` и `EditMode/Elbrus/**` и ставит `HEIGHT1079_NO_ELBRUS` — это и есть
 доказательство, что ядро стоит на ногах само.
-
-### Что ещё не сделано (шаг 4 и дальше)
-
-Пока шва в `Runtime` и `Editor` нет, **Unity не соберётся**: обе сборки ссылаются на типы, которые уехали.
-Что нужно доделать:
-
-1. В `Height1079.Runtime.asmdef` и `Height1079.Editor.asmdef` добавить ссылку `Height1079.Elbrus.Core`.
-2. Переименовать четыре места: `World.ElbrusPlan` → `ElbrusLocation.Plan` (`Runtime/Climb.cs:220,223`,
-   `Runtime/NightSession.Camp.cs:126`) и `World.ElbrusSheltered` → `ElbrusLocation.Sheltered`
-   (`Runtime/Climb.cs:244`).
-3. Завести `Height1079.Elbrus.Runtime` с крючками `[RuntimeInitializeOnLoadMethod]` и `[InitializeOnLoadMethod]`,
-   иначе в сборке и в редакторе локация не зарегистрируется и меню её не покажет.
-4. Перенести туда же файлы `Runtime` и `Editor`, которые про Эльбрус и только про него (сейчас слово «Эльбрус»
-   встречается в 43 файлах этих двух сборок).
 
 ## Рельеф
 
