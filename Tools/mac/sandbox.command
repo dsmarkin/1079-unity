@@ -3,6 +3,7 @@
 # The editor must be closed — Unity allows one process per project.
 #   Tools/mac/sandbox.command             build and run
 #   Tools/mac/sandbox.command --run       run what is already built
+#   Tools/mac/sandbox.command --day       open on the physics range in daylight, not the night yard
 #   Tools/mac/sandbox.command --selftest  run the scripted physics check, print the verdict, quit
 source "$(dirname "$0")/editor.sh" || exit 1
 ARGS=""
@@ -10,6 +11,7 @@ BUILD=1
 for a in "$@"; do
   case "$a" in
     --run) BUILD=0 ;;
+    --day) ARGS="$ARGS -day" ;;
     --selftest) ARGS="$ARGS -selftest" ;;
     --shot) ARGS="$ARGS -shot -shotdir $PWD/Builds/sandbox/shots" ;;
     *) ARGS="$ARGS $a" ;;

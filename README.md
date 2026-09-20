@@ -26,7 +26,7 @@
 | Сборка | `Tools/mac/build.command` → `Builds/mac/1079.app` | `Tools\win\build.ps1` → `Builds\windows\1079.exe` |
 | Запуск сборки в окне | `Tools/mac/run.command` | `Tools\win\run.ps1` |
 | Тесты ядра без Unity | `cd Tools/CoreTests && dotnet run` | то же (нужен .NET 8 SDK) |
-| Песочница физики тела | `Tools/mac/sandbox.command` → `Builds/sandbox/mac` | `Tools\win\sandbox.ps1` |
+| Песочница физики тела | `Tools/mac/sandbox.command` → `Builds/sandbox/mac`; `--run --day` — днём на полигоне, без ночного забега | `Tools\win\sandbox.ps1` |
 
 Логи пишутся в корень проекта: `unity-check.log`, `unity-tests.xml`, `build.log`, `build-editor.log`, `player.log`, `sandbox-*.log`. В git они не попадают.
 

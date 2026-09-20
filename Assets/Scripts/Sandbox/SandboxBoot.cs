@@ -118,8 +118,12 @@ namespace Height1079.Sandbox
             Sky();
             // the yard is the sandbox now (docs/SANDBOX.md); the physics range — steps, slopes, the wall, the drops —
             // is built only for the scripts that measure the body on it
-            SandboxRange.Build(withRange: SandboxSelfTest.Requested || SandboxShots.Requested);
+            SandboxRange.Build(withRange: SandboxSelfTest.Requested || SandboxShots.Requested || DayRequested);
             if (SandboxRange.YardStand >= 0) stand = SandboxRange.YardStand;
+            // `-day` opens on the physics range in daylight instead of the yard at night: the place to look at the
+            // figure, the colours and the gait, and to walk the steps and slopes by hand. F11/F12 walk the stands,
+            // and the yard is one of them, so the night is a keypress away rather than the only thing there is.
+            if (DayRequested && SandboxRange.Stands.Count > 0) stand = 0;
             // the game's own prints, puffs and trail map (Height1079.Snow), under this object so they go when it goes
             SnowPrints.Create(transform);
             Spawn();
@@ -139,7 +143,18 @@ namespace Height1079.Sandbox
             if (SandboxSelfTest.Requested) gameObject.AddComponent<SandboxSelfTest>();
             else if (SandboxShots.Requested) gameObject.AddComponent<SandboxShots>();
             // otherwise the night comes down at once: the yard is what the sandbox is for now
-            else if (stand == SandboxRange.YardStand) Hunt.Begin();
+            else if (stand == SandboxRange.YardStand && !DayRequested) Hunt.Begin();
+        }
+
+        /// <summary>`1079-sandbox -day` — start on the physics range in daylight, with the stands built, instead of
+        /// the night yard. The yard is still there under F11/F12; this only changes where the sandbox opens.</summary>
+        public static bool DayRequested
+        {
+            get
+            {
+                foreach (var a in System.Environment.GetCommandLineArgs()) if (a == "-day") return true;
+                return false;
+            }
         }
 
         public void ApplySolver()
