@@ -7,8 +7,13 @@
 # project command and writes the result back into the same folder, where Claude can read it.
 #
 # The keyword is matched against a fixed list below and is NEVER executed as a shell command: the
-# queue can ask for a check, a build, a run or a quit, and for nothing else. Install the launchd
+# queue can ask for the handful of things listed below, and for nothing else. Install the launchd
 # agent once with `bash Tools/mac/errand-install.sh`; remove it with `launchctl bootout`.
+#
+# `push` lives here rather than on the agent's side on purpose: the agent's shell is a Linux VM that
+# mounts this folder, and the macOS keychain is not reachable from it. Running the push here means git
+# runs on macOS, picks the credentials out of the keychain by itself, and no token is ever handled by
+# the agent or written into a config.
 #
 # Files in Tools/mac/errand/ (all git-ignored):
 #   next      what to do, plus a stamp that makes each request unique: "build+run 20260920-0925"
@@ -35,7 +40,9 @@ trap 'rmdir "$Q/.lock" 2>/dev/null' EXIT
 JOB="${TOKEN%% *}"
 printf 'running %s  %s\n' "$TOKEN" "$(date '+%F %T %Z')" > "$STATE"
 
-{
+# A function, not a { } group: `exit` inside a group ends the whole script, so an unknown keyword used
+# to leave `state` reading "running" for ever and never write `done` — the queue wedged on a typo.
+run_job() {
     printf '== %s  %s\n' "$TOKEN" "$(date '+%F %T %Z')"
     case "$JOB" in
         check)     bash "$ROOT/check.command" ;;
@@ -43,9 +50,13 @@ printf 'running %s  %s\n' "$TOKEN" "$(date '+%F %T %Z')" > "$STATE"
         run)       bash "$ROOT/run.command" ;;
         build+run) bash "$ROOT/build.command" && bash "$ROOT/run.command" ;;
         quit)      pkill -f 'Builds/mac/1079.app/Contents/MacOS/' && echo 'game stopped' || echo 'game was not running' ;;
-        *)         printf 'unknown errand: %s\n' "$JOB"; exit 64 ;;
+        push)      GIT_TERMINAL_PROMPT=0 git -C "$ROOT" push origin main ;;
+        ping)      printf 'errand runner alive: %s\n' "$(sw_vers -productVersion 2>/dev/null || uname -s)" ;;
+        *)         printf 'unknown errand: %s\n' "$JOB"; return 64 ;;
     esac
-} > "$LOG" 2>&1
+}
+
+run_job > "$LOG" 2>&1
 RC=$?
 
 printf '%s\n' "$TOKEN" > "$DONE"
