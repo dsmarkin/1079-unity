@@ -172,7 +172,7 @@ namespace Height1079.EditorTools.World
             // settings until it is imported again
             if (AssetImporter.GetAtPath(fbx) is ModelImporter imp && (imp.animationType != ModelImporterAnimationType.Generic || imp.importAnimation))
             {
-                ThirdPartyModelPostprocessor.Apply(imp);
+                ThirdPartyModelPostprocessor.ApplyRig(imp);
                 imp.SaveAndReimport();
                 model = AssetDatabase.LoadMainAssetAtPath(fbx) as GameObject;
                 if (model == null) return false;
