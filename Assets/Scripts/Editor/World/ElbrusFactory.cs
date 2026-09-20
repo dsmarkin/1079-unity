@@ -7,12 +7,12 @@ namespace Height1079.EditorTools.World
 {
     /// <summary>Everything man-made on the Elbrus map, built in code the same way the event sites are: ropeway terminals,
     /// towers, cabins, the barrel huts of Garabashi, the shelters, a snow-cat and the route wands.
-    /// Prefabs go to Resources/World/Prefabs/Elbrus. Pivot = the point the runtime places (ground for buildings,
+    /// Prefabs go to Assets/Generated/World/Prefabs/Elbrus (game only, outside Resources). Pivot = the point the runtime places (ground for buildings,
     /// the haul rope for cars); +Z = the direction of travel or uphill.</summary>
     public static class ElbrusFactory
     {
-        const string PrefabDir = WorldPaths.Generated + "/Prefabs/Elbrus";
-        const string MeshDir = WorldPaths.Generated + "/Meshes/Elbrus";
+        const string PrefabDir = WorldPaths.Kit + "/Prefabs/Elbrus";
+        const string MeshDir = WorldPaths.Kit + "/Meshes/Elbrus";
         static int meshCounter;
 
         static GameObject Part(Transform parent, string name, MeshBuilder mb, params Material[] mats)

@@ -31,7 +31,7 @@ namespace Height1079.Runtime
             return rig;
         }
 
-        static GameObject Load(string name) => Resources.Load<GameObject>("World/Prefabs/Elbrus/" + name);
+        static GameObject Load(string name) => WorldAssets.Load<GameObject>("Prefabs/Elbrus/" + name);
 
         void BuildTowers()
         {

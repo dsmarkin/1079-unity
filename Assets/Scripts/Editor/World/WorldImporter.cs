@@ -13,17 +13,19 @@ namespace Height1079.EditorTools.World
     /// Deterministic: running it twice gives the same world. Menu: 1079 → Rebuild world.</summary>
     public static class WorldImporter
     {
-        public const string TerrainAsset = WorldPaths.Generated + "/Kholat.asset";
-        public const string HeightResource = WorldPaths.Generated + "/height_2049.bytes";
+        public const string TerrainAsset = WorldPaths.Kit + "/Kholat.asset";
+        public const string HeightResource = WorldPaths.Kit + "/height_2049.bytes";
         public const float BaseHeight = WorldData.HeightMin - 4f;
         public static float Range => WorldData.HeightMax - BaseHeight;
         const int Alpha = 1025;
 
         [MenuItem("1079/Rebuild world (terrain, trees, sites)")]
-        public static void RebuildMenu() => Build(true);
+        // the kit too: half the pipeline now writes outside Resources, and the game reaches that half only through
+        // the index. Rebuilding the world without it would leave the index naming assets that no longer exist.
+        public static void RebuildMenu() { Build(true); WorldKitBuilder.Build(); }
 
         /// <summary>Bump when a factory changes so existing checkouts rebuild the generated world on next open/check.</summary>
-        public const int PipelineVersion = 56;
+        public const int PipelineVersion = 59;
         const string Stamp = WorldPaths.Generated + "/pipeline.version";
 
         public static bool IsBuilt => File.Exists(TerrainAsset) && File.Exists(HeightResource) && File.Exists(Stamp)
@@ -35,6 +37,10 @@ namespace Height1079.EditorTools.World
             if (IsBuilt && !force) return;
             var clock = Stopwatch.StartNew();
             Directory.CreateDirectory(WorldPaths.Generated);
+            Directory.CreateDirectory(WorldPaths.Kit);
+            // on a fresh clone Assets/Generated is new to the AssetDatabase, and importing into a folder it has not
+            // seen fails silently — everything below writes there
+            if (!AssetDatabase.IsValidFolder(WorldPaths.Kit)) AssetDatabase.Refresh();
             Materials.ResetCache();
             AssetDatabase.StartAssetEditing();
             try

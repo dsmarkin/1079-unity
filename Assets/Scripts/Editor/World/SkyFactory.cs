@@ -9,8 +9,8 @@ namespace Height1079.EditorTools.World
     /// built from Assets/Data/Sky/stars.f32 (Yale Bright Star Catalogue to V 6, equinox 1959; Tools/sky/stars.py).</summary>
     public static class SkyFactory
     {
-        const string MatDir = WorldPaths.Generated + "/Materials/Sky";
-        const string MeshDir = WorldPaths.Generated + "/Meshes/Sky";
+        const string MatDir = WorldPaths.Kit + "/Materials/Sky";
+        const string MeshDir = WorldPaths.Kit + "/Meshes/Sky";
 
         public static void Build()
         {
