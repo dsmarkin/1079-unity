@@ -50,9 +50,10 @@ stop_game() {
 
 start_game() {
     local app="$ROOT/Builds/mac/1079.app"
+    local EXTRA="${1:-}"
     [ -d "$app" ] || { printf 'no build at %s\n' "$app"; return 66; }
-    open -n "$app" --args -logFile "$ROOT/player.log" -screen-fullscreen 0 -screen-width 1280 -screen-height 800
-    printf 'player launched\n'
+    open -n "$app" --args -logFile "$ROOT/player.log" -screen-fullscreen 0 -screen-width 1280 -screen-height 800 $EXTRA
+    printf 'player launched%s\n' "${EXTRA:+ ($EXTRA)}"
 }
 
 # A function, not a { } group: `exit` inside a group ends the whole script, so an unknown keyword used
@@ -63,6 +64,7 @@ run_job() {
         check)     bash "$ROOT/check.command" ;;
         build)     bash "$ROOT/build.command" ;;
         run)       start_game ;;
+        shots)     start_game -shots ;;
         build+run) stop_game; bash "$ROOT/build.command" && start_game ;;
         quit)      stop_game ;;
         push)      GIT_TERMINAL_PROMPT=0 git -C "$ROOT" push origin main ;;

@@ -362,6 +362,8 @@ namespace Height1079.Runtime
                 {
                     WorldDressing.NextView();
                     Hud.SetStatus(WorldDressing.ViewIndex < 0 ? "" : $"Осмотр места: {WorldDressing.ViewName} (F3 — дальше)");
+                    // started with -shots, every step of the viewer also writes the frame to Shots/ (SiteShot)
+                    if (WorldDressing.ViewIndex >= 0) SiteShot.Grab(WorldDressing.ViewId);
                 }
                 var s = NightSession.Instance;
                 float blizzard = Weather.Storm;

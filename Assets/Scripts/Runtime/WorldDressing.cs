@@ -214,6 +214,8 @@ namespace Height1079.Runtime
         static Vector3? trackSpot;
         static readonly string[] ViewIds = { "tent", "cedar", "p4", "labaz", "camp-gear", "camp-inside", "camp-things", "camp-kitchen", "dyatlov", "forest-taiga", "forest-edge", "forest-tracks", "sky" };
         static readonly float[] ViewRadius = { 9f, 14f, 8f, 13f, 2.4f, .7f, .42f, 2.6f, 10f, 22f, 22f, 4f, 0f };
+        /// <summary>Short id of the view the camera is on, for file names.</summary>
+        public static string ViewId => ViewIndex < 0 ? "" : ViewIds[ViewIndex];
         public static string ViewName => ViewIndex < 0 ? "" : ViewIds[ViewIndex] switch
         {
             "labaz" => "Стоянка 31 января и лабаз",
