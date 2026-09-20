@@ -11,7 +11,7 @@ namespace Height1079.EditorTools.World
     /// <see cref="Ascent"/>, <see cref="AscentCold"/> and <see cref="AscentRoute"/> reach for.
     ///
     /// Everything here is baked in world coordinates against the Elbrus height field and saved as ONE prefab,
-    /// Resources/World/Prefabs/Elbrus/Elb_Ascent, the way <see cref="AnimalTracksFactory"/> bakes the animal trails.
+    /// Assets/Generated/World/Prefabs/Elbrus/Elb_Ascent, the way <see cref="AnimalTracksFactory"/> bakes the animal trails.
     /// The runtime glue is a single line: instantiate it at the origin with no rotation. That keeps the placement
     /// deterministic (it is computed once, from the DEM, in the editor), keeps the object count down (a hundred and
     /// sixty-eight wands are fourteen meshes, not a hundred and sixty-eight transforms) and leaves the runtime free.
@@ -35,8 +35,8 @@ namespace Height1079.EditorTools.World
     /// torch picks it out the way it picks out the real thing, and it is dark when nothing shines on it.</summary>
     public static partial class ElbrusAscent
     {
-        const string PrefabDir = WorldPaths.Generated + "/Prefabs/Elbrus";
-        const string MeshDir = WorldPaths.Generated + "/Meshes/Ascent";
+        const string PrefabDir = WorldPaths.Kit + "/Prefabs/Elbrus";
+        const string MeshDir = WorldPaths.Kit + "/Meshes/Ascent";
 
         // ── the switches a season turns ───────────────────────────────────────────────────────────────────
         /// <summary>Whether the rope handrails are rigged this season. The steel cable of the МЧС stays up all year —

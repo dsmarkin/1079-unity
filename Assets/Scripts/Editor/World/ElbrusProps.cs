@@ -10,12 +10,12 @@ namespace Height1079.EditorTools.World
     /// snow-cat sleds, floodlights, antennas) and the line furniture between them (power poles, snow fences, rubble).
     /// <see cref="ElbrusFactory"/> builds the buildings; this file builds everything else, and the plinths the buildings
     /// stand on where the slope falls away under them.
-    /// Prefabs go to Resources/World/Prefabs/Elbrus beside the rest. Pivot = the point on the ground the runtime places,
+    /// Prefabs go to Assets/Generated/World/Prefabs/Elbrus beside the rest. Pivot = the point on the ground the runtime places,
     /// +Z = the front of the thing (or the direction of travel), +X = along a fence or a railing.</summary>
     public static class ElbrusProps
     {
-        const string PrefabDir = WorldPaths.Generated + "/Prefabs/Elbrus";
-        const string MeshDir = WorldPaths.Generated + "/Meshes/Elbrus";
+        const string PrefabDir = WorldPaths.Kit + "/Prefabs/Elbrus";
+        const string MeshDir = WorldPaths.Kit + "/Meshes/Elbrus";
         static int meshCounter;
 
         static GameObject Part(Transform parent, string name, MeshBuilder mb, params Material[] mats)

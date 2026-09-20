@@ -3,9 +3,11 @@ using Height1079.Core;
 
 namespace Height1079.Runtime
 {
-    /// <summary>Loads the world built by the editor pipeline (Resources/World) for the place the session is in
-    /// (<see cref="World.Current"/>): the TerrainData asset with layers, trees and rocks, and the raw height grid the
-    /// rules use. World x/z of Core map straight onto Unity x/z (x east, z north); y is metres above sea level.</summary>
+    /// <summary>Loads the world built by the editor pipeline for the place the session is in (<see cref="World.Current"/>):
+    /// the TerrainData asset with layers, trees and rocks, and the raw height grid the rules use. Both are the heaviest
+    /// files in the project and only the game needs them, so they live outside Resources and are reached through
+    /// <see cref="WorldAssets"/> (see <see cref="WorldKit"/>).
+    /// World x/z of Core map straight onto Unity x/z (x east, z north); y is metres above sea level.</summary>
     public static class TerrainBuilder
     {
         /// <summary>Must match WorldImporter.BaseHeight / ElbrusImporter.BaseHeight (editor).</summary>
@@ -13,15 +15,15 @@ namespace Height1079.Runtime
 
         public static HeightField LoadDem()
         {
-            var asset = Resources.Load<TextAsset>("World/" + World.HeightAsset);
-            if (asset == null) throw new System.IO.FileNotFoundException($"Resources/World/{World.HeightAsset}.bytes — open the project in the editor once (menu 1079 → Rebuild world)");
+            var asset = WorldAssets.Load<TextAsset>(World.HeightAsset);
+            if (asset == null) throw new System.IO.FileNotFoundException($"{WorldKit.GeneratedDir}/{World.HeightAsset}.bytes — open the project in the editor once (menu 1079 → Rebuild world)");
             return HeightField.FromR16(asset.bytes, World.HeightMin, World.HeightMax, World.Resolution, World.GridStep);
         }
 
         public static Terrain Build()
         {
-            var data = Resources.Load<TerrainData>("World/" + World.TerrainAsset);
-            if (data == null) { Debug.LogError($"Resources/World/{World.TerrainAsset}.asset missing — menu 1079 → Rebuild world"); return null; }
+            var data = WorldAssets.Load<TerrainData>(World.TerrainAsset);
+            if (data == null) { Debug.LogError($"{WorldKit.GeneratedDir}/{World.TerrainAsset}.asset missing — menu 1079 → Rebuild world"); return null; }
             var go = Terrain.CreateTerrainGameObject(data);
             go.name = World.IsElbrus ? "Elbrus" : "Kholat Syakhl";
             go.transform.position = new Vector3(-World.Half, BaseHeight, -World.Half);
