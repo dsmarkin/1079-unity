@@ -26,8 +26,9 @@ namespace Height1079.Snow
         public const string MaterialDir = "World/Materials/SnowFx/";
 
         /// <summary>Snow is falling and filling the prints: about ten minutes of calm snowfall erases a print, a
-        /// blizzard (<see cref="Storm"/>) does it in a minute and a half. The sandbox's day does not snow, and its
-        /// prints stay until the range is rebuilt.</summary>
+        /// blizzard (<see cref="Storm"/>) does it in a minute and a half. On over the whole of both places now — the
+        /// small map's sky has weather of its own (SandboxSky), so its snow fills prints the way the mountain's
+        /// does.</summary>
         public bool Snowing;
         public bool Storm;
 

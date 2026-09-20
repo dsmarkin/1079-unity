@@ -1,7 +1,9 @@
 {
   "name": "Height1079.Night",
   "rootNamespace": "Height1079.Night",
-  "references": [],
+  "references": [
+    "Height1079.Core"
+  ],
   "includePlatforms": [],
   "excludePlatforms": [],
   "allowUnsafeCode": false,

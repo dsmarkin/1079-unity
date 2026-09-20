@@ -1,12 +1,14 @@
 using UnityEngine;
 using UnityEngine.Rendering;
-using Height1079.Core;
 
-namespace Height1079.Runtime
+namespace Height1079.Night
 {
     /// <summary>Daylight sky of the Elbrus map: the same dome and cloud shaders the 1959 night uses, with a day palette —
     /// deep blue zenith, pale haze on the horizon, the sun as a disc with its aureole, and a thin cloud deck drifting east.
-    /// No stars, no moon, no aurora. The night sky of Kholat is <see cref="SkyDome"/>.</summary>
+    /// No stars, no moon, no aurora. It stands at one hour of one day; the sky that moves with a clock is
+    /// <see cref="SkyDome"/>, which is what Kholat and the small map both draw.
+    ///
+    /// In the shared assembly beside <see cref="SkyDome"/>, so there is one place the sky is written.</summary>
     public sealed class DaySky : MonoBehaviour
     {
         /// <summary>Mid-morning sun over the southern slope: altitude and azimuth in degrees (matches ElbrusWorld.Daylight).</summary>
@@ -39,8 +41,8 @@ namespace Height1079.Runtime
 
         Transform Part(string name, string mesh, string mat, float scale)
         {
-            var m = WorldAssets.Load<Mesh>("Meshes/Sky/" + mesh);
-            var mt = WorldAssets.Load<Material>("Materials/Sky/" + mat);
+            var m = SkyAssets.Load<Mesh>("Meshes/Sky/" + mesh);
+            var mt = SkyAssets.Load<Material>("Materials/Sky/" + mat);
             if (m == null || mt == null) { Debug.LogWarning($"1079 day sky: missing {mesh}/{mat}"); return null; }
             var go = new GameObject(name, typeof(MeshFilter), typeof(MeshRenderer));
             go.transform.SetParent(transform, false);

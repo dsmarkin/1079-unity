@@ -40,6 +40,10 @@ namespace Height1079.Sandbox
             // itself: every frame below is framed by hand and has to stay framed until it is read out.
             boot.Scripted = true;
             SandboxHud.Panel = false;
+            // the sky is held still for the whole reel and moved by hand between the sections: the same frame taken
+            // twice has to come out the same, and a day that runs would light the first shots differently each run.
+            // Half past one in the afternoon — the daylight the figure frames were always taken in.
+            if (boot.Sky != null) { boot.Sky.CycleSeconds = 1e6f; boot.Sky.SetHour(13.5); boot.Sky.WeatherRuns = false; }
             Directory.CreateDirectory(Folder);
             var body = boot.Body;
             // the first four are of the figure, so the figure has to be drawn
@@ -184,7 +188,7 @@ namespace Height1079.Sandbox
             yield return ShootHere(boot, body, "14-конец-дня");
 
             // ── the yard at night: the fire, the Menk in the beam, the wall of the blizzard ─────────────────────
-            // a short run, so the front arrives while the camera waits; the night takes four seconds to come down
+            // a short run, so the front arrives while the camera waits; Begin() puts the clock at the dead of night
             boot.Hunt.Begin(90f);
             boot.FirstPerson = true;
             yield return new WaitForSeconds(5f);
@@ -223,7 +227,7 @@ namespace Height1079.Sandbox
             boot.Hunt.End();
 
             // ── the yard as a drawing: the fire with the tent behind, the things by the tent, cover in the beam ──
-            // a fresh run long enough that no front comes while the frames are taken; the night takes four seconds
+            // a fresh run long enough that no front comes while the frames are taken
             boot.Hunt.Begin(1200f);
             boot.FirstPerson = true;
             yield return new WaitForSeconds(5f);
@@ -253,14 +257,16 @@ namespace Height1079.Sandbox
             // it, the pine, the cover, the tent at the far end. The night is brought half way back for it: at full
             // night the tent stands fifty metres into the fog and the frame is a black square
             Park();
-            boot.Hunt.Night.Want = .45f;
+            // the clock is walked back to six in the evening for it: the sun is 6.5 deg under, which is the 0.45
+            // of darkness this frame was always taken at (SkyDome.Darkness). The sky is held there — the reel froze
+            // the clock at the top — so the frame comes out the same every run.
+            boot.Sky.SetHour(18.0);
             boot.FirstPerson = false;
             boot.PlaceAt(SandboxHuntYard.Spawn);
             for (float w = 0f; w < 3.5f; w += Time.deltaTime) { body.Drive(new PuppetInput { Look = Quaternion.identity }); yield return null; }
             boot.Cam.transform.position = SandboxHuntYard.Fire + new Vector3(5f, 3f, -9f);
             boot.Cam.transform.LookAt(SandboxHuntYard.Fire + new Vector3(-1f, .8f, 8f));
             yield return Capture(boot, body, "21-лагерь-сумерки", false);
-            boot.Hunt.Night.Want = 1f;
             boot.Hunt.End();
 
             Debug.Log("shots: папка " + Folder);

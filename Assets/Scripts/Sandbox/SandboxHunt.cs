@@ -12,10 +12,15 @@ namespace Height1079.Sandbox
     /// this frame as the Menk would read it, whether a rock stands between them, the things as objects in hands
     /// and in the snow, the torch, the night and the debrief.
     ///
-    /// N starts a run (the night comes down, the Menk appears, the list is laid out in the tent) and N again
-    /// abandons it. The torch is the kit's own flashlight (<see cref="SandboxGear"/>, the game's tube on F); what
-    /// the run adds is that a heavy thing in the hands puts it out. The run ends by itself: home at the fire when the wall comes, or dead — by the Menk, or by the
-    /// cold outside the fire. There is no timer on the screen, on purpose: the front is heard and seen coming.</summary>
+    /// N starts a run (the Menk appears, the list is laid out in the tent) and N again starts it over. The torch is
+    /// the kit's own flashlight (<see cref="SandboxGear"/>, the game's tube on F); what the run adds is that a heavy
+    /// thing in the hands puts it out. The run ends by itself: home at the fire when the wall comes, or dead — by the
+    /// Menk, or by the cold outside the fire. There is no timer on the screen, on purpose: the front is heard and
+    /// seen coming.
+    ///
+    /// The run does not own the world. It asks the clock for night ONCE, at its start (<see cref="SandboxSky.ToNight"/>),
+    /// and after that time goes on running over it; its storm clock is added to the day's own weather rather than
+    /// replacing it, so a front can arrive and pass whether or not anybody is running an errand.</summary>
     public sealed class SandboxHunt : MonoBehaviour
     {
         public const string Me = "Путник";
@@ -38,7 +43,6 @@ namespace Height1079.Sandbox
         public HunterBrain Menk => Run?.Menk;
         /// <summary>Whether something stood between the Menk's eyes and the body this frame.</summary>
         public bool Covered { get; private set; }
-        public SandboxNight Night { get; private set; }
 
         SandboxBoot boot;
         SandboxHuntMenk menkView;
@@ -54,7 +58,6 @@ namespace Height1079.Sandbox
             go.transform.SetParent(boot.transform, false);
             var h = go.GetComponent<SandboxHunt>();
             h.boot = boot;
-            h.Night = SandboxNight.Create(go.transform, boot.Cam);
             return h;
         }
 
@@ -72,7 +75,10 @@ namespace Height1079.Sandbox
             Run.Join(Me);
             Report = null; Dead = false; Crouch = Prone = false;
             trackMeter = 0f;
-            Night.Want = 1f; Night.Storm = 0f;
+            // the one thing the run says to the world, and it says it once: it is dark enough to need a torch.
+            // The clock goes on from there; the sky is never touched again.
+            var sky = boot != null ? boot.Sky : null;
+            if (sky != null) { sky.ToNight(); sky.RunStorm = 0f; }
             menkView = SandboxHuntMenk.Create(transform);
             LayOut();
             boot.Revive(SandboxHuntYard.Spawn);
@@ -80,11 +86,13 @@ namespace Height1079.Sandbox
             SandboxHud.Say("Ночь. В палатке впереди — печка. Принеси её к костру. F — фонарик, C — присесть, Z — лечь, R — взять/положить.");
         }
 
-        /// <summary>Back to the day, the yard left standing.</summary>
+        /// <summary>The run is over, the yard left standing. The hour stays where the clock has walked it to: the
+        /// day comes back by itself, in its own time.</summary>
         public void End()
         {
             Run = null; Report = null; Dead = false; Crouch = Prone = false;
-            Night.Want = 0f; Night.Storm = 0f;
+            var sky = boot != null ? boot.Sky : null;
+            if (sky != null) sky.RunStorm = 0f;
             if (menkView != null) Destroy(menkView.gameObject);
             menkView = null;
             // the yard's things go back where they lay; only stand-ins made here are thrown away
@@ -269,7 +277,9 @@ namespace Height1079.Sandbox
             if (Run == null || boot.Body == null) return;
             var body = boot.Body;
             float dt = Time.deltaTime;
-            Night.Storm = Run.Storm;
+            // the run's front is added to the day's weather, not put in its place (SandboxSky.Update)
+            var sky = boot.Sky;
+            if (sky != null) sky.RunStorm = Run.Storm;
             // a stove in both hands leaves none for the switch: F while carrying it is refused above, and a torch
             // lit before the stove was picked up goes out here
             var carrying = Held;

@@ -34,6 +34,10 @@ namespace Height1079.Sandbox
             var boot = SandboxBoot.Instance;
             SandboxHud.Panel = false;
             boot.Scripted = true;
+            // the check is of the body, not of the sky: the clock is held at half past one in the afternoon and the
+            // weather left alone, so a run of the same script is lit the same way every time. Section 13 asks the
+            // errand for night, and the errand moves the clock there itself.
+            if (boot.Sky != null) { boot.Sky.CycleSeconds = 1e6f; boot.Sky.SetHour(13.5); boot.Sky.WeatherRuns = false; }
             yield return null;
             var body = boot.Body;
             var t = boot.Tuning;

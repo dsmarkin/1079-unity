@@ -1,15 +1,47 @@
 using UnityEngine;
 using UnityEngine.Rendering;
 using Height1079.Core;
-using Height1079.Night;
 
-namespace Height1079.Runtime
+namespace Height1079.Night
 {
+    /// <summary>The hour the sky is asked to show, and whether a night is running behind it. Whoever owns the world
+    /// fills this in (the game: <c>Runtime/Bootstrap</c> off the session; the small map: <c>Sandbox/SandboxSky</c>
+    /// off its own clock), the dome asks for it every frame and never reaches into a session itself — that is what
+    /// lets one sky serve both.</summary>
+    public struct SkyMoment
+    {
+        /// <summary>Seconds into the night. The cloud deck and the aurora walk this, not the clock.</summary>
+        public float NightSeconds;
+        /// <summary>A night is running: the deck and the aurora follow <see cref="NightSeconds"/>. Off, the sky is
+        /// the still evening behind the menu.</summary>
+        public bool Running;
+        /// <summary>Local clock in minutes after midnight of 1 February, or below zero to take the hour from
+        /// <see cref="NightSeconds"/> the way the game's night does.</summary>
+        public double Minutes;
+
+        /// <summary>The night at this second, clock and all, as the game reads it.</summary>
+        public static SkyMoment InNight(float nightSeconds) => new SkyMoment { NightSeconds = nightSeconds, Running = true, Minutes = -1.0 };
+        /// <summary>This hour of the day, with no night counting behind it.</summary>
+        public static SkyMoment AtClock(double minutes) => new SkyMoment { NightSeconds = 0f, Running = false, Minutes = minutes };
+    }
+
     /// <summary>The sky of 1–2 February 1959 around the camera: gradient and twilight glow, Milky Way, the real star field turning with
     /// sidereal time, the waning moon rising before dawn, a drifting cloud deck (overcast in blizzards, broken in the lulls) and, in two of
-    /// the lulls, a faint aurora (an artistic assumption). Also publishes the sun/moon state the lighting uses (Bootstrap.Atmosphere).</summary>
+    /// the lulls, a faint aurora (an artistic assumption). Also publishes the sun/moon state the lighting uses (the game's
+    /// <c>Bootstrap.Atmosphere</c>, the small map's <c>SandboxSky</c>).
+    ///
+    /// In the shared assembly, with nothing of the session in it, so the small map shows the mountain's own sky
+    /// instead of a lookalike: it takes its hour from <see cref="Clock"/> and its assets from Resources.</summary>
     public sealed class SkyDome : MonoBehaviour
     {
+        /// <summary>Where the dome takes its hour from, set once by whoever owns the world. Unset, the sky stands at
+        /// 16:40 — the valley behind the game's menu, the sun on the ridge.</summary>
+        public static System.Func<SkyMoment> Clock;
+
+        /// <summary>Draw the sun itself when it is up (disc, halo, aureole). The game's night never has the sun above
+        /// the ridge, and its menu has never shown a disc, so this is off unless a day asks for it.</summary>
+        public bool ShowSun;
+
         public static double Minutes { get; private set; }
         public static float SunAlt { get; private set; }
         public static Vector3 SunDir { get; private set; }
@@ -22,11 +54,24 @@ namespace Height1079.Runtime
         public static Color Zenith { get; private set; }
         public static Color Glow { get; private set; }
 
+        /// <summary>How dark it is, 0 … 1: by the sun's altitude, with a little more under a closed cloud deck. The
+        /// last of the light goes a touch before nautical dusk. Read by everything that has to agree on what "night"
+        /// means — the game's lighting, the small map's, the fog, the film.</summary>
+        public static float Darkness
+        {
+            get
+            {
+                float n = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(-1.5f, -13f, SunAlt));
+                return Mathf.Clamp01(n + .08f * CloudCover * n);
+            }
+        }
+
         static readonly int ZenithId = Shader.PropertyToID("_SkyZenith"), HorizonId = Shader.PropertyToID("_SkyHorizon"), GlowId = Shader.PropertyToID("_SkyGlow"),
             SunId = Shader.PropertyToID("_SunDirW"), MoonId = Shader.PropertyToID("_MoonDirW"), PoleId = Shader.PropertyToID("_GalPoleW"), CentreId = Shader.PropertyToID("_GalCentreW"),
             StormId = Shader.PropertyToID("_SkyStorm"), MilkyId = Shader.PropertyToID("_MilkyWay"), StarVisId = Shader.PropertyToID("_StarVis"),
             CoverId = Shader.PropertyToID("_CloudCover"), CloudTimeId = Shader.PropertyToID("_CloudTime"), WindId = Shader.PropertyToID("_CloudWind"),
-            AuroraId = Shader.PropertyToID("_Aurora"), AuroraTimeId = Shader.PropertyToID("_AuroraTime"), MoonLitId = Shader.PropertyToID("_MoonLit");
+            AuroraId = Shader.PropertyToID("_Aurora"), AuroraTimeId = Shader.PropertyToID("_AuroraTime"), MoonLitId = Shader.PropertyToID("_MoonLit"),
+            SunDiscId = Shader.PropertyToID("_SunDisc");
 
         Transform dome, clouds, aurora, stars, moon;
         float cloudTime;
@@ -40,8 +85,8 @@ namespace Height1079.Runtime
 
         Transform Part(string name, string mesh, string mat, float scale)
         {
-            var m = WorldAssets.Load<Mesh>("Meshes/Sky/" + mesh);
-            var mt = WorldAssets.Load<Material>("Materials/Sky/" + mat);
+            var m = SkyAssets.Load<Mesh>("Meshes/Sky/" + mesh);
+            var mt = SkyAssets.Load<Material>("Materials/Sky/" + mat);
             if (m == null || mt == null) { Debug.LogWarning($"1079 sky: missing {mesh}/{mat}"); return null; }
             var go = new GameObject(name, typeof(MeshFilter), typeof(MeshRenderer));
             go.transform.SetParent(transform, false);
@@ -63,11 +108,14 @@ namespace Height1079.Runtime
             clouds = Part("Clouds", "Dome", "Clouds", 2800f);
         }
 
-        // twilight palette by the sun's altitude (degrees): zenith, horizon, glow
-        static readonly float[] Alts = { 4f, 0f, -4f, -8f, -12f, -18f };
-        static readonly Color[] Zeniths = { new Color(.36f, .45f, .58f), new Color(.27f, .35f, .48f), new Color(.14f, .19f, .31f), new Color(.055f, .08f, .15f), new Color(.032f, .042f, .072f), new Color(.022f, .028f, .046f) };
-        static readonly Color[] Horizons = { new Color(.78f, .76f, .74f), new Color(.66f, .6f, .6f), new Color(.42f, .38f, .44f), new Color(.15f, .15f, .21f), new Color(.062f, .068f, .092f), new Color(.036f, .042f, .058f) };
-        static readonly Color[] Glows = { new Color(.9f, .55f, .3f), new Color(1.1f, .55f, .3f), new Color(.85f, .38f, .27f), new Color(.42f, .2f, .18f), new Color(.1f, .06f, .07f), Color.black };
+        // twilight palette by the sun's altitude (degrees): zenith, horizon, glow.
+        // Above 4° is the daylight half, and it exists for the day that runs on the small map: a February sun at this
+        // latitude never gets past 11°, and the game's night never has it above the ridge at all, so nothing the game
+        // draws is touched by these three rows.
+        static readonly float[] Alts = { 30f, 11f, 6f, 4f, 0f, -4f, -8f, -12f, -18f };
+        static readonly Color[] Zeniths = { new Color(.16f, .33f, .62f), new Color(.22f, .38f, .63f), new Color(.29f, .42f, .6f), new Color(.36f, .45f, .58f), new Color(.27f, .35f, .48f), new Color(.14f, .19f, .31f), new Color(.055f, .08f, .15f), new Color(.032f, .042f, .072f), new Color(.022f, .028f, .046f) };
+        static readonly Color[] Horizons = { new Color(.76f, .83f, .92f), new Color(.8f, .83f, .87f), new Color(.8f, .8f, .8f), new Color(.78f, .76f, .74f), new Color(.66f, .6f, .6f), new Color(.42f, .38f, .44f), new Color(.15f, .15f, .21f), new Color(.062f, .068f, .092f), new Color(.036f, .042f, .058f) };
+        static readonly Color[] Glows = { new Color(.16f, .14f, .1f), new Color(.4f, .3f, .18f), new Color(.68f, .45f, .25f), new Color(.9f, .55f, .3f), new Color(1.1f, .55f, .3f), new Color(.85f, .38f, .27f), new Color(.42f, .2f, .18f), new Color(.1f, .06f, .07f), Color.black };
 
         static Color Palette(Color[] table, float alt)
         {
@@ -98,14 +146,11 @@ namespace Height1079.Runtime
         {
             var cam = Camera.main;
             if (cam == null) return;
-            var s = NightSession.Instance;
-            float elapsed = s != null ? s.Elapsed.Value : 0f;
-            bool running = s != null;
-            // the demo reel walks the night itself, with no session behind it
-            if (DemoReel.NightSeconds >= 0f) { elapsed = DemoReel.NightSeconds; running = true; }
             // the menu shows the valley at 16:40, the sun on the ridge
-            Minutes = running ? Sky.ClockMinutes(elapsed) : 16 * 60 + 40;
-            if (DemoReel.ClockMinutes >= 0f) Minutes = DemoReel.ClockMinutes;
+            var now = Clock != null ? Clock() : SkyMoment.AtClock(16 * 60 + 40);
+            float elapsed = now.NightSeconds;
+            bool running = now.Running;
+            Minutes = now.Minutes >= 0.0 ? now.Minutes : running ? Sky.ClockMinutes(elapsed) : 16 * 60 + 40;
             double jd = Sky.JulianDay(Minutes);
             var (sa, sz) = Sky.Sun(jd);
             var (ma, mz, lit) = Sky.Moon(jd);
@@ -134,6 +179,8 @@ namespace Height1079.Runtime
             Shader.SetGlobalVector(GlowId, (Vector4)Glow);
             Shader.SetGlobalVector(SunId, SunDir);
             Shader.SetGlobalVector(MoonId, MoonDir);
+            // the disc is drawn only where a day asks for it, and fades out as the sun touches the horizon
+            Shader.SetGlobalFloat(SunDiscId, ShowSun ? Mathf.InverseLerp(-.6f, 1.2f, SunAlt) * (1f - storm) : 0f);
             Shader.SetGlobalFloat(StormId, storm);
             Shader.SetGlobalFloat(StarVisId, Mathf.InverseLerp(-5f, -13f, SunAlt));
             Shader.SetGlobalFloat(MilkyId, Mathf.InverseLerp(-13f, -18f, SunAlt) * (1f - storm));
@@ -166,5 +213,7 @@ namespace Height1079.Runtime
             if (aurora != null) aurora.gameObject.SetActive(Aurora > .001f);
             if (cam.farClipPlane < 3100f) cam.farClipPlane = 3100f;
         }
+
+        void OnDestroy() { if (ShowSun) Shader.SetGlobalFloat(SunDiscId, 0f); }
     }
 }
