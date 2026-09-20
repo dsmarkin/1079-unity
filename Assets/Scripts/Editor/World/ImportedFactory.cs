@@ -72,7 +72,7 @@ namespace Height1079.EditorTools.World
             // the pack's pup tent (1.8 × 1.6 m of canvas, guy lines out to twice that), drawn out to 3.6 × 2 m — near
             // the camp tent's 4.3 × 2; its open end comes out at +Z, like the site's. Only the canvas collides, so a
             // body crawls in through the mouth and the guy lines do not trip it
-            new Entry("Tent", Survival + "Tent.fbx", 1.5f, Fit.Height) { Shape = Shape.Mesh, CollideOn = new[] { "LightGreen", "Green" }, Stretch = new Vector3(1.25f, 1f, 2f),
+            new Entry("Tent", Survival + "Tent.fbx", 1.5f, Fit.Height) { Shape = Shape.Mesh, CollideOn = new[] { "LightGreen", "Green" }, Stretch = new Vector3(1.6f, 1f, 2f),
                 Colours = new[] { ("DarkWood", Palette.Wood), ("Black", Palette.Quilt), ("LightGreen", Palette.Canvas), ("Green", Palette.Anorak) } },
             new Entry("Bedroll", KenneyModels + "bedroll.glb", 1.7f, Fit.Length) { AlignZ = true,
                 Colours = new[] { ("blanket", Palette.Quilt), ("*", Palette.Canvas) } },
