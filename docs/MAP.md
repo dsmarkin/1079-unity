@@ -133,3 +133,5 @@
 - **ArcticDEM:** свободное использование с благодарностью PGC и NSF по правилам https://www.pgc.umn.edu/guides/user-services/acknowledgement-policy/.
 - **Meta/WRI Canopy Height** (Tolan et al., 2024): открытые данные на AWS Open Data (`dataforgood-fb-data`). Лицензию и цитирование нужно указать по странице набора в реестре AWS.
 - **Poly Haven:** CC0, атрибуция не обязательна, авторы перечислены в `SOURCES.json`.
+- **Quaternius** (Survival Pack, Ultimate Nature Pack — low-poly модели снаряжения, деревьев и кустов): CC0 1.0, `Assets/Art/ThirdParty/Quaternius/SOURCES.json`. Атрибуция не обязательна; автор — Quaternius, https://quaternius.com.
+- **Kenney** (Survival Kit 2.0 — low-poly модели лагеря: спальники, камни, брёвна): CC0 1.0, `Assets/Art/ThirdParty/Kenney/SOURCES.json`. Атрибуция не обязательна; автор — Kenney, https://kenney.nl.
