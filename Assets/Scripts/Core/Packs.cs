@@ -27,6 +27,9 @@ namespace Height1079.Core
         // other, carried in a slot, and this id is what the sandbox's kit calls it. Appended, as every new item is:
         // the number goes over the network and into saves.
         Flashlight,
+        // the camp stove of 1959 (Sites.Camp31): the thing the sandbox's night is about — carried in both hands,
+        // at a walk, from the tent to the fire. Appended, as every new item is.
+        Stove,
     }
 
     public enum ItemKind : byte { Food, Gear, Clothes, Fuel }
@@ -147,6 +150,7 @@ namespace Height1079.Core
             new ItemSpec(ItemId.ProgrammeSheet, "Программа восхождения (лист)", .02f, .05f, ItemKind.Gear),
             // nickel tube, two cells inside: about the weight of the cells
             new ItemSpec(ItemId.Flashlight, "Фонарик", .35f, .6f, ItemKind.Gear),
+            new ItemSpec(ItemId.Stove, "Печка", 4f, 12f, ItemKind.Gear),
         };
 
         public static ItemSpec Spec(ItemId id) => (int)id < specs.Length ? specs[(int)id] : specs[0];

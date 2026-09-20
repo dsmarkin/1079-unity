@@ -24,8 +24,6 @@ namespace Height1079.Sandbox
         public static readonly Vector3 Origin = new Vector3(0f, 0f, -250f);
         public static Vector3 Fire => Origin + new Vector3(0f, 0f, -Size * .5f + 5f);
         public static Vector3 Tent => Origin + new Vector3(0f, 0f, Size * .5f - 5f);
-        /// <summary>The second section: the cache in the snow, east of the line from the fire to the tent.</summary>
-        public static Vector3 Labaz => Origin + new Vector3(23f, 0f, 2f);
         /// <summary>Where a body is put down to start: beside the fire, facing the tent.</summary>
         public static Vector3 Spawn => Fire + new Vector3(1.3f, 1.2f, 2.1f);
         /// <summary>Top of the snow you see, world y.</summary>
@@ -39,7 +37,6 @@ namespace Height1079.Sandbox
         public static Transform Root { get; private set; }
         public static Light FireLight { get; private set; }
         public static Transform TentRoot { get; private set; }
-        public static Transform LabazRoot { get; private set; }
         /// <summary>The things to bring, by the list's names, as objects lying where they lie; the run moves them.</summary>
         public static readonly Dictionary<string, Transform> Props = new Dictionary<string, Transform>();
         /// <summary>Where each thing lay at the start, so a new run puts it back.</summary>
@@ -67,7 +64,7 @@ namespace Height1079.Sandbox
             (Cover.Rock,     -3f,  17f, 2.1f),
             (Cover.Spruce,    8f,  21f, 11f),
             (Cover.Rock,     -9f,  23f, 1.8f),
-            // the way east, to the labaz, and the labaz's own ring
+            // the east side, so the way back can be taken wide of the ring
             (Cover.Windfall, 18f, -14f, 1.0f),
             (Cover.Rock,     17f,  -7f, 2.0f),
             (Cover.Spruce,   27f,  -8f, 11f),
@@ -92,7 +89,6 @@ namespace Height1079.Sandbox
 
             FireAt(Fire);
             TentAt(Tent);
-            LabazAt(Labaz);
             var rnd = new System.Random(1959);
             foreach (var s in Plan)
             {
@@ -112,7 +108,7 @@ namespace Height1079.Sandbox
         {
             Shelters.Clear(); Props.Clear(); Home.Clear(); Heights.Clear();
             if (Root != null) Object.Destroy(Root.gameObject);
-            Root = null; FireLight = null; TentRoot = null; LabazRoot = null;
+            Root = null; FireLight = null; TentRoot = null;
         }
 
         static GameObject Load(string path) => Resources.Load<GameObject>(Prefabs + path);
@@ -169,49 +165,9 @@ namespace Height1079.Sandbox
             if (prefab == null) { TentFallback(at); return; }
             // the prefab's +Z is its doorway; the fire is to the south
             TentRoot = Put(prefab, at + Vector3.up * (SnowTop - .02f), 180f);
+            // the stove comes out of the tent as a thing of its own, standing where it hung; the diary and the
+            // Zorkiy stay where they lay — the night is about the stove
             Extract("печка", "Stove", "StoveDoor");
-            Extract("дневник", "Diary", "Pencil");
-            Extract("фотоаппарат", "Cam");
-            var roll = Load("Cargo/Tent");
-            if (roll != null)
-            {
-                var toFire = (Fire - at); toFire.y = 0f; toFire.Normalize();
-                var side = Vector3.Cross(Vector3.up, toFire);
-                var r = Put(roll, at + toFire * 3.4f + side * 1.2f + Vector3.up * SnowTop, 70f);
-                Register("свёрнутая палатка", Wrap(r, "свёрнутая палатка"));
-            }
-        }
-
-        /// <summary>The labaz: the cache dug into the snow and covered with firewood and fir branches, marked by
-        /// one ski. Its things lie around it — rusks and candles in a hand, firewood in both, the spare skis for two.</summary>
-        static void LabazAt(Vector3 at)
-        {
-            var prefab = Load("Sites/Site_Labaz_1959");
-            if (prefab != null) LabazRoot = Put(prefab, at + Vector3.up * (SnowTop - .02f), 20f);
-            else
-            {
-                var fallback = Box("LabazFallback", at + Vector3.up * (SnowTop + .3f), new Vector3(2.2f, .6f, 1.6f), snow);
-                LabazRoot = fallback.transform;
-            }
-            var toFire = Fire - at; toFire.y = 0f; toFire.Normalize();
-            var side = Vector3.Cross(Vector3.up, toFire);
-            Cargo("сухари", "Cargo/Rusks", at + toFire * 1.6f + side * .9f, 15f, new Vector3(.3f, .2f, .3f), new Color(.6f, .45f, .3f));
-            Cargo("свечи", "Cargo/Candles", at + toFire * 1.9f - side * 1.0f, -30f, new Vector3(.2f, .1f, .2f), new Color(.9f, .85f, .7f));
-            Cargo("дрова", "Cargo/Firewood", at - toFire * 1.2f + side * 1.4f, 60f, new Vector3(.5f, .35f, .5f), new Color(.35f, .25f, .15f));
-            Cargo("запасные лыжи", "Gear/Ski_Pair_Packed", at - toFire * 1.0f - side * 1.8f, 100f, new Vector3(2f, .12f, .2f), new Color(.5f, .35f, .2f));
-        }
-
-        static void Cargo(string item, string path, Vector3 at, float yaw, Vector3 standSize, Color standColour)
-        {
-            var prefab = Load(path);
-            if (prefab != null) { Register(item, Wrap(Put(prefab, at + Vector3.up * SnowTop, yaw), item)); return; }
-            var go = Box("Item " + item, at + Vector3.up * (SnowTop + standSize.y * .5f), standSize, new Material(Shader.Find("Standard")) { color = standColour });
-            Object.Destroy(go.GetComponent<Collider>());
-            var root = new GameObject("Item " + item).transform;
-            root.SetParent(Root, true); root.position = at + Vector3.up * SnowTop;
-            go.transform.SetParent(root, true);
-            Heights[item] = standSize.y;
-            Register(item, root);
         }
 
         /// <summary>Lifts the parts of the tent whose names start with <paramref name="prefixes"/> out into an
@@ -380,10 +336,7 @@ namespace Height1079.Sandbox
             // the things, as blocks, where the list puts them
             var toFire = (Fire - at); toFire.y = 0f; toFire.Normalize();
             var side2 = Vector3.Cross(Vector3.up, toFire);
-            Stand("дневник", at + toFire * 1.4f + side2 * .5f, new Vector3(.24f, .05f, .32f), new Color(.36f, .22f, .14f));
-            Stand("фотоаппарат", at + toFire * 1.5f - side2 * .5f, new Vector3(.15f, .1f, .09f), new Color(.12f, .12f, .13f));
             Stand("печка", at - toFire * 1.4f, new Vector3(.3f, .3f, .5f), new Color(.45f, .45f, .47f));
-            Stand("свёрнутая палатка", at + toFire * 3.4f + side2 * 1.2f, new Vector3(1.6f, .5f, .5f), new Color(.35f, .4f, .32f));
         }
 
         static void Stand(string item, Vector3 at, Vector3 size, Color c)

@@ -545,6 +545,16 @@ namespace Height1079.Core
         public int DeliveredIn(string section) { int n = 0; foreach (var i in Items) if (i.Delivered && i.Section == section) n++; return n; }
         public int TotalIn(string section) { int n = 0; foreach (var i in Items) if (i.Section == section) n++; return n; }
 
+        /// <summary>The night of the sandbox: one thing — the stove at the back of the tent, both hands, a walk.</summary>
+        public static Errand Stove(float fireX, float fireZ, float tentX, float tentZ)
+        {
+            var e = new Errand(fireX, fireZ);
+            float dx = fireX - tentX, dz = fireZ - tentZ; float len = (float)Math.Sqrt(dx * dx + dz * dz); if (len < 1e-3f) { dx = 0; dz = -1; len = 1; }
+            dx /= len; dz /= len;
+            e.Items.Add(new ErrandItem { Name = "печка", Carry = Carry.Heavy, X = tentX - dx * 1.4f, Z = tentZ - dz * 1.4f });
+            return e;
+        }
+
         /// <summary>The whole camp: the tent's four, and at the labaz — the cache dug into the snow and covered
         /// with firewood, marked by one ski — rusks and candles to carry in a hand, firewood in both, and the spare
         /// skis, which take two.</summary>
@@ -621,8 +631,10 @@ namespace Height1079.Core
         public string Outcome { get; private set; } = "";
         /// <summary>The second section is on the Menk's beat and on the list's second line.</summary>
         public bool LabazOpen { get; private set; }
+        /// <summary>Things home before the night may be called done: the rule's three, or all of a shorter list.</summary>
+        public int QuotaNeeded => Math.Min(HuntRules.Quota, Errand.Total);
         /// <summary>Enough is home: the night may be called done at the fire.</summary>
-        public bool QuotaMet => Errand.Delivered >= HuntRules.Quota;
+        public bool QuotaMet => Errand.Delivered >= QuotaNeeded;
         public bool HasLabaz => !float.IsNaN(LabazX);
         float wallFor, homeFor;
 
@@ -630,15 +642,15 @@ namespace Height1079.Core
         public bool Wall => HuntRules.IsWall(Storm);
 
         public HuntRun(float fireX, float fireZ, float tentX, float tentZ, float length = HuntRules.RunSeconds, int seed = 1959,
-                       float labazX = float.NaN, float labazZ = float.NaN)
+                       float labazX = float.NaN, float labazZ = float.NaN, Errand errand = null)
         {
             FireX = fireX; FireZ = fireZ; TentX = tentX; TentZ = tentZ; LabazX = labazX; LabazZ = labazZ; Length = length;
-            Errand = float.IsNaN(labazX) ? Errand.Standard(fireX, fireZ, tentX, tentZ) : Errand.Camp(fireX, fireZ, tentX, tentZ, labazX, labazZ);
+            Errand = errand ?? (float.IsNaN(labazX) ? Errand.Standard(fireX, fireZ, tentX, tentZ) : Errand.Camp(fireX, fireZ, tentX, tentZ, labazX, labazZ));
             Menk = new HunterBrain(tentX, tentZ, Tracks, seed);
             Menk.Say = Record;
             Menk.Hit = who => Kill(who, "Менк");
             Record("Вышли от костра. В палатке: " + string.Join(", ", Errand.Items.FindAll(i => i.Section == "палатка").ConvertAll(i => i.Name)) + ".");
-            if (HasLabaz) Record($"Хватит {HuntRules.Quota} вещей у костра, потом — все к огню, пока не накрыло.");
+            if (Errand.Total > 1) Record($"Хватит {QuotaNeeded} вещей у костра, потом — все к огню, пока не накрыло.");
         }
 
         public void Record(string text) => Events.Add(new NightEvent(Elapsed, text));
@@ -693,8 +705,10 @@ namespace Height1079.Core
                 wallFor += dt;
                 if (alive > 0 && home == alive && wallFor > 10f) End("вернулись");
             }
-            // the finish: enough is home and everyone is at the fire — the night is called before the wall
-            if (!Over && QuotaMet && alive > 0 && home == alive) { homeFor += dt; if (homeFor >= HuntRules.FinishHold) End("вернулись"); }
+            // the finish: enough is home and everyone is at the fire — the night is called before the wall; with
+            // everything home there is nothing to wait for
+            if (!Over && alive > 0 && Errand.Delivered == Errand.Total) End("вернулись");
+            else if (!Over && QuotaMet && alive > 0 && home == alive) { homeFor += dt; if (homeFor >= HuntRules.FinishHold) End("вернулись"); }
             else homeFor = 0f;
             if (alive == 0 && Party.Count > 0) End("все погибли");
         }
@@ -743,7 +757,7 @@ namespace Height1079.Core
                 Menk.AddPost(LabazX, LabazZ);
                 Record("Теперь лабаз: " + string.Join(", ", Errand.Items.FindAll(i => i.Section == "лабаз").ConvertAll(i => i.Name)) + ". Менк ходит и туда.");
             }
-            if (Errand.Delivered == HuntRules.Quota) Record("Хватит. Все к костру — ночь окончена, когда все у огня.");
+            if (Errand.Total > 1 && Errand.Delivered == QuotaNeeded) Record("Хватит. Все к костру — ночь окончена, когда все у огня.");
         }
 
         /// <summary>Thrown: it lands a few metres away and the snow hears it.</summary>
@@ -774,7 +788,9 @@ namespace Height1079.Core
                 if (i.Delivered) brought.Add(i.Name);
                 else left.Add($"{i.Name} — {HuntRules.Dist(i.X, i.Z, FireX, FireZ):0} м от костра");
             }
-            lines.Add($"Принесли {Errand.Delivered} из {Errand.Total} (нужно {HuntRules.Quota})" + (brought.Count > 0 ? ": " + string.Join(", ", brought) : "") + ".");
+            lines.Add(Errand.Total == 1
+                ? (Errand.Delivered == 1 ? "Печка у костра." : "Печка не донесена.")
+                : $"Принесли {Errand.Delivered} из {Errand.Total} (нужно {QuotaNeeded})" + (brought.Count > 0 ? ": " + string.Join(", ", brought) : "") + ".");
             if (HasLabaz) lines.Add($"Из палатки {Errand.DeliveredIn("палатка")} из {Errand.TotalIn("палатка")}, из лабаза {Errand.DeliveredIn("лабаз")} из {Errand.TotalIn("лабаз")}" + (LabazOpen ? "." : " (лабаз не открылся)."));
             if (left.Count > 0) lines.Add("Осталось лежать: " + string.Join("; ", left) + ".");
             foreach (var m in Party)

@@ -67,8 +67,8 @@ namespace Height1079.Sandbox
         {
             if (Run != null) End();
             if (seconds <= 0f) seconds = RunMinutes * 60f;
-            var fire = SandboxHuntYard.Fire; var tent = SandboxHuntYard.Tent; var labaz = SandboxHuntYard.Labaz;
-            Run = new HuntRun(fire.x, fire.z, tent.x, tent.z, seconds, Random.Range(1, 100000), labaz.x, labaz.z);
+            var fire = SandboxHuntYard.Fire; var tent = SandboxHuntYard.Tent;
+            Run = new HuntRun(fire.x, fire.z, tent.x, tent.z, seconds, Random.Range(1, 100000), errand: Errand.Stove(fire.x, fire.z, tent.x, tent.z));
             Run.Join(Me);
             Report = null; Dead = false; Crouch = Prone = false;
             trackMeter = 0f;
@@ -77,7 +77,7 @@ namespace Height1079.Sandbox
             LayOut();
             boot.Revive(SandboxHuntYard.Spawn);
             lastPos = boot.Body.Torso.position;
-            SandboxHud.Say("Ночь. Сначала палатка впереди, потом лабаз справа; три вещи у костра — и все к огню. F — фонарик, C — присесть, Z — лечь, R — взять/положить, X — бросить.");
+            SandboxHud.Say("Ночь. В палатке впереди — печка. Принеси её к костру. F — фонарик, C — присесть, Z — лечь, R — взять/положить.");
         }
 
         /// <summary>Back to the day, the yard left standing.</summary>
@@ -217,10 +217,43 @@ namespace Height1079.Sandbox
             Place(item, new Vector3(land.x, 0f, land.z), false);
         }
 
-        void Hold(ErrandItem item) { }
+        /// <summary>Into the kit, at hand: the thing is in a slot with its name, the way everything carried is.</summary>
+        void Hold(ErrandItem item)
+        {
+            var kit = boot.Gear != null ? boot.Gear.Kit : null;
+            if (kit == null) return;
+            var id = KitId(item);
+            if (id == ItemId.None) return;
+            if (kit.SlotOf(id) == Kit.Nothing) kit.Give(new ItemStack(id));
+            int slot = kit.SlotOf(id);
+            if (slot != Kit.Nothing && kit.Selected != slot) kit.Select(slot);
+        }
+
+        void Unhold(ErrandItem item)
+        {
+            var kit = boot.Gear != null ? boot.Gear.Kit : null;
+            if (kit == null) return;
+            var id = KitId(item);
+            int slot = id == ItemId.None ? Kit.Nothing : kit.SlotOf(id);
+            if (slot != Kit.Nothing) kit.Consume(slot);
+        }
+
+        static ItemId KitId(ErrandItem item)
+        {
+            switch (item.Name)
+            {
+                case "печка": return ItemId.Stove;
+                case "дрова": return ItemId.Firewood;
+                case "сухари": return ItemId.Rusks;
+                case "свечи": return ItemId.Candles;
+                case "свёрнутая палатка": return ItemId.Tent;
+                default: return ItemId.None;
+            }
+        }
 
         void Place(ErrandItem item, Vector3 at, bool home)
         {
+            Unhold(item);
             if (!props.TryGetValue(item, out var p) || p == null) return;
             if (home) { p.gameObject.SetActive(false); props.Remove(item); return; }
             p.SetParent(SandboxHuntYard.Root, true);
@@ -244,7 +277,11 @@ namespace Height1079.Sandbox
 
             if (Run.Over)
             {
-                if (Report == null) Report = Run.Report();
+                if (Report == null)
+                {
+                    Report = Run.Report();
+                    if (!Dead) boot.ShowEnd("ПЕЧКА У КОСТРА", "Донёс. Ночь окончена: " + HuntRules.Clock(Run.Elapsed) + " от выхода до костра.");
+                }
                 menkView?.Show(Run.Menk, dt);
                 CarryHeld();
                 return;
@@ -327,39 +364,14 @@ namespace Height1079.Sandbox
                 p.SetPositionAndRotation(body.Torso.position + body.Facing * new Vector3(heavy ? 0f : .25f, (heavy ? -.1f : .05f) - lift, .45f), body.Facing);
         }
 
-        // ── for the screen: the state of the body, and the list ──
+        /// <summary>For the F1 panel only: the state the Menk reads off the body.</summary>
         public string Status()
         {
             if (Run == null) return "";
             var held = Held;
-            string s = (held != null ? "в руках: " + held.Name : "руки свободны") + (Torch ? " · фонарь" : "")
-                     + (boot.Body != null && boot.Body.Prone ? " · лёжа" : boot.Body != null && boot.Body.Low ? " · присев" : "")
-                     + (Covered ? " · за укрытием" : "");
-            if (Run.Wall) s += "\nПУРГА — к костру!";
-            else if (Run.Storm > .05f) s += "\nветер крепчает";
-            return s;
-        }
-
-        /// <summary>The list, one line a section: what is home is ticked, what takes two says so, the labaz line
-        /// waits until that section is open. The last line says how many more the night needs.</summary>
-        public string TaskList()
-        {
-            if (Run == null) return "";
-            string Line(string section)
-            {
-                var parts = new List<string>();
-                foreach (var i in Run.Errand.Items)
-                {
-                    if (i.Section != section) continue;
-                    parts.Add(i.Delivered ? "✓ " + i.Name : i.HeldBy != null ? "» " + i.Name : i.Carry == Carry.Pair ? i.Name + " (вдвоём)" : i.Name);
-                }
-                return string.Join(" · ", parts);
-            }
-            string s = "1. Палатка: " + Line("палатка");
-            s += Run.LabazOpen ? "\n2. Лабаз: " + Line("лабаз") : "\n2. Лабаз — после первой вещи из палатки";
-            int need = HuntRules.Quota - Run.Errand.Delivered;
-            s += need > 0 ? $"\nу костра {Run.Errand.Delivered} из {HuntRules.Quota} нужных" : "\nХВАТИТ — все к костру";
-            return s;
+            return (held != null ? "в руках: " + held.Name : "руки свободны") + (Torch ? " · фонарь" : "")
+                 + (boot.Body != null && boot.Body.Prone ? " · лёжа" : boot.Body != null && boot.Body.Low ? " · присев" : "")
+                 + (Covered ? " · за укрытием" : "") + (Run.Wall ? " · СТЕНА" : Run.Storm > .05f ? " · ветер крепчает" : "");
         }
     }
 }

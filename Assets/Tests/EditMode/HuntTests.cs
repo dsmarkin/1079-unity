@@ -326,5 +326,26 @@ namespace Height1079.Tests
             Assert.IsTrue(report[0].StartsWith("Принесли 3 из 8 (нужно 3)"), report[0]);
             Assert.IsTrue(report.Exists(l => l.StartsWith("Из палатки 2 из 4, из лабаза 1 из 4")), string.Join(" | ", report));
         }
+
+        [Test]
+        public void OneStoveHomeEndsTheNightAtOnce()
+        {
+            var run = new HuntRun(FireX, FireZ, TentX, TentZ, length: 900f, errand: Errand.Stove(FireX, FireZ, TentX, TentZ));
+            run.Join("Путник");
+            Assert.AreEqual(1, run.Errand.Total);
+            Assert.AreEqual(1, run.QuotaNeeded);
+            var stove = run.Errand.Items[0];
+            Assert.AreEqual(Carry.Heavy, stove.Carry);
+            Assert.Less(HuntRules.Dist(stove.X, stove.Z, TentX, TentZ), 2f, "at the back of the tent");
+            var atFire = new List<HuntSeen> { Standing(FireX + 2f, FireZ, covered: true, low: true) };
+            run.Tick(.1f, atFire);
+            Assert.IsFalse(run.Over);
+            Assert.IsNull(run.Take("Путник", stove));
+            Assert.IsTrue(run.PutDown("Путник", FireX + 1f, FireZ));
+            run.Tick(.1f, atFire);
+            Assert.IsTrue(run.Over);
+            Assert.AreEqual("вернулись", run.Outcome);
+            Assert.AreEqual("Печка у костра.", run.Report()[0]);
+        }
     }
 }

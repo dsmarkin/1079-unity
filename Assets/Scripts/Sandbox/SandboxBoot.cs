@@ -31,6 +31,8 @@ namespace Height1079.Sandbox
         public bool PackOpen { get; private set; }
         /// <summary>The night run of the yard (docs/SANDBOX.md): N starts and abandons it.</summary>
         public SandboxHunt Hunt { get; private set; }
+        /// <summary>The night was won: the screen is up with the words and the button, the body stands where it is.</summary>
+        public bool Ended { get; private set; }
         /// <summary>What the end-of-day screen says. The bar's own words unless a death had another cause.</summary>
         public string DeathTitle { get; private set; } = "СИЛ НЕ ОСТАЛОСЬ";
         public string DeathLine { get; private set; } = "Голод, холод и сон съели всю полоску. Тело легло в снег.";
@@ -209,6 +211,17 @@ namespace Height1079.Sandbox
         /// player was pressing when the blow landed does not skip the screen that says what happened.</summary>
         float diedAt = -99f;
 
+        /// <summary>The night is over and won: the same screen as a death, without the fall.</summary>
+        public void ShowEnd(string title, string line)
+        {
+            if (Dead || Ended) return;
+            Ended = true;
+            diedAt = Time.unscaledTime;
+            PackOpen = false;
+            DeathTitle = title; DeathLine = line;
+            ApplyCursor();
+        }
+
         public void Die(string title = null, string line = null)
         {
             if (Dead || Body == null) return;
@@ -236,7 +249,7 @@ namespace Height1079.Sandbox
         /// after a death. Leaves the night run alone: the run itself calls this to put its player at the fire.</summary>
         public void Revive(Vector3 at)
         {
-            Dead = false;
+            Dead = false; Ended = false;
             Vitals?.Restart();
             Gear?.Refill();
             Spawn();
@@ -263,7 +276,7 @@ namespace Height1079.Sandbox
         /// or while Esc has let it go; the rest of the time it is the look.</summary>
         void ApplyCursor()
         {
-            bool free = cursorFree || PackOpen || Dead;
+            bool free = cursorFree || PackOpen || Dead || Ended;
             Cursor.lockState = free ? CursorLockMode.None : CursorLockMode.Locked;
             Cursor.visible = free;
         }
@@ -287,10 +300,10 @@ namespace Height1079.Sandbox
             if (Scripted) return;
 #if ENABLE_INPUT_SYSTEM
             if (Down(Key.F9)) { LeaveToGame(); return; }
-            if (Dead)
+            if (Dead || Ended)
             {
                 // the day is over: only the way to a new one is left on the keys (and the button on the screen)
-                bool settled = Time.unscaledTime - diedAt > 2.5f;
+                bool settled = Time.unscaledTime - diedAt > (Dead ? 2.5f : 1f);
                 if (settled && (Down(Key.Enter) || Down(Key.NumpadEnter) || Down(Key.Space) || Down(Key.F2))) Restart();
                 Body.Drive(new PuppetInput { Look = rig.LookRotation });
                 return;
@@ -332,11 +345,7 @@ namespace Height1079.Sandbox
             // the night run of the yard (docs/SANDBOX.md): N brings the night down and puts the body at the fire;
             // N again gives the day back. Its verbs are the game's own keys — F is the light above, R takes and
             // puts down, X throws — and C and Z are the two things a hunted body does that a walking one does not.
-            if (Down(Key.N))
-            {
-                if (Hunt.Active) { Hunt.End(); SandboxHud.Say("забег прерван — день (N — снова ночь)"); }
-                else Hunt.Begin();
-            }
+            if (Down(Key.N)) Hunt.Begin();
             if (Hunt.Run != null)
             {
                 if (Down(Key.C)) Hunt.ToggleCrouch();
