@@ -528,6 +528,15 @@ namespace Height1079.Sandbox
                 }
             }
 
+            // ── the figure: the model from the file or the one sculpted in code ──
+            GUILayout.Label("фигура (B)", head);
+            if (boot.Hiker != null)
+            {
+                if (GUILayout.Button(boot.Hiker.Status)) boot.Hiker.Toggle();
+                var figure = b.GetComponent<PuppetFigure>();
+                if (figure != null && figure.HasModel) GUILayout.Label(figure.ModelReport, small);
+            }
+
             GUILayout.Label("масса и сложение", head);
             t.TorsoMass = Row("масса тела, кг", t.TorsoMass, 30f, 140f);
             t.HandMass = Row("масса кисти, кг", t.HandMass, .5f, 12f);

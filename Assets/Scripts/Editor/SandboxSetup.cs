@@ -91,6 +91,9 @@ namespace Height1079.EditorTools
         /// the sandbox without anybody having to know it exists.</summary>
         public static void Ensure()
         {
+            // the test model for the skeleton (Assets/Data/hiker-v1.glb → Resources/hiker.bytes) is the game's, and
+            // a sandbox built on its own must ship it too: SandboxHiker loads it exactly as HikerAnimator does
+            ProjectSetup.EnsureHikerModel(false);
             EnsureMaterials();
             if (File.Exists(ScenePath)) return;
             Directory.CreateDirectory("Assets/Scenes");
@@ -114,6 +117,9 @@ namespace Height1079.EditorTools
         {
             SandboxSetup.Ensure();
             AssetDatabase.SaveAssets();
+            // the same guard the game's build has: a .bytes asset imported in this very session can reach the
+            // player empty (CLAUDE.md, "Пустой мир в сборке"), and here that is the body's model
+            Builds.EnsureData();
             var report = BuildPipeline.BuildPlayer(new BuildPlayerOptions
             {
                 scenes = new[] { SandboxSetup.ScenePath },

@@ -149,7 +149,7 @@ namespace Height1079.EditorTools
             Debug.Log("1079: шейдеры рельефа и травы добавлены в Always Included Shaders.");
         }
 
-        static void EnsureHikerModel(bool force)
+        internal static void EnsureHikerModel(bool force)
         {
             string hiker = Path.Combine(ResourcesDir, "hiker.bytes");
             if (File.Exists(hiker) && !force) return;

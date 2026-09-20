@@ -63,6 +63,34 @@ namespace Height1079.Sandbox
             Debug.Log($"shots: стопы {Stance(body):0.00} м врозь стоя");
             // and from behind: the pack is the one thing on the body no other frame shows
             yield return Shoot(boot, body, "10-стоит-сзади", new Vector3(.6f, .3f, -2.8f));
+
+            // ── the same man in the model from the file (PuppetSkeleton, docs/PHYSICS.md): B in play, here by hand.
+            // The sculpted figure above is the sandbox's look; these three only say whether a skeleton wears the
+            // pose — standing from the front and from behind, and mid-stride from the side, from the same spots as
+            // the frames of the figure, so the two can be laid side by side. Walked from the stand's spawn again,
+            // so the body ends up where the figure's frames left it and the frames after these are unchanged.
+            var hiker = boot.Hiker;
+            var figure = body.GetComponent<PuppetFigure>();
+            if (hiker != null && figure != null)
+            {
+                boot.GoTo(0);
+                yield return new WaitForSeconds(1.2f);
+                hiker.Set(true);
+                for (float w = 0f; w < 6f && !figure.Worn && !hiker.Failed; w += Time.deltaTime) yield return null;
+                Debug.Log("shots: модель hiker-v1 — " + (figure.Worn ? "надета: " + figure.ModelReport : "не надета (см. предупреждение выше)"));
+                if (figure.Worn)
+                {
+                    yield return Shoot(boot, body, "8-стоит-спереди-glb", new Vector3(0f, .1f, 3.0f));
+                    yield return Shoot(boot, body, "10-стоит-сзади-glb", new Vector3(.6f, .3f, -2.8f));
+                    t = 0f;
+                    while (t < 1.6f) { body.Drive(new PuppetInput { Move = new Vector2(0, 1), Look = Quaternion.identity }); t += Time.deltaTime; Frame(boot, body, new Vector3(3.2f, .3f, 0f)); yield return null; }
+                    yield return Shoot(boot, body, "2-шаг-glb", new Vector3(3.2f, .3f, 0f), keepDriving: true);
+                    body.Drive(PuppetInput.Idle);
+                    yield return new WaitForSeconds(1.2f);
+                }
+                hiker.Set(false);
+                yield return null;
+            }
             // walking back south, toward the camera: north of here is the ramp stand, and a camera three metres
             // ahead of a body walking north ends up inside it
             var south = Quaternion.Euler(0f, 180f, 0f);
