@@ -78,6 +78,20 @@ namespace Height1079.Puppet
         /// <summary>Metres the knees are giving under the body right now. The ride height really is pulled down by
         /// this much, so the figure drawn from the physics crouches without being told to.</summary>
         public float Crouch => squash;
+        /// <summary>Knees folded by less than this are not folded. One number so that the body's own record of a
+        /// landing and anything checking it agree on when the knees were bent.</summary>
+        public const float KneeFold = .02f;
+
+        /// <summary>Metres the leg spring gives under the body's own weight. The legs are a spring, not a strut:
+        /// standing still the body hangs g/LegSpring below what the spring is aiming at — the mass cancels, because
+        /// the spring works in acceleration. Seven centimetres at the defaults.</summary>
+        public float LegSag => Physics.gravity.magnitude / Mathf.Max(Tuning.LegSpring, 1f);
+        /// <summary>Where the torso centre really rides over the ground standing still, metres: the hover height
+        /// less <see cref="LegSag"/>. <see cref="PuppetTuning.HoverHeight"/> is what the legs aim at; this is where
+        /// the body is, and it is the one to measure a stand against. A drop height or a sag laid out from the
+        /// constant instead is quietly a different number every time the body's height or its spring changes — which
+        /// is exactly how a two-metre drop became a different fall the day the figure got shorter.</summary>
+        public float RideHeight => Mathf.Max(0f, Tuning.HoverHeight - LegSag);
         /// <summary>0…1 of a stand recovered since the body last went down. Scales the legs and the vertical together,
         /// so getting up takes <see cref="PuppetTuning.GetUp"/> seconds instead of snapping.</summary>
         public float Rise => rise;
@@ -136,8 +150,24 @@ namespace Height1079.Puppet
         Vector3 lastFlat, accel;
         /// <summary>The frictionless skin the body walks on, and the rough one it wears while it is down.</summary>
         PhysicsMaterial slick, rough;
-        /// <summary>Speed the body hit the ground with, m/s — what a fall-damage rule would read.</summary>
+        /// <summary>Speed the body was coming down at on the last step that had nothing under the feet, m/s — the
+        /// closing speed <see cref="Land"/> was handed, and what a fall-damage rule would read.</summary>
         public float LastImpact { get; private set; }
+        /// <summary>How many times the feet have found the ground after a drop since the body was last placed. A
+        /// landing that arrives as two touches — a scuff of something on the way down and then the real one — folds
+        /// the knees twice off two different speeds and looks like one landing from outside. Counted here because
+        /// nothing watching the body can count it: both touches can happen between two frames.</summary>
+        public int Landings { get; private set; }
+        /// <summary>The last landing's own record, kept inside the physics because none of it survives being watched
+        /// from outside: <see cref="Crouch"/> is set and spent within the step, ninety steps a second, so a single
+        /// slow frame reads a deep landing as a shallow one — deepest knees, metres.</summary>
+        public float DeepestCrouch { get; private set; }
+        /// <summary>Seconds the knees have stayed folded past <see cref="KneeFold"/> since that landing, in physics
+        /// time rather than in frames.</summary>
+        public float CrouchHeldFor { get; private set; }
+        /// <summary>The lowest the torso has ridden over the ground since that landing, metres — the bottom of the
+        /// dip, which is likewise a moment and not a state. Infinite until the feet have found something.</summary>
+        public float DeepestRide { get; private set; } = float.PositiveInfinity;
         float fallSpeed;
 
         public System.Action<PuppetHand> Grabbed, Released;
@@ -206,6 +236,8 @@ namespace Height1079.Puppet
             // a body put down by hand has not fallen: the knees, the stand and the lean all start clean, and the
             // remembered velocity is zeroed too or the teleport itself reads as an acceleration and tips the torso
             stumbleUntil = 0f; squash = 0f; rise = 1f; Tilt = 0f; stance = 0f;
+            // and it has not landed either: the record is of what happened to this body since it was put here
+            LastImpact = 0f; Landings = 0; ForgetLanding();
             lastFlat = Vector3.zero; accel = Vector3.zero; StandUp = Vector3.up;
             // and it has not asked for anything either: a jump latched before a teleport must not fire after it
             jumpAsked = -99f; jumpClearUntil = 0f;
@@ -380,6 +412,8 @@ namespace Height1079.Puppet
         void Land(PuppetTuning t, float speed)
         {
             LastImpact = speed;
+            Landings++;
+            ForgetLanding();
             Landed?.Invoke(speed);
             squash = Mathf.Max(squash, PuppetMotion.Squash(speed, t));
             if (speed >= t.LimpFrom)
@@ -394,6 +428,10 @@ namespace Height1079.Puppet
                 Tip(PuppetMotion.TipSpin(speed, t) * .25f);
             }
         }
+
+        /// <summary>Start a fresh landing record: what the knees do from here belongs to the landing just taken and
+        /// not to the one before it.</summary>
+        void ForgetLanding() { DeepestCrouch = 0f; CrouchHeldFor = 0f; DeepestRide = float.PositiveInfinity; }
 
         /// <summary>Throws the body over the line it was travelling on. This is what turns "the controls went away"
         /// into something an onlooker calls falling over; the damping on the rigidbody bleeds the spin off again, so
@@ -419,6 +457,13 @@ namespace Height1079.Puppet
             // in the air and on a sack there is nothing to lean against: leaning needs a foot on the ground
             StandUp = Grounded && !Limp ? PuppetMotion.LeanUp(accel, t.LeanInto, t.LeanMax) : Vector3.up;
             Tilt = Vector3.Angle(transform.up, Vector3.up);
+
+            // the landing's record, taken in the step and before the knees start coming back up. Whoever is watching
+            // the body is not guaranteed a frame while the knees are deep: a landing folds them for a quarter of a
+            // second and unfolds them at a fixed rate, so one slow frame is enough to see nothing at all
+            DeepestCrouch = Mathf.Max(DeepestCrouch, squash);
+            if (squash > KneeFold) CrouchHeldFor += dt;
+            if (Landings > 0 && !float.IsInfinity(GroundDistance)) DeepestRide = Mathf.Min(DeepestRide, GroundDistance);
 
             squash = Mathf.MoveTowards(squash, 0f, PuppetMotion.Unfold(t) * dt);
             if (!Limp && Grounded) rise = Mathf.MoveTowards(rise, 1f, dt / Mathf.Max(t.GetUp, .02f));
