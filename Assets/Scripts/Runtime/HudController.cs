@@ -338,10 +338,18 @@ namespace Height1079.Runtime
             miniMap = Rect("Map", maskRt, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
             miniImage = miniMap.gameObject.AddComponent<RawImage>();
             // texture and scale come from ApplyPlace at the end of the method
-            miniArrow = Rect("You", miniRoot, new Vector2(.5f, .5f), new Vector2(.5f, .5f), Vector2.zero, new Vector2(30, 30));
+            // The arrow sits on a drawn sheet, not on a dark game map: at 30 px it covered the name of
+            // whatever the player was standing next to. Smaller, on a pale backing of its own shape, so it
+            // separates from the paper without swallowing what is printed under it.
+            miniArrow = Rect("You", miniRoot, new Vector2(.5f, .5f), new Vector2(.5f, .5f), Vector2.zero, new Vector2(24, 24));
             miniArrow.pivot = new Vector2(.5f, .5f);
-            var arrow = miniArrow.gameObject.AddComponent<Image>();
-            arrow.sprite = Triangle(); arrow.color = new Color(.65f, .1f, .08f); arrow.raycastTarget = false;
+            var arrowBack = Rect("Halo", miniArrow, new Vector2(.5f, .5f), new Vector2(.5f, .5f), Vector2.zero, new Vector2(31, 31));
+            arrowBack.pivot = new Vector2(.5f, .5f);
+            var halo = arrowBack.gameObject.AddComponent<Image>();
+            halo.sprite = Triangle(); halo.color = new Color(.96f, .95f, .90f, .85f); halo.raycastTarget = false;
+            var arrowRt = Rect("Mark", miniArrow, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
+            var arrow = arrowRt.gameObject.AddComponent<Image>();
+            arrow.sprite = Triangle(); arrow.color = new Color(.62f, .09f, .07f); arrow.raycastTarget = false;
             var n = Label("N", miniRoot, new Vector2(0, -2), new Vector2(40, 30), 24, new Color(.93f, .9f, .82f), TextAnchor.MiddleCenter, FontStyle.Bold, new Vector2(.5f, 1f));
             n.rectTransform.pivot = new Vector2(.5f, 1f); n.font = Hand; n.text = "С";
             miniScale = Label("Scale", miniRoot, new Vector2(0, -8), new Vector2(200, 20), 12, new Color(.75f, .8f, .82f), TextAnchor.UpperCenter, FontStyle.Normal, new Vector2(.5f, 0f));

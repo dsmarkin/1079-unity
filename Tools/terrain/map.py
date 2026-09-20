@@ -125,10 +125,10 @@ def wash(mask, color, alpha=1.0):
 # The tree line is the one thing on this map that decides the night: below it there is firewood and shelter,
 # above it there is nothing. On the old sheet it was a flat green; the hatching is the copier's own hand.
 wood = np.clip((forest - .30) / .28, 0, 1)
-wash(wood, (150, 172, 140), .30)
+wash(wood, (146, 169, 136), .34)
 hatch = ((xx + yy) % 14 < 1.6) & (wood > .45)
 hatch = hatch & (nd.gaussian_filter(rng.random((S, S)), 1.2) > .47)
-wash(hatch.astype(float) * .55, (86, 104, 92), .70)
+wash(hatch.astype(float) * .55, (80, 99, 87), .58)
 # the edge of the wood, scalloped: a double dotted rule, the way a лесхоз sheet closes a stand
 solid = wood > .45
 solid = nd.binary_closing(solid, nd.generate_binary_structure(2, 2), iterations=6)
@@ -171,8 +171,8 @@ sun = sun / np.linalg.norm(sun)
 nrm = np.stack([-gx, -gz, np.ones_like(gx)], -1)
 nrm /= np.linalg.norm(nrm, axis=-1, keepdims=True)
 lit = np.clip((nrm @ sun), 0, 1)
-wash(nd.gaussian_filter(np.clip((.66 - lit) * 1.7, 0, 1) * np.clip((slope - 3) / 18, 0, 1), 3), (116, 110, 118), .30)
-wash(nd.gaussian_filter(np.clip((slope - 20) / 16, 0, 1), 2), (104, 96, 94), .16)
+wash(nd.gaussian_filter(np.clip((.66 - lit) * 1.7, 0, 1) * np.clip((slope - 3) / 18, 0, 1), 3), (112, 106, 116), .35)
+wash(nd.gaussian_filter(np.clip((slope - 20) / 16, 0, 1), 2), (100, 92, 92), .19)
 
 # ── streams: blue ink along the drainage, width by catchment ─────────────────────────────────────────────
 lw = np.zeros((S, S))
@@ -181,14 +181,14 @@ for lo, rad in [(.37, 0), (.63, 1), (.89, 2)]:
     if rad:
         b = nd.binary_dilation(b, iterations=rad)
     lw = np.maximum(lw, b.astype(float))
-wash(np.clip(nd.gaussian_filter(lw, .9) * 1.8, 0, 1), (44, 78, 150), .85)
+wash(np.clip(nd.gaussian_filter(lw, .9) * 1.8, 0, 1), (40, 72, 146), .90)
 
 base = Image.fromarray((np.clip(img, 0, 1) * 255).astype(np.uint8)).convert('RGBA')
 
 # ── ink layer, drawn at 2× ───────────────────────────────────────────────────────────────────────────────
 INK = (38, 34, 48, 235)
 BROWN = (122, 84, 52, 235)
-RED = (170, 38, 34, 230)
+RED = (162, 32, 28, 242)
 BLUE = (40, 70, 140, 235)
 PAPER = (236, 238, 232, 255)
 
@@ -249,8 +249,8 @@ def contours(level):
 NUMBERED = {}
 for lvl in range(500, 1101, 20):
     index = lvl % 100 == 0
-    width = int((1.9 if index else 1.0) * F)
-    colour = (BROWN[0], BROWN[1], BROWN[2], 245 if index else 175)
+    width = int((2.0 if index else 1.05) * F)
+    colour = (BROWN[0], BROWN[1], BROWN[2], 250 if index else 198)
     for poly in contours(float(lvl)):
         dr.line([(x * F, y * F) for x, y in wobble(poly, .9 if index else .7)], fill=colour, width=width, joint='curve')
         if index and len(poly) > 400:
@@ -349,7 +349,7 @@ PLACES = [
     ('slob',   ll2xz(61.76266, 59.44727),                     'Слободин',       36, 'dot'),
     ('dyat',   ll2xz(61.76351, 59.45018),                     'Дятлов',         36, 'dot'),
     ('cedar',  ll2xz(dms(61, 45, 53.20), dms(59, 27, 17.80)), 'кедр',           42, 'tree'),
-    ('ravine', ll2xz(dms(61, 45, 53.93), dms(59, 27, 14.64)), 'овраг · настил', 34, 'cross'),
+    ('ravine', ll2xz(dms(61, 45, 53.93), dms(59, 27, 14.64)), 'овраг · настил', 38, 'cross'),
 ]
 
 
@@ -418,14 +418,12 @@ sx, sy = P(61.754457, 59.417964, F)
 dr.polygon([(sx, sy - 16 * F), (sx - 14 * F, sy + 10 * F), (sx + 14 * F, sy + 10 * F)], outline=INK, width=3 * F)
 label('выс. 1079', (cx(-1296) + 32, cy(-172) + 54), 54, bold=True, halo=2)
 
-hx, hy = pt(1990, 1050, F)
-dr.polygon([(hx, hy - 12 * F), (hx - 11 * F, hy + 8 * F), (hx + 11 * F, hy + 8 * F)], outline=INK, width=3 * F)
-label('выс. 880', (cx(1990) - 96, cy(1050) + 42), 42, bold=True, halo=2)
+label('склон выс. 880', pt(1700, 880), 40, INK, angle=-52, halo=2)
 
 px_, py_ = P(61.756323, 59.463175, F)
-dr.arc([px_ - 30 * F, py_ - 18 * F, px_ + 30 * F, py_ + 18 * F], 200, 340, fill=INK, width=3 * F)
-dr.arc([px_ - 30 * F, py_ - 2 * F, px_ + 30 * F, py_ + 34 * F], 20, 160, fill=INK, width=3 * F)
-label('перевал', (cx(1092) + 10, cy(36) + 62), 42, halo=2)
+dr.arc([px_ - 42 * F, py_ - 26 * F, px_ + 42 * F, py_ + 26 * F], 200, 340, fill=INK, width=4 * F)
+dr.arc([px_ - 42 * F, py_ - 4 * F, px_ + 42 * F, py_ + 48 * F], 20, 160, fill=INK, width=4 * F)
+label('перевал', (cx(1092) + 10, cy(36) + 78), 46, halo=2)
 
 label('р. Ауспия', pt(700, -1830), 50, BLUE, angle=-8, halo=2)
 label('прит. Лозьвы', pt(760, 1720), 44, BLUE, angle=80, halo=2)
@@ -448,7 +446,7 @@ dr.line([(nx, ny + 90 * F), (nx, ny - 40 * F)], fill=INK, width=4 * F)
 dr.polygon([(nx, ny - 60 * F), (nx - 14 * F, ny - 28 * F), (nx + 14 * F, ny - 28 * F)], fill=INK)
 label('С', (S - 150, 170 - 95), 56, bold=True)
 
-label('Верховья Ауспии — выс. 1079', (S / 2 - 260, 110), 50, INK, bold=True, halo=3)
+label('Верховья Ауспии — выс. 1079', (S / 2, 110), 50, INK, bold=True, halo=3)
 
 # The key: once the sheet carries named places it is no longer a bare tracing, and the red marks have to say
 # what they mean. It sits in the south-west corner, which is empty slope, with the contour note — moved in from
