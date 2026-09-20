@@ -40,8 +40,8 @@ namespace Height1079.Runtime
 
         Transform Part(string name, string mesh, string mat, float scale)
         {
-            var m = Resources.Load<Mesh>("World/Meshes/Sky/" + mesh);
-            var mt = Resources.Load<Material>("World/Materials/Sky/" + mat);
+            var m = WorldAssets.Load<Mesh>("Meshes/Sky/" + mesh);
+            var mt = WorldAssets.Load<Material>("Materials/Sky/" + mat);
             if (m == null || mt == null) { Debug.LogWarning($"1079 sky: missing {mesh}/{mat}"); return null; }
             var go = new GameObject(name, typeof(MeshFilter), typeof(MeshRenderer));
             go.transform.SetParent(transform, false);

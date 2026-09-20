@@ -33,6 +33,9 @@ namespace Height1079.Sandbox
         public SandboxHunt Hunt { get; private set; }
         /// <summary>The night was won: the screen is up with the words and the button, the body stands where it is.</summary>
         public bool Ended { get; private set; }
+        /// <summary>What the body looks like (<see cref="SandboxFigure"/>): the Adventurer from a file by default,
+        /// B goes round the three looks.</summary>
+        public SandboxFigure Figure { get; private set; }
         /// <summary>What the end-of-day screen says. The bar's own words unless a death had another cause.</summary>
         public string DeathTitle { get; private set; } = "СИЛ НЕ ОСТАЛОСЬ";
         public string DeathLine { get; private set; } = "Голод, холод и сон съели всю полоску. Тело легло в снег.";
@@ -115,8 +118,12 @@ namespace Height1079.Sandbox
             Sky();
             // the yard is the sandbox now (docs/SANDBOX.md); the physics range — steps, slopes, the wall, the drops —
             // is built only for the scripts that measure the body on it
-            SandboxRange.Build(withRange: SandboxSelfTest.Requested || SandboxShots.Requested);
+            SandboxRange.Build(withRange: SandboxSelfTest.Requested || SandboxShots.Requested || DayRequested);
             if (SandboxRange.YardStand >= 0) stand = SandboxRange.YardStand;
+            // `-day` opens on the physics range in daylight instead of the yard at night: the place to look at the
+            // figure, the colours and the gait, and to walk the steps and slopes by hand. F11/F12 walk the stands,
+            // and the yard is one of them, so the night is a keypress away rather than the only thing there is.
+            if (DayRequested && SandboxRange.Stands.Count > 0) stand = 0;
             // the game's own prints, puffs and trail map (Height1079.Snow), under this object so they go when it goes
             SnowPrints.Create(transform);
             Spawn();
@@ -127,14 +134,27 @@ namespace Height1079.Sandbox
             Gear = gameObject.AddComponent<SandboxGear>();
             gameObject.AddComponent<SandboxHud>();
             Hunt = SandboxHunt.Create(this);
+            // the look: the Adventurer from a file over the puppet (the default), hiker-v1, or the sculpted figure
+            Figure = gameObject.AddComponent<SandboxFigure>();
             // the keys are not written on the screen any more; say the few worth knowing once
-            SandboxHud.Say("Tab — рюкзак · 1 2 3 — слоты · F — фонарик · E — шоколадка · V — вид · F1 — настройки тела · F11 — следующий стенд · N — ночь на площадке · F9 — в меню");
+            SandboxHud.Say("Tab — рюкзак · 1 2 3 — слоты · F — фонарик · E — шоколадка · V — вид · B — другая фигура · F1 — настройки тела · F11 — следующий стенд · N — ночь на площадке · F9 — в меню");
             ApplyCursor();
             // `-selftest` drives the body by script and quits: the only way to check physics in a batch build
             if (SandboxSelfTest.Requested) gameObject.AddComponent<SandboxSelfTest>();
             else if (SandboxShots.Requested) gameObject.AddComponent<SandboxShots>();
             // otherwise the night comes down at once: the yard is what the sandbox is for now
-            else if (stand == SandboxRange.YardStand) Hunt.Begin();
+            else if (stand == SandboxRange.YardStand && !DayRequested) Hunt.Begin();
+        }
+
+        /// <summary>`1079-sandbox -day` — start on the physics range in daylight, with the stands built, instead of
+        /// the night yard. The yard is still there under F11/F12; this only changes where the sandbox opens.</summary>
+        public static bool DayRequested
+        {
+            get
+            {
+                foreach (var a in System.Environment.GetCommandLineArgs()) if (a == "-day") return true;
+                return false;
+            }
         }
 
         public void ApplySolver()
@@ -328,6 +348,10 @@ namespace Height1079.Sandbox
                 rig.Bob = !rig.Bob;
                 SandboxHud.Say(rig.Bob ? "голова покачивается при ходьбе (F10)" : "голова неподвижна — так виднее работу ног (F10)");
             }
+            // the figure: the Adventurer from a file (the default), the game's hiker-v1 or the sculpted one, all
+            // over the same pose, to compare on the same walk. B is free in the sandbox; in the game it pitches
+            // a camp on Elbrus.
+            if (Down(Key.B)) Figure.Next();
             if (Down(Key.F4)) { TimeScale = TimeScale > .9f ? .25f : 1f; Time.timeScale = TimeScale; }
             if (Down(Key.F8)) { HandsOn = !HandsOn; Body.HandsEnabled = HandsOn; SandboxHud.Say(HandsOn ? "руки включены (черновик)" : "руки выключены — работаем над ногами"); }
             if (Down(Key.F5)) { Tuning.Save("sandbox"); SandboxHud.Say("сохранено: " + PuppetTuning.PathFor("sandbox")); }

@@ -47,8 +47,8 @@ namespace Height1079.EditorTools.World
     /// is.</summary>
     public static class ElbrusLodge
     {
-        const string PrefabDir = WorldPaths.Generated + "/Prefabs/Elbrus";
-        const string MeshDir = WorldPaths.Generated + "/Meshes/Lodge";
+        const string PrefabDir = WorldPaths.Kit + "/Prefabs/Elbrus";
+        const string MeshDir = WorldPaths.Kit + "/Meshes/Lodge";
         static int meshCounter;
         static int buildings, triangles;
 

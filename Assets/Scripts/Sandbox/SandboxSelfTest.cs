@@ -45,7 +45,11 @@ namespace Height1079.Sandbox
             var p0 = body.Torso.position;
             yield return new WaitForSeconds(1.5f);
             float drift = Flat(body.Torso.position - p0).magnitude;
-            Check(body.Grounded, "стоит на опоре", $"опора {body.GroundDistance:0.00} м, уклон {body.SlopeAngle:0}°");
+            // the ride is printed beside what a stand should be (hover height less the sag the spring takes under the
+            // body's own weight): "опора 0.75 м" means nothing on its own, and the gap between the two is the first
+            // thing to look at whenever a drop or a sag reads wrong further down
+            Check(body.Grounded, "стоит на опоре",
+                $"опора {body.GroundDistance:0.00} м при стойке {body.RideHeight:0.00} м (парение {t.HoverHeight:0.00} − просадка {body.LegSag:0.00}), уклон {body.SlopeAngle:0}°");
             Check(body.Tilt < 4f, "в покое стоит прямо", $"корпус отклонён на {body.Tilt:0.0}° от вертикали");
             Check(Mathf.Abs(body.Torso.position.y - y0) < .08f, "не проваливается и не подпрыгивает", $"Δy {body.Torso.position.y - y0:0.000} м");
             Check(drift < .15f, "не ползёт стоя", $"снос {drift:0.000} м за 1,5 с");
@@ -136,7 +140,11 @@ namespace Height1079.Sandbox
                 yield return null;
             }
             float impact = body.LastImpact, landedAt = body.Torso.position.y;
-            Check(impact > 14f, "падение с 17 м засчитано целиком", $"удар {impact:0.0} м/с, с {startY:0.0} до {landedAt:0.0} м");
+            // the height here is a point in the world over a known stand and not a number off the tuning, so it does
+            // not move when the body's height does; what is worth printing is what the body recorded on arrival
+            Check(impact > 14f, "падение с 17 м засчитано целиком",
+                $"удар {impact:0.0} м/с, с {startY:0.0} до {landedAt:0.0} м, приземлений {body.Landings},"
+                + $" колени до {body.DeepestCrouch:0.00} м");
             // the same four seconds now answer three questions at once: does the body get thrown over, does it get up,
             // and does getting up take time. A fall the player cannot see is the whole complaint being fixed here.
             float bounce = 0f, tilted = 0f, stoodAt = -1f;
@@ -156,9 +164,19 @@ namespace Height1079.Sandbox
             // ── 8. a fall a man walks away from: the knees give and unfold again ──────────────────────────────────
             // two metres, which is over the stagger threshold and under the knock-down one: the body must keep its
             // feet, sink on them and come back up. Before the squash layer it simply arrived and stood there.
-            // The drop is measured from the feet, so the height is the ride height plus the two metres: the body was
-            // made shorter and dropping it from the old mark would quietly have been a longer fall each time.
-            body.Place(new Vector3(0f, t.HoverHeight + 2.05f, -10f));
+            //
+            // Two things here are deliberate. The drop is laid out from where the body actually rides
+            // (Puppet.RideHeight), not from the tuning's hover height: the legs are a spring, a standing man hangs
+            // about seven centimetres under what they aim at, and a fall measured from the constant is a different
+            // fall every time the body's height or its spring moves. And what is asserted is the body's own record
+            // of the landing, not what this loop managed to catch: Crouch is set and spent inside the physics step,
+            // ninety of them a second, and it unfolds in about a quarter of a second — so one slow frame reads a deep
+            // landing as a shallow one. That is not a theory: a run of this check came back "колени подались на 0.03 м"
+            // while the folded time it also measured went *up* to 0.33 s, which only a late frame can do. The
+            // frame-sampled figures are still printed beside the recorded ones; when the two disagree the frames were
+            // late and the physics is fine.
+            float ride = body.RideHeight;
+            body.Place(new Vector3(0f, ride + 2.05f, -10f));
             float knees = 0f, deepestRide = float.PositiveInfinity, foldedFor = 0f;
             bool touched = false;
             for (float w = 0f; w < 2.5f; w += Time.deltaTime)
@@ -166,15 +184,21 @@ namespace Height1079.Sandbox
                 body.Drive(PuppetInput.Idle);
                 if (body.Grounded) { touched = true; deepestRide = Mathf.Min(deepestRide, body.GroundDistance); }
                 knees = Mathf.Max(knees, body.Crouch);
-                if (body.Crouch > .02f) foldedFor += Time.deltaTime;
+                if (body.Crouch > Puppet.Puppet.KneeFold) foldedFor += Time.deltaTime;
                 yield return null;
             }
-            Check(touched && knees > .05f, "удар сажает тело на ноги", $"колени подались на {knees:0.00} м при ударе {body.LastImpact:0.0} м/с");
-            Check(foldedFor > .15f, "приседание разгибается не мгновенно", $"держалось {foldedFor:0.00} с");
-            Check(deepestRide < t.HoverHeight - .08f, "тело при этом действительно просело",
-                $"опора падала до {deepestRide:0.00} м при росте {t.HoverHeight:0.00} м");
-            Check(!body.Limp && Mathf.Abs(body.GroundDistance - t.HoverHeight) < .12f, "и снова встаёт в рост",
-                $"опора {body.GroundDistance:0.00} м");
+            string byFrames = $"по кадрам: колени {knees:0.00} м, {foldedFor:0.00} с, опора {deepestRide:0.00} м";
+            Check(touched && body.Landings > 0 && body.DeepestCrouch > .05f, "удар сажает тело на ноги",
+                $"колени подались на {body.DeepestCrouch:0.00} м при ударе {body.LastImpact:0.0} м/с"
+                + $" (скорость снижения в шаге, когда щуп нашёл опору) · приземлений {body.Landings},"
+                + $" держалось {body.CrouchHeldFor:0.00} с, опора падала до {body.DeepestRide:0.00} м"
+                + $" при стойке {ride:0.00} м · {byFrames}");
+            Check(body.CrouchHeldFor > .15f, "приседание разгибается не мгновенно",
+                $"держалось {body.CrouchHeldFor:0.00} с (по кадрам {foldedFor:0.00} с)");
+            Check(body.DeepestRide < ride - .08f, "тело при этом действительно просело",
+                $"опора падала до {body.DeepestRide:0.00} м при стойке {ride:0.00} м (по кадрам {deepestRide:0.00} м)");
+            Check(!body.Limp && Mathf.Abs(body.GroundDistance - ride) < .10f, "и снова встаёт в рост",
+                $"опора {body.GroundDistance:0.00} м при стойке {ride:0.00} м");
 
             // ── 9. the torso has weight: it leans into the start and hangs back on the stop ───────────────────────
             body.Place(new Vector3(0f, 1.2f, -10f));
@@ -470,12 +494,16 @@ namespace Height1079.Sandbox
             bool any = false;
             foreach (var r in parts)
             {
-                if (r == null) continue;
+                // what is on the screen: with a model from a file worn, the sculpted parts are still posed but
+                // switched off, and they are not the man being measured
+                if (r == null || !r.enabled) continue;
                 // the clothes are skinned, and a skinned renderer's box is not measured off its vertices — it is
                 // the generous one PuppetFigure sets by hand so the figure is never culled mid-stride, and it
                 // reads a metre over the head and under the boots. The head and the boots bound the figure by
-                // themselves: nothing of the clothes reaches past either.
-                if (r is SkinnedMeshRenderer) continue;
+                // themselves: nothing of the clothes reaches past either. A worn model's skinned parts are the
+                // other case: told to update off screen, their boxes are measured off the skinned vertices every
+                // frame, and they are all the model has.
+                if (r is SkinnedMeshRenderer smr && !smr.updateWhenOffscreen) continue;
                 if (!any) { box = r.bounds; any = true; }
                 else box.Encapsulate(r.bounds);
             }
