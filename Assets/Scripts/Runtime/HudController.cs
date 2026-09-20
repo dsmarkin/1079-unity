@@ -45,7 +45,20 @@ namespace Height1079.Runtime
         bool miniOn = true;
         /// <summary>Diameter of the mini-map window in metres. The Elbrus frame is three times the Kholat one, so the
         /// window opens up with it: on the southern slope you want the next station in the circle, not the next boulder.</summary>
-        static float MiniMetres => World.IsElbrus ? 1400f : 700f;
+        /// <summary>How much ground the round window shows, across its diameter.
+        ///
+        /// 436 m is not a round number on purpose: it is where the Kholat sheet is drawn 1:1. The sheet is
+        /// 2048 px over 4096 m — half a pixel per metre — and the window inside its rim is 218 px, so 218 / 0.5
+        /// is 436 m and anything closer is Unity inventing pixels that are not in the raster. At 700 m the
+        /// thirty metres you can actually see at night came to nine pixels, all of them under the arrow.
+        ///
+        /// Elbrus keeps 1400: its own sheet is 2048 px over 12 288 m, a sixth of a pixel per metre, so 1307 m
+        /// is its 1:1 and 1400 is already as close as that sheet goes.
+        ///
+        /// Zooming further would need more than a number. The labels are printed into the raster, so they
+        /// magnify with it — past this point the word «лабаз» starts filling the window instead of naming a
+        /// place, and no filtering setting helps with that.</summary>
+        static float MiniMetres => World.IsElbrus ? 1400f : 436f;
         /// <summary>Side of the unfolded map sheet, in reference pixels of the canvas (1600 × 900).</summary>
         const float BigSheet = 820f;
         bool protocolShown;
