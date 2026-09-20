@@ -47,6 +47,9 @@ namespace Height1079.EditorTools
             // the yard's tent, fire, trees, rocks and things are the imported low-poly set in palette colours
             // (ImportedFactory); a sandbox built before the world exists bakes them here too
             if (!World.ImportedFactory.IsBuilt) World.ImportedFactory.Build();
+            // the sky over the yard is the game's own dome, stars, moon and clouds (Night/SkyDome), and its five
+            // materials are also what keep the Height1079/Sky* shaders in the player (CLAUDE.md §4)
+            if (!World.SkyFactory.IsBuilt) World.SkyFactory.Build();
             Mat("Snow", "snow_02", 6f, .22f, new Color(.97f, .98f, 1f));
             Mat("Crust", "snow_03", 9f, .34f, new Color(.93f, .95f, 1f));
             Mat("Rock", "lichen_rock", 4f, .12f, new Color(.72f, .70f, .66f));

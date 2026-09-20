@@ -3,6 +3,7 @@ using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
 using Height1079.Core;
+using Height1079.Night;
 using Height1079.Puppet;
 
 namespace Height1079.Sandbox
@@ -502,8 +503,15 @@ namespace Height1079.Sandbox
             GUILayout.Label($"файл: {PuppetTuning.PathFor(t.Name)}", small);
             scroll = GUILayout.BeginScrollView(scroll);
 
-            // ── the night run ──
-            GUILayout.Label("ночь на площадке (N)", head);
+            // ── the sky over the map: what the clock says, and what the weather is doing ──
+            if (boot.Sky != null)
+            {
+                var sky = boot.Sky;
+                GUILayout.Label($"небо: {sky.Clock} · темнота {sky.Night:0.00} · пурга {sky.Storm:0.00} · ветер {Weather.Wind:0.00} · видно {sky.Visibility:0} м", small);
+            }
+
+            // ── the errand ──
+            GUILayout.Label("забег на площадке (N)", head);
             if (hunt != null)
             {
                 hunt.RunMinutes = Mathf.Round(Row("забег, минут", hunt.RunMinutes, 2f, 20f));
@@ -514,7 +522,7 @@ namespace Height1079.Sandbox
                 if (hunt.Run != null)
                 {
                     var m = hunt.Menk;
-                    GUILayout.Label($"часы {HuntRules.Clock(hunt.Run.Elapsed)} · пурга {hunt.Run.Storm:0.00} · видно {hunt.Night.Visibility:0} м", small);
+                    GUILayout.Label($"забег {HuntRules.Clock(hunt.Run.Elapsed)} · его фронт {hunt.Run.Storm:0.00}", small);
                     GUILayout.Label($"Менк: {m.Mode} ({m.Why}) · свет {m.WentToLight} · шум {m.WentToNoise} · следы {m.WentByTracks} · меток {hunt.Run.Tracks.Count}", small);
                     int from = Mathf.Max(0, hunt.Run.Events.Count - 8);
                     for (int i = from; i < hunt.Run.Events.Count; i++)

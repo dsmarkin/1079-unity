@@ -32,6 +32,17 @@ Shader "Height1079/Ghost"
     {
         Tags { "Queue" = "Transparent" "RenderType" = "Transparent" "IgnoreProjector" = "True" }
         LOD 200
+        // Depth first, colour second. Without this every transparent face of a ghost blends over every other
+        // one behind it, and a camp of them at close range comes out as white fog with no objects in it — it
+        // did, and it is what the first shots of the camp showed. The prepass writes depth without colour, so
+        // only the nearest surface of each object blends and the thing keeps its shape from any distance.
+        Pass
+        {
+            ColorMask 0
+            ZWrite On
+            Cull Back
+        }
+
         Blend SrcAlpha OneMinusSrcAlpha
         ZWrite Off
         Cull Back

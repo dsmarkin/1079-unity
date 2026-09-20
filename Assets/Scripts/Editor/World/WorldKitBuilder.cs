@@ -10,14 +10,15 @@ namespace Height1079.EditorTools.World
     ///
     /// Only assets the game loads BY NAME get an entry. Meshes are deliberately skipped — every one of them hangs off a
     /// prefab that is indexed, and Unity ships a prefab's dependencies with it, so indexing 1 600 track chunks would
-    /// bloat the asset for nothing. <c>Meshes/Sky</c> is the exception: SkyDome and DaySky load those three by name.</summary>
+    /// bloat the asset for nothing. The sky is not here at all: it is shared code now (Assets/Scripts/Night) that the
+    /// small map draws too, so <c>SkyFactory</c> writes it into Resources, where a player with no kit still finds it.</summary>
     public static class WorldKitBuilder
     {
         public const string AssetPath = WorldPaths.Kit + "/WorldKit.asset";
 
         /// <summary>Folders under the generated tree whose contents are loaded by name. A folder listed here is walked
         /// recursively; anything else in the tree is reached through a prefab and needs no entry.</summary>
-        static readonly string[] Indexed = { "Prefabs", "Materials", "Meshes/Sky", "TerrainLayers" };
+        static readonly string[] Indexed = { "Prefabs", "Materials", "TerrainLayers" };
 
         /// <summary>Loose files at the root of the generated tree that the game asks for by name.</summary>
         static readonly string[] Roots = { "Kholat", "Elbrus", "height_2049", "elbrus_height_2049" };
@@ -32,8 +33,7 @@ namespace Height1079.EditorTools.World
         {
             "Kholat.asset", "Elbrus.asset", "height_2049.bytes", "elbrus_height_2049.bytes",
             "Prefabs/Tracks", "Prefabs/Elbrus", "Prefabs/Gear",
-            "Meshes/Tracks", "Meshes/Elbrus", "Meshes/Valley", "Meshes/Ascent", "Meshes/Lodge", "Meshes/Gear", "Meshes/Sky",
-            "Materials/Sky",
+            "Meshes/Tracks", "Meshes/Elbrus", "Meshes/Valley", "Meshes/Ascent", "Meshes/Lodge", "Meshes/Gear",
         };
 
         /// <summary>Drops the old copies once the kit has the asset. Everything here is generated and git-ignored:

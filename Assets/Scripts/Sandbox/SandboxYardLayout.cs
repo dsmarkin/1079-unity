@@ -52,6 +52,24 @@ namespace Height1079.Sandbox
         public float x, z, yaw, height = 7f;
     }
 
+    /// <summary>How fast time runs over the yard and what the weather does while it does — the pace of the day, not
+    /// the look of it: the sky itself is the game's (<see cref="SandboxSky"/> over <c>Night/SkyDome</c>).</summary>
+    [Serializable]
+    public sealed class YardSky
+    {
+        /// <summary>The hour of 1 February 1959 the map opens at, in hours (14.5 is half past two in the afternoon).
+        /// The afternoon, so the first thing anyone sees is daylight; sunset over Kholat that day is 16:58.</summary>
+        public float hour = 14f;
+
+        /// <summary>Real minutes one whole twenty-four hours takes. Eight: about a minute of afternoon light, a
+        /// minute of sunset and dusk, five of night, and the dawn at the end.</summary>
+        public float dayMinutes = 8f;
+
+        /// <summary>Fronts arrive and pass by themselves, as a condition of the world. Off, the yard is calm until a
+        /// run of the errand raises its own front.</summary>
+        public bool weather = true;
+    }
+
     /// <summary>The arrangement of the night yard, as data the player reads at start-up: where the fire, the tent and
     /// the labaz stand, what cover is between them, what the camp's gear at the tent mouth is and how wide the way in
     /// stays. Every field defaults to the value the yard was built with in code, so a missing or broken file is the
@@ -90,6 +108,9 @@ namespace Height1079.Sandbox
         public YardSpot labaz = new YardSpot { x = 23f, z = 2f, yaw = 20f };
         /// <summary>Where a body starts, beside the fire, facing the tent.</summary>
         public YardSpawn spawn = new YardSpawn();
+
+        /// <summary>When the day starts, how fast it runs and whether the weather runs with it.</summary>
+        public YardSky sky = new YardSky();
 
         /// <summary>Half a body plus the arms, metres: the way in from the mouth of the tent to the stove at the
         /// back. Gear laid inside it is slid sideways until it clears, so dressing never decides whether the night
@@ -227,6 +248,9 @@ namespace Height1079.Sandbox
             if (!(size >= 10f) || size > 1000f) return "размер двора " + size + " м вне 10…1000";
             if (origin == null || fire == null || tent == null || labaz == null || spawn == null) return "не хватает точки (origin, fire, tent, labaz, spawn)";
             if (!(corridor >= 0f) || corridor > 10f) return "ширина прохода " + corridor + " м вне 0…10";
+            if (sky == null) return "не хватает раздела sky (час начала, длина суток, погода)";
+            if (!(sky.hour >= 0f) || sky.hour >= 24f) return "час начала " + sky.hour + " вне 0…24";
+            if (!(sky.dayMinutes >= .5f) || sky.dayMinutes > 1440f) return "сутки за " + sky.dayMinutes + " мин вне 0,5…1440";
             if (cover == null || gear == null || dressing == null) return "не хватает списка (cover, gear, dressing)";
             for (int i = 0; i < cover.Count; i++)
             {

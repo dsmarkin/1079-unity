@@ -334,9 +334,26 @@ namespace Height1079.Runtime
                 ApplyPlace();
             }
 
+            /// <summary>The hour the dome shows: the night the session is counting, or — when the demo reel is
+            /// driving — whatever hour the reel wants. The dome itself knows nothing of either (it lives in the
+            /// shared assembly now, <see cref="SkyDome"/>), so the game hands it this.</summary>
+            static SkyMoment GameSky()
+            {
+                var s = NightSession.Instance;
+                var now = SkyMoment.InNight(s != null ? s.Elapsed.Value : 0f);
+                now.Running = s != null;
+                // the demo reel walks the night itself, with no session behind it
+                if (DemoReel.NightSeconds >= 0f) { now.NightSeconds = DemoReel.NightSeconds; now.Running = true; }
+                if (DemoReel.ClockMinutes >= 0f) now.Minutes = DemoReel.ClockMinutes;
+                return now;
+            }
+
             /// <summary>The 1959 night sky and its moonlight exist on Kholat only; switching places takes them down or puts them back.</summary>
             public void ApplyPlace()
             {
+                // whoever loaded this scene last owns the sky's clock: coming back from the small map, the game
+                // takes it again here, before the dome is built
+                SkyDome.Clock = GameSky;
                 var dome = FindFirstObjectByType<SkyDome>();
                 if (Height1079.Core.World.IsElbrus)
                 {
@@ -362,13 +379,14 @@ namespace Height1079.Runtime
                 {
                     WorldDressing.NextView();
                     Hud.SetStatus(WorldDressing.ViewIndex < 0 ? "" : $"Осмотр места: {WorldDressing.ViewName} (F3 — дальше)");
+                    // started with -shots, every step of the viewer also writes the frame to Shots/ (SiteShot)
+                    if (WorldDressing.ViewIndex >= 0) SiteShot.Grab(WorldDressing.ViewId);
                 }
                 var s = NightSession.Instance;
                 float blizzard = Weather.Storm;
                 // darkness by the sun under the horizon (and a bit more under a closed cloud deck)
                 float alt = SkyDome.SunAlt;
-                float night = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(-1.5f, -13f, alt));
-                night = Mathf.Clamp01(night + .08f * SkyDome.CloudCover * night);
+                float night = SkyDome.Darkness;
                 if (s == null) night = 0f;
                 // site views are for looking at things: keep them readable
                 if (WorldDressing.ViewIndex >= 0 && !WorldDressing.ViewKeepsDark) night = Mathf.Min(night, .35f);

@@ -105,22 +105,26 @@ Assets/
                                      места событий), Sites (исторические константы), Campaign/Prologue (пролог). Гоняется в dotnet.
     Runtime/   Height1079.Runtime  — игра: Bootstrap (строит всё из кода при старте), HikerController (игрок, камера),
                                      Equipment (компас, фонари), NightSession (сеть, хост считает ночь), HudController (uGUI из кода),
-                                     SnowFx/SnowTrail (снег, следы), Weather (ветер, пурга), Ambience + Synth (синтез звука),
-                                     NightFilm (виньетка/зерно), MenkBrain (ИИ Менка, сервер) + MenkView (модель, анимация, звук),
+                                     SnowFx/SnowTrail (снег, следы), WeatherDriver (что игра хочет от Night/Weather), Ambience (звук),
+                                     MenkBrain (ИИ Менка, сервер) + MenkView (модель, анимация, звук),
                                      WorldDressing (архивный слой F2, осмотр F3), TerrainBuilder, CampSmoke.
     Editor/    Height1079.Editor   — генерация: ProjectSetup (префабы, сцена, сборки, настройки проекта),
                                      World/WorldImporter (пайплайн мира, PipelineVersion), TreeFactory, SiteFactory*.cs (реконструкции
                                      мест), ItemsFactory (предметы), CreatureFactory (Менк), PropKit/MeshBuilder/Materials/PropTextures.
     Snow/      Height1079.Snow     — снег под ногами, общий для игры и песочницы: SnowPrints (отпечатки, утоптанный снег,
                                      облачка, карта троп и правило глубины), SnowPrintArt (картинки отпечатков). Только UnityEngine.
-    Night/     Height1079.Night    — ночь, общая для игры и песочницы: Weather (ветер, метель, позёмка; кто владеет ночью, задаёт
-                                     Want/Live — в игре это Runtime/WeatherDriver), Synth (синтез звука), NightFilm (виньетка, зерно),
-                                     CampSmoke (пламя и дым костра), MenkPuppet (скелет Менка и его позы), WindSound (ветер в ушах). Только UnityEngine.
+    Night/     Height1079.Night    — ночь и небо, общие для игры и песочницы: SkyDome (купол, звёзды, луна, облака, сияние; час подаёт
+                                     владелец мира через SkyDome.Clock — в игре Bootstrap, в песочнице SandboxSky) + DaySky (дневное небо
+                                     Эльбруса) + SkyAssets (ассеты неба лежат в Resources, их печёт Editor/World/SkyFactory),
+                                     Weather (ветер, метель, позёмка; кто владеет ночью, задаёт Want/Live — в игре это Runtime/WeatherDriver),
+                                     Synth (синтез звука), NightFilm (виньетка, зерно), CampSmoke (пламя и дым костра),
+                                     MenkPuppet (скелет Менка и его позы), WindSound (ветер в ушах). UnityEngine + Core (небу нужен Core/Sky.cs).
     Puppet/    Height1079.Puppet   — новое тело по образцу PEAK (капсула на пружине ног, фигура, одежда), пока живёт в песочнице.
     Torchlight/ Height1079.Torchlight — луч фонаря (TorchBeam: свет, кука рефлектора, батарея и мерцание), общий для Equipment
                                      игры и фонарика песочницы. Только UnityEngine.
-    Sandbox/   Height1079.Sandbox  — песочница: полигон, снежное поле, камера и звук шагов для Puppet; ночная площадка
-                                     (SandboxHunt*, SandboxNight — docs/SANDBOX.md) на правилах Core/Hunt.cs. Видит Core, Snow,
+    Sandbox/   Height1079.Sandbox  — маленькая карта: полигон, снежное поле, камера и звук шагов для Puppet; площадка с забегом
+                                     (SandboxHunt* — docs/SANDBOX.md) на правилах Core/Hunt.cs и SandboxSky (часы: день, закат, ночь,
+                                     рассвет; погода приходит и уходит — над Night/SkyDome и Night/Weather). Видит Core, Snow,
                                      Puppet, Night; не видит Runtime.
     Steam/     Height1079.Steam    — лобби Steam, компилируется только с define STEAM_FACEPUNCH.
   Tests/EditMode/                  — NUnit. CoreTests/CampaignTests/PrologueTests — только Core; MenkTests — Runtime (только в Unity).

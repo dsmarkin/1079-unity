@@ -9,8 +9,9 @@ using Height1079.Snow;
 
 namespace Height1079.Sandbox
 {
-    /// <summary>The physics sandbox: one scene, no world, no network, no night. It builds the test range and one body
-    /// and hands the player a panel of every number the body is made of, so the feel of climbing can be found in
+    /// <summary>The small map: one scene, no world, no network. It builds the yard and one body, runs the game's own
+    /// sky over it on a clock of its own (<see cref="SandboxSky"/> — daylight, dusk, night, dawn, wind and blizzard)
+    /// and hands the player a panel of every number the body is made of, so the feel of walking can be found in
     /// minutes instead of a build of the whole mountain. What is found here is saved as a tuning file and read by the
     /// game.</summary>
     public sealed class SandboxBoot : MonoBehaviour
@@ -31,6 +32,9 @@ namespace Height1079.Sandbox
         public bool PackOpen { get; private set; }
         /// <summary>The night run of the yard (docs/SANDBOX.md): N starts and abandons it.</summary>
         public SandboxHunt Hunt { get; private set; }
+        /// <summary>The sky over the map and the weather under it: the clock, the game's dome, the light it casts and
+        /// the blizzards that come and go (<see cref="SandboxSky"/>). It belongs to the map, not to any game mode.</summary>
+        public SandboxSky Sky { get; private set; }
         /// <summary>The night was won: the screen is up with the words and the button, the body stands where it is.</summary>
         public bool Ended { get; private set; }
         /// <summary>What the body looks like (<see cref="SandboxFigure"/>): the Adventurer from a file by default,
@@ -115,17 +119,16 @@ namespace Height1079.Sandbox
             defaultIterations = Physics.defaultSolverIterations;
             Tuning = PuppetTuning.Load("sandbox");
             ApplySolver();
-            Sky();
+            Air();
             // the yard is the sandbox now (docs/SANDBOX.md); the physics range — steps, slopes, the wall, the drops —
             // is built only for the scripts that measure the body on it
-            SandboxRange.Build(withRange: SandboxSelfTest.Requested || SandboxShots.Requested || DayRequested);
+            SandboxRange.Build(withRange: SandboxSelfTest.Requested || SandboxShots.Requested);
             if (SandboxRange.YardStand >= 0) stand = SandboxRange.YardStand;
-            // `-day` opens on the physics range in daylight instead of the yard at night: the place to look at the
-            // figure, the colours and the gait, and to walk the steps and slopes by hand. F11/F12 walk the stands,
-            // and the yard is one of them, so the night is a keypress away rather than the only thing there is.
-            if (DayRequested && SandboxRange.Stands.Count > 0) stand = 0;
             // the game's own prints, puffs and trail map (Height1079.Snow), under this object so they go when it goes
             SnowPrints.Create(transform);
+            // the sky and the weather over the yard: the game's dome on a clock of its own (SandboxSky). Built after
+            // the snow, because the falling snow is one of the things the weather switches on
+            Sky = SandboxSky.Create(transform, Cam);
             Spawn();
             rig = gameObject.AddComponent<SandboxCameraRig>();
             rig.Setup(Cam);
@@ -137,24 +140,13 @@ namespace Height1079.Sandbox
             // the look: the Adventurer from a file over the puppet (the default), hiker-v1, or the sculpted figure
             Figure = gameObject.AddComponent<SandboxFigure>();
             // the keys are not written on the screen any more; say the few worth knowing once
-            SandboxHud.Say("Tab — рюкзак · 1 2 3 — слоты · F — фонарик · E — шоколадка · V — вид · B — другая фигура · F1 — настройки тела · F11 — следующий стенд · N — ночь на площадке · F9 — в меню");
+            SandboxHud.Say("Tab — рюкзак · 1 2 3 — слоты · F — фонарик · E — шоколадка · V — вид · B — другая фигура · F1 — настройки тела · F11 — следующий стенд · N — забег (сразу ночь) · F9 — в меню");
             ApplyCursor();
             // `-selftest` drives the body by script and quits: the only way to check physics in a batch build
             if (SandboxSelfTest.Requested) gameObject.AddComponent<SandboxSelfTest>();
             else if (SandboxShots.Requested) gameObject.AddComponent<SandboxShots>();
-            // otherwise the night comes down at once: the yard is what the sandbox is for now
-            else if (stand == SandboxRange.YardStand && !DayRequested) Hunt.Begin();
-        }
-
-        /// <summary>`1079-sandbox -day` — start on the physics range in daylight, with the stands built, instead of
-        /// the night yard. The yard is still there under F11/F12; this only changes where the sandbox opens.</summary>
-        public static bool DayRequested
-        {
-            get
-            {
-                foreach (var a in System.Environment.GetCommandLineArgs()) if (a == "-day") return true;
-                return false;
-            }
+            // nothing else starts by itself: the map opens in the afternoon and the day runs. N asks for the night
+            // and the errand with it.
         }
 
         public void ApplySolver()
@@ -164,30 +156,22 @@ namespace Height1079.Sandbox
             Physics.defaultSolverVelocityIterations = Mathf.Max(2, Tuning.SolverIterations / 2);
         }
 
-        /// <summary>A day on a mountain: a low raking sun, snow throwing light back into every shadow, air with depth
-        /// in it, and ridges on the horizon. None of the game's night, weather or sky code is dragged in — the sandbox
-        /// has to come up in a second — and this is all it takes to stop the range reading as a room.</summary>
-        void Sky()
+        /// <summary>The camera, and the first frame's air. Everything the light does after that is the sky's
+        /// (<see cref="SandboxSky"/>): the sun, the moon, the ambient triple and the fog all move with the clock, so
+        /// nothing is nailed here beyond what one frame needs before the sky's first Update.
+        ///
+        /// (In a player build Unity can strip the fog variants of a shader nothing in the scene fogs — the game keeps
+        /// them on purpose, see ProjectSetup.EnsureFogVariants. If they ever are stripped here, the picture loses its
+        /// haze and nothing else: the map still builds and still plays.)</summary>
+        void Air()
         {
-            var sun = new GameObject("Sun", typeof(Light));
-            var l = sun.GetComponent<Light>();
-            l.type = LightType.Directional; l.intensity = 1.25f; l.color = new Color(1f, .96f, .89f);
-            l.shadows = LightShadows.Soft;
-            // shadows on snow are pale: almost all of what the sun does not light is lit by the ground anyway
-            l.shadowStrength = .7f;
-            // low and off to one side, so every lip, step and drift throws a shadow long enough to read
-            sun.transform.rotation = Quaternion.Euler(34f, -50f, 0f);
+            var air = new Color(.78f, .84f, .91f);
             RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Trilight;
             // a strong gradient ambient is what makes flat matte colour read as round instead of plastic, and on snow
             // the brightest of the three is the ground: that bounce is why nothing on a glacier is ever silhouetted
             RenderSettings.ambientSkyColor = new Color(.66f, .76f, .92f);
             RenderSettings.ambientEquatorColor = new Color(.74f, .78f, .83f);
             RenderSettings.ambientGroundColor = new Color(.82f, .84f, .88f);
-            // distance. Without it the ridges are cardboard and the range has no size.
-            // (In a player build Unity can strip the fog variants of a shader nothing in the scene fogs — the game
-            //  keeps them on purpose, see ProjectSetup.EnsureFogVariants. If they ever are stripped here, the picture
-            //  loses its haze and nothing else: the range still builds and still plays.)
-            var air = new Color(.78f, .84f, .91f);
             RenderSettings.fog = true;
             RenderSettings.fogMode = FogMode.ExponentialSquared;
             RenderSettings.fogDensity = .0026f;
@@ -195,10 +179,11 @@ namespace Height1079.Sandbox
             var camGo = new GameObject("Main Camera", typeof(Camera), typeof(AudioListener));
             camGo.tag = "MainCamera";
             Cam = camGo.GetComponent<Camera>();
-            // the game's sixty degrees, so a slope that looks walkable here looks walkable there
-            Cam.nearClipPlane = .08f; Cam.farClipPlane = 1000f; Cam.fieldOfView = 60f;
+            // the game's sixty degrees, so a slope that looks walkable here looks walkable there. The far plane is
+            // the dome's: SkyDome pushes it out to 3 100 m anyway, and a nearer one clips the sky itself.
+            Cam.nearClipPlane = .08f; Cam.farClipPlane = 3100f; Cam.fieldOfView = 60f;
             Cam.clearFlags = CameraClearFlags.SolidColor;
-            Cam.backgroundColor = air;        // the sky is the far end of the air, or the horizon shows as a seam
+            Cam.backgroundColor = air;        // under the dome; without one, the far end of the air
         }
 
         /// <summary>Throws away the body and builds a new one — the only way to be sure a change of mass or size has
@@ -366,9 +351,10 @@ namespace Height1079.Sandbox
             // the F1 panel lists every one. Both reach the game under automation, which letters do not.
             if (Down(Key.F11) && SandboxRange.Stands.Count > 0) GoTo((stand + 1) % SandboxRange.Stands.Count);
             if (Down(Key.F12) && SandboxRange.Stands.Count > 0) GoTo((stand + SandboxRange.Stands.Count - 1) % SandboxRange.Stands.Count);
-            // the night run of the yard (docs/SANDBOX.md): N brings the night down and puts the body at the fire;
-            // N again gives the day back. Its verbs are the game's own keys — F is the light above, R takes and
-            // puts down, X throws — and C and Z are the two things a hunted body does that a walking one does not.
+            // the errand on the yard (docs/SANDBOX.md): N moves the clock to the dead of night once and puts the body
+            // at the fire; N again starts it over. The day goes on running under it — the sky is the map's, not the
+            // errand's. Its verbs are the game's own keys — F is the light above, R takes and puts down, X throws —
+            // and C and Z are the two things a hunted body does that a walking one does not.
             if (Down(Key.N)) Hunt.Begin();
             if (Hunt.Run != null)
             {
