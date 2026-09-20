@@ -64,10 +64,14 @@ namespace Height1079.Runtime
         }
 
         // twilight palette by the sun's altitude (degrees): zenith, horizon, glow
-        static readonly float[] Alts = { 4f, 0f, -4f, -8f, -12f, -18f };
-        static readonly Color[] Zeniths = { new Color(.36f, .45f, .58f), new Color(.27f, .35f, .48f), new Color(.14f, .19f, .31f), new Color(.055f, .08f, .15f), new Color(.032f, .042f, .072f), new Color(.022f, .028f, .046f) };
-        static readonly Color[] Horizons = { new Color(.78f, .76f, .74f), new Color(.66f, .6f, .6f), new Color(.42f, .38f, .44f), new Color(.15f, .15f, .21f), new Color(.062f, .068f, .092f), new Color(.036f, .042f, .058f) };
-        static readonly Color[] Glows = { new Color(.9f, .55f, .3f), new Color(1.1f, .55f, .3f), new Color(.85f, .38f, .27f), new Color(.42f, .2f, .18f), new Color(.1f, .06f, .07f), Color.black };
+        // The top of this table used to be 4°, because the game only ever needed dusk and the night after it. On
+        // 2 February the sun here climbs to 11° and no further, so that top stop was doing duty as "daytime" and
+        // made noon look like late twilight. The 10° stop is the real daylight of this latitude in February: a
+        // clean blue overhead, a bright horizon, and the sun still low enough to rake everything sideways.
+        static readonly float[] Alts = { 10f, 4f, 0f, -4f, -8f, -12f, -18f };
+        static readonly Color[] Zeniths = { new Color(.30f, .45f, .69f), new Color(.36f, .45f, .58f), new Color(.27f, .35f, .48f), new Color(.14f, .19f, .31f), new Color(.055f, .08f, .15f), new Color(.032f, .042f, .072f), new Color(.022f, .028f, .046f) };
+        static readonly Color[] Horizons = { new Color(.86f, .89f, .94f), new Color(.78f, .76f, .74f), new Color(.66f, .6f, .6f), new Color(.42f, .38f, .44f), new Color(.15f, .15f, .21f), new Color(.062f, .068f, .092f), new Color(.036f, .042f, .058f) };
+        static readonly Color[] Glows = { new Color(.5f, .42f, .34f), new Color(.9f, .55f, .3f), new Color(1.1f, .55f, .3f), new Color(.85f, .38f, .27f), new Color(.42f, .2f, .18f), new Color(.1f, .06f, .07f), Color.black };
 
         static Color Palette(Color[] table, float alt)
         {
@@ -114,6 +118,8 @@ namespace Height1079.Runtime
 
             float storm = Weather.Storm;
             CloudCover = Mathf.Lerp(running ? CoverAt(elapsed) : .45f, 1f, storm);
+            // the book is shot on a clear morning: a closed deck greys every place into the same photograph
+            if (SiteShot.Asked && WorldDressing.ViewIndex >= 0 && !WorldDressing.ViewKeepsDark) CloudCover = Mathf.Min(CloudCover, .22f);
             Aurora = running ? AuroraAt(elapsed) * (1f - storm) : 0f;
 
             var z = Palette(Zeniths, SunAlt); var h = Palette(Horizons, SunAlt); var g = Palette(Glows, SunAlt);

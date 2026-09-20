@@ -69,13 +69,19 @@ namespace Height1079.EditorTools.World
             var evening = new GameObject("Evening_1959-02-01"); evening.transform.SetParent(t, false);
             TentBody(evening.transform, 1.07f);
 
-            // 26 February, as the search party found it. Not the taut tent of every dramatisation: the northern half
-            // was down and buried, the guys on that side torn, the rear pole gone altogether and the middle sagging,
-            // with only the southern, entrance end still standing (Tempalov 18.IV, Maslennikov 10.III, Lebedev 20.IV,
-            // Brusnitsyn 15.V, Slobtsov 15.IV — "the entrance came out from under the snow, the rest was under it").
+            // The morning of 2 February — the day this world is set on, and the day nobody photographed.
+            //
+            // What the search party found on 26 February is a different thing and must not be drawn here: the
+            // northern half flat and buried, only the entrance end above the snow (Tempalov 18.IV, Maslennikov
+            // 10.III, Lebedev 20.IV, Brusnitsyn 15.V, Slobtsov 15.IV). That is twenty-four days of wind on an
+            // abandoned tent, and copying it into this morning would quietly age the scene by three and a half weeks.
+            //
+            // So only what the night itself left stands here: the damage, and the rear end already down, because the
+            // rear ski pole was cut into pieces that night and is lying on top of everything. Everything forward of
+            // the middle still holds its shape — which is also what makes the cuts readable instead of buried.
             // u = 0 is the northern end here, because +Z is the entrance and the entrance faces south.
             const float Y0 = .04f;
-            float Slump(float u) => Mathf.Lerp(.16f, 1f, Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(u * 1.4f - .12f)));
+            float Slump(float u) => Mathf.Lerp(.58f, 1f, Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(u * 1.25f)));
             float SlumpAtZ(float z) => Slump((z + L / 2) / L);
             Vector3 OnSlant(float z, float up, float across)
             {
@@ -84,41 +90,108 @@ namespace Height1079.EditorTools.World
                 return new Vector3(flat.x * (1f + (1f - sc) * .22f) + .012f, Y0 + (flat.y - Y0) * sc + .01f, z);
             }
 
-            var search = new GameObject("SearchState_1959-02-26"); search.transform.SetParent(t, false);
+            var search = new GameObject("Morning_1959-02-02"); search.transform.SetParent(t, false);
             TentBody(search.transform, 1.07f, slump: Slump);
 
-            // three knife cuts, from the inside, on the downslope slant (Churkina)
-            var cuts = new MeshBuilder(1);
-            float[] zc = { -1.2f, 0.1f, 1.25f };
+            // The five damages, and the whole reason this place has a picture of its own.
+            //
+            // They used to be drawn as dark quads laid on the fabric, which reads as paint, not as damage. What
+            // makes a hole a hole is thickness: a rim of cloth turning inward, and the dark of the tent behind it.
+            // So every one of them is punched — a ragged outline, a bevel of canvas going in, and an unlit face
+            // at the bottom of it.
+            Vector3 SlantUp(float z) => (OnSlant(z, .95f, 0f) - OnSlant(z, .05f, 0f)).normalized;
+            Vector3 SlantOut(float z) => Vector3.Cross(SlantUp(z), Vector3.forward).normalized;
+
+            var rim = new MeshBuilder(1);      // canvas: the edge of the opening, turning in
+            var voidM = new MeshBuilder(1);    // what is behind it
+
+            void Opening(Vector3 c, Vector3 u, Vector3 v, Vector3 n, Vector2[] poly, float depth)
+            {
+                int m = poly.Length;
+                Vector3 P(int i, float d) => c + u * poly[i].x + v * poly[i].y - n * d;
+                for (int i = 0; i < m; i++)
+                {
+                    int j = (i + 1) % m;
+                    rim.Quad(0, P(i, 0f), P(j, 0f), P(j, depth), P(i, depth), Vector2.zero, Vector2.right, Vector2.one, Vector2.up, true);
+                }
+                var mid = c - n * depth;
+                for (int i = 0; i < m; i++)
+                {
+                    int j = (i + 1) % m;
+                    voidM.Quad(0, mid, P(i, depth), P(j, depth), mid, Vector2.zero, Vector2.right, Vector2.one, Vector2.up, true);
+                }
+            }
+
+            // A torn-out piece: nearly rectangular, because that is how Churkina described it, but given way at the
+            // corners and along the weave — the edges are what say "torn" rather than "cut".
+            Vector2[] Ragged(float halfU, float halfV, int n, int seed)
+            {
+                var poly = new Vector2[n];
+                var rnd = new System.Random(seed);
+                for (int i = 0; i < n; i++)
+                {
+                    float a2 = i / (float)n * Mathf.PI * 2f;
+                    float cu = Mathf.Cos(a2), cv = Mathf.Sin(a2);
+                    float box = Mathf.Lerp(1f / Mathf.Max(Mathf.Abs(cu), Mathf.Abs(cv)), 1f, .22f);
+                    float j = 1f + (float)(rnd.NextDouble() - .5) * .26f;
+                    poly[i] = new Vector2(cu * box * halfU * j, cv * box * halfV * j);
+                }
+                return poly;
+            }
+
+            // A knife slash in taut canvas does not stay a line: it gapes in the middle and closes to a point at
+            // either end. Drawn as a line it would be invisible at any distance, which is how these went missing.
+            Vector2[] Slit(float len, float gap, int n)
+            {
+                var poly = new Vector2[n * 2];
+                for (int i = 0; i < n; i++)
+                {
+                    float t = i / (float)(n - 1);
+                    float uu = (t - .5f) * len, w = gap * .5f * Mathf.Sin(t * Mathf.PI);
+                    poly[i] = new Vector2(uu, w);
+                    poly[poly.Length - 1 - i] = new Vector2(uu, -w);
+                }
+                return poly;
+            }
+
+            // three cuts from the inside, on the downslope slant (Churkina): 0.32, 0.89, 0.42 m
+            float[] zc = { -1.2f, 0.15f, 1.3f };
             for (int i = 0; i < 3; i++)
             {
                 float len = Sites.Tent.Cuts[i];
-                Vector3 c0 = OnSlant(zc[i], .35f, 0f);
-                Vector3 dirUp = (OnSlant(zc[i], .95f, 0f) - OnSlant(zc[i], .05f, 0f)).normalized;
-                Vector3 p0 = c0 - dirUp * len * .5f, p1 = c0 + dirUp * len * .5f, side = Vector3.forward * .025f;
-                cuts.Quad(0, p0 - side, p1 - side, p1 + side, p0 + side, Vector2.zero, Vector2.right, Vector2.one, Vector2.up, true);
+                Vector3 c0 = OnSlant(zc[i], .46f, 0f), u0 = SlantUp(zc[i]), n0 = SlantOut(zc[i]);
+                Opening(c0, u0, Vector3.forward, n0, Slit(len, .035f + .045f * len, 9), .05f);
             }
-            Part(search.transform, "Cuts", cuts, Materials.Charcoal);
 
-            // and the damage that is not a cut: two rectangles torn out of the same slant, together larger than all
-            // three cuts (Churkina). They were missing here for the same reason they are missing from most retellings.
-            var torn = new MeshBuilder(1);
-            float[] zt = { -0.45f, 0.75f };
+            // and the damage that is not a cut, and is larger than all three cuts together: two roughly rectangular
+            // pieces torn out of the same slant, 0.80–0.95 × 0.60–0.75 m. Popular retellings fold all five into
+            // "the cuts", which is how they came to be missing here.
+            float[] zt = { -0.5f, 0.85f };
             for (int i = 0; i < Sites.Tent.TornSections.Length; i++)
             {
                 var (tl, tw) = Sites.Tent.TornSections[i];
                 float z = zt[i];
-                Vector3 lo = OnSlant(z, .12f, 0f), hi = OnSlant(z, .12f + tw / Sites.Tent.SlopeLength * .8f, 0f);
-                Vector3 alongZ = Vector3.forward * (tl * .5f), side = Vector3.forward * 0f;
-                torn.Quad(0, lo - alongZ, hi - alongZ, hi + alongZ, lo + alongZ, Vector2.zero, Vector2.up, Vector2.one, Vector2.right, true);
-                torn.Quad(0, lo + alongZ, hi + alongZ, hi - alongZ, lo - alongZ, Vector2.zero, Vector2.up, Vector2.one, Vector2.right, true);
-            }
-            Part(search.transform, "TornSections", torn, Materials.Charcoal);
+                Vector3 c1 = OnSlant(z, .44f, 0f), u1 = SlantUp(z), n1 = SlantOut(z);
+                Opening(c1, u1, Vector3.forward, n1, Ragged(tw * .5f / Sites.Tent.SlopeLength * .92f, tl * .5f, 26, 7 + i), .06f);
 
-            // snow over the northern half — 15–20 cm, wind-blown, deepest where the tent had come down
+                // the lower piece did not come away whole: a corner of it still hangs off the edge
+                if (i == 1)
+                {
+                    float hw = tw * .5f / Sites.Tent.SlopeLength * .9f, hl = tl * .42f;
+                    Vector3 e0 = c1 - u1 * hw + Vector3.forward * (-hl), e1 = c1 - u1 * hw + Vector3.forward * (hl * .35f);
+                    Vector3 drop = (n1 * .55f - u1 * .8f).normalized * .26f;
+                    rim.Quad(0, e0, e1, e1 + drop + Vector3.forward * .05f, e0 + drop * 1.15f - Vector3.forward * .04f,
+                             Vector2.zero, Vector2.right, Vector2.one, Vector2.up, true);
+                }
+            }
+            Part(search.transform, "DamageEdges", rim, Materials.Canvas);
+            Part(search.transform, "DamageVoid", voidM, Materials.Charcoal);
+
+            // A night's worth of drift over the sunken end, and no more: 2–3 cm, gathered where the fabric fell.
+            // The deep burial belongs to late February and is deliberately not here.
             var drift = new MeshBuilder(1);
-            for (int k = 0; k < 4; k++)
-                Mound(drift, 0, new Vector3(0, Hr * .22f, -L / 2 + .3f + k * .62f), new Vector3(W * .72f, Sites.Tent.SnowOnTentFound * (3.4f - k * .5f), .75f), 31 + k);
+            for (int k = 0; k < 3; k++)
+                Mound(drift, 0, new Vector3(0, Hr * .12f, -L / 2 + .35f + k * .7f), new Vector3(W * .62f, Sites.Tent.SnowOnTentMorning * (3.2f - k * .7f), .8f), 31 + k);
             Part(search.transform, "SnowOnTent", drift, Materials.Snow);
 
             // the rear ski pole, cut into several pieces and lying on top of everything — Brusnitsyn notes that
@@ -161,7 +234,10 @@ namespace Height1079.EditorTools.World
                 (0.165f, .210f), (0.300f, .175f), (0.430f, .150f), (0.520f, .168f),
                 (0.640f, .140f), (0.780f, .105f), (0.920f, .078f), (1.00f, .058f),
             };
-            const float Len = 1.72f, Stroke = .028f, Y = .035f;
+            // The stroke was 2.8 cm, which is a line you can only see standing over it; from the ten metres a
+            // place is actually looked at, it was nothing. A drawing has to carry at that distance or it is not
+            // a drawing, it is a rendering artefact.
+            const float Len = 1.72f, Stroke = .055f, Y = .04f;
             float W(float t)
             {
                 for (int i = 1; i < prof.Length; i++)
