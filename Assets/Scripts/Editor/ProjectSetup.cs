@@ -123,6 +123,7 @@ namespace Height1079.EditorTools
                 "Hidden/TerrainEngine/Details/WavingDoublePass",
                 "Hidden/TerrainEngine/Details/Vertexlit",
                 "1079/Text3D",
+                "UI/Default",
             };
             var assets = AssetDatabase.LoadAllAssetsAtPath("ProjectSettings/GraphicsSettings.asset");
             if (assets == null || assets.Length == 0) return;
