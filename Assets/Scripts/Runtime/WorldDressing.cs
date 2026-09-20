@@ -11,7 +11,7 @@ namespace Height1079.Runtime
 
         static GameObject Spawn(string prefab, Vector3 pos, Quaternion rot, Transform parent)
         {
-            var p = Resources.Load<GameObject>("World/Prefabs/" + prefab);
+            var p = WorldAssets.Load<GameObject>("Prefabs/" + prefab);
             if (p == null) { Debug.LogWarning("World prefab missing: " + prefab); return null; }
             return Object.Instantiate(p, pos, rot, parent);
         }
