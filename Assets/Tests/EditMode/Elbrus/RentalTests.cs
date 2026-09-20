@@ -112,7 +112,7 @@ namespace Height1079.Tests
     /// <summary>The clock the Elbrus run keeps, and the line of the route the whole world was laid out against.</summary>
     public class AscentDayTests
     {
-        static float RunSeconds => World.ElbrusPlan.Profile.Seconds;
+        static float RunSeconds => ElbrusLocation.Plan.Profile.Seconds;
 
         [Test]
         public void TheRunCoversAMorningAndTheTurnaroundIsInsideIt()
@@ -183,7 +183,7 @@ namespace Height1079.Tests
             Assert.IsTrue(text.Title.Length > 2);
             Assert.IsTrue(text.Note.Length > 40, "исход объясняется словами, а не кодом");
 
-            var run = new NightRun(0, (x, z) => 0f, World.ElbrusPlan);
+            var run = new NightRun(0, (x, z) => 0f, ElbrusLocation.Plan);
             run.AddPlayer("a", "Путник", 0);
             Assert.IsTrue(run.Fall("a", "{name} срывается."));
             Assert.AreEqual(Outcome.Fall, run.Players["a"].Outcome);
@@ -194,7 +194,7 @@ namespace Height1079.Tests
         [Test]
         public void AKnockTakesWarmthAndLeavesTheOutcomeToTheCold()
         {
-            var run = new NightRun(0, (x, z) => 0f, World.ElbrusPlan);
+            var run = new NightRun(0, (x, z) => 0f, ElbrusLocation.Plan);
             var p = run.AddPlayer("a", "Путник", 0);
             float heat = p.Heat;
             Assert.IsTrue(run.Hurt("a", 20f, "{name} проваливается."));

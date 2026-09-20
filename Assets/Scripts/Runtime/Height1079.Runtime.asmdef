@@ -3,6 +3,7 @@
   "rootNamespace": "Height1079.Runtime",
   "references": [
     "Height1079.Core",
+    "Height1079.Elbrus.Core",
     "Unity.Netcode.Runtime",
     "Unity.Collections",
     "Unity.Networking.Transport",

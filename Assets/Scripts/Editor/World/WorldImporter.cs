@@ -25,12 +25,34 @@ namespace Height1079.EditorTools.World
         public static void RebuildMenu() { Build(true); WorldKitBuilder.Build(); }
 
         /// <summary>Bump when a factory changes so existing checkouts rebuild the generated world on next open/check.</summary>
-        public const int PipelineVersion = 63;
+        public const int PipelineVersion = 64;
         const string Stamp = WorldPaths.Generated + "/pipeline.version";
+
+        /// <summary>The maps that are built by their own assembly and not by this one. Each subscribes from an
+        /// <c>[InitializeOnLoadMethod]</c>, so a map that is not compiled into this editor adds nothing here and the
+        /// pipeline simply does not build it (docs/ELBRUS.md).</summary>
+        public static event System.Action Extras;
+
+        /// <summary>And whether what those maps build is on disk and current. A map whose source data is not in the
+        /// checkout answers true, the same way the pipeline has always treated a missing Elbrus raster.</summary>
+        public static event System.Func<bool> ExtrasBuilt;
 
         public static bool IsBuilt => File.Exists(TerrainAsset) && File.Exists(HeightResource) && File.Exists(Stamp)
             && File.ReadAllText(Stamp).Trim() == PipelineVersion.ToString()
-            && (!ElbrusImporter.SourcePresent || File.Exists(ElbrusImporter.TerrainAsset));
+            && ExtrasAreBuilt;
+
+        /// <summary>Every subscriber has to be happy: one missing map is a world that is not built.</summary>
+        static bool ExtrasAreBuilt
+        {
+            get
+            {
+                var subs = ExtrasBuilt;
+                if (subs == null) return true;
+                foreach (System.Func<bool> one in subs.GetInvocationList())
+                    if (!one()) return false;
+                return true;
+            }
+        }
 
         public static void Build(bool force)
         {
@@ -121,8 +143,8 @@ namespace Height1079.EditorTools.World
             AssetDatabase.CreateAsset(data, TerrainAsset);
             TerrainMaterial();
 
-            EditorUtility.DisplayProgressBar("1079 world", "Эльбрус: рельеф, канатки, приюты", .9f);
-            ElbrusImporter.Build();
+            EditorUtility.DisplayProgressBar("1079 world", "Карты со своей сборкой: рельеф и постройки", .9f);
+            Extras?.Invoke();
             AssetDatabase.SaveAssets();
             File.WriteAllText(Stamp, PipelineVersion.ToString());
             EditorUtility.ClearProgressBar();

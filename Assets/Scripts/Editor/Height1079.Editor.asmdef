@@ -3,6 +3,7 @@
   "rootNamespace": "Height1079.EditorTools",
   "references": [
     "Height1079.Core",
+    "Height1079.Elbrus.Core",
     "Height1079.Runtime",
     "Height1079.Puppet",
     "Height1079.Sandbox",

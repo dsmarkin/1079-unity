@@ -1,0 +1,23 @@
+{
+  "name": "Height1079.Elbrus",
+  "rootNamespace": "Height1079.Runtime",
+  "references": [
+    "Height1079.Core",
+    "Height1079.Elbrus.Core",
+    "Height1079.Runtime",
+    "Height1079.Night",
+    "Height1079.Snow",
+    "Unity.Netcode.Runtime",
+    "Unity.Collections",
+    "Unity.InputSystem"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": true,
+  "defineConstraints": ["!HEIGHT1079_NO_ELBRUS"],
+  "versionDefines": [],
+  "noEngineReferences": false
+}

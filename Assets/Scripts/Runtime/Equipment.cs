@@ -188,8 +188,8 @@ namespace Height1079.Runtime
             needle.localRotation = Quaternion.Euler(0, needleAngle, 0);
         }
 
-        /// <summary>The brass index of the ring, set to the azimuth of the line the guide's programme is on right now
-        /// (<see cref="Programmes.Aim"/>). It is the other half of what a compass is for: the needle finds north, the
+        /// <summary>The brass index of the ring, set to the azimuth of the line the map wants held right now
+        /// (<see cref="ILocationView.Course"/>). It is the other half of what a compass is for: the needle finds north, the
         /// index holds the bearing that was taken off the map, and the walking is done by keeping the two in the
         /// relation the map gave them. It moves with the goal and not with the player, so a step whose place is behind
         /// you sends it behind you.
@@ -197,16 +197,19 @@ namespace Height1079.Runtime
         /// Projected onto the face of the case exactly the way <see cref="UpdateNeedle"/> is, because in the hand the
         /// compass is tilted up to be read and its up axis is not the world's.
         ///
-        /// No programme, no index: off the southern slope, and on a step that is about the rucksack and not about a
-        /// place, the arrow is simply not there.</summary>
+        /// No bearing, no index: on a map that has no programme, and on a step that is about the rucksack and not
+        /// about a place, the arrow is simply not there.</summary>
+        float headingDeg;
+
         void UpdateCourse()
         {
             if (course == null || compass == null) return;
-            var aim = Programmes.Aim(hiker);
-            if (course.gameObject.activeSelf != aim.Has) course.gameObject.SetActive(aim.Has);
-            if (!aim.Has) return;
+            var view = LocationViews.Active;
+            bool has = view != null && view.Course(hiker, out headingDeg);
+            if (course.gameObject.activeSelf != has) course.gameObject.SetActive(has);
+            if (!has) return;
             var up = compass.up;
-            float rad = aim.HeadingDeg * Mathf.Deg2Rad;
+            float rad = headingDeg * Mathf.Deg2Rad;
             var toGoal = new Vector3(Mathf.Sin(rad), 0f, Mathf.Cos(rad));
             var onFace = Vector3.ProjectOnPlane(toGoal, up);
             if (onFace.sqrMagnitude < 1e-4f) return;

@@ -42,13 +42,16 @@ Git LFS не нужен: бинарные исходники (рельеф, те
 ```bash
 # быстрые тесты ядра (без Unity, ~10 с)
 cd Tools/CoreTests && dotnet run            # ждём: "# pass N fail 0"
+cd Tools/CoreTests && dotnet run -p:NoElbrus=true   # то же без локации Эльбруса (см. docs/ELBRUS.md)
 
 # полная проверка: компиляция + генерация + EditMode-тесты (Unity закрыт)
 Tools/mac/check.command                      # macOS → unity-check.log, unity-tests.xml
-powershell -ExecutionPolicy Bypass -File Tools\win\check.ps1   # Windows
+Tools/mac/check.command --no-elbrus          # то же, но собрав игру без локации Эльбруса
+powershell -ExecutionPolicy Bypass -File Tools\win\check.ps1   # Windows (-NoElbrus — без локации)
 
 # сборка и запуск
 Tools/mac/build.command && Tools/mac/run.command               # Builds/mac/1079.app, логи build.log / player.log
+Tools/mac/build.command --no-elbrus                            # сборка без локации Эльбруса (docs/ELBRUS.md)
 powershell -ExecutionPolicy Bypass -File Tools\win\build.ps1   # Builds\windows\1079.exe, лог build-win.log
 powershell -ExecutionPolicy Bypass -File Tools\win\run.ps1
 ```
@@ -86,11 +89,14 @@ bash Tools/mac/errand-install.sh remove   # снять
 
 - `-executeMethod Height1079.EditorTools.Builds.Mac`;
 - `-executeMethod Height1079.EditorTools.Builds.Windows`;
+- `-executeMethod Height1079.EditorTools.Builds.WithElbrus` / `…WithoutElbrus` — поставить флаг локации и выйти
+  (нужен **отдельный** запуск Unity перед сборкой: define решает, какие сборки существуют);
 - тесты: `-runTests -testPlatform EditMode`.
 
 Сборка сама вызывает `ProjectSetup.EnsureAll`, отдельно генерировать мир перед ней не нужно.
 
-Пункты меню редактора: **1079 → Rebuild world (terrain, trees, sites)** и **1079 → Generate prefabs and scene**.
+Пункты меню редактора: **1079 → Rebuild world (terrain, trees, sites)**, **1079 → Generate prefabs and scene**
+и **1079 → Локация Эльбрус → Включить / Выключить**.
 
 Скрипты для Windows написаны по образцу мак-версий и ещё не запускались на Windows. Если что-то не так, почини и закоммить.
 
@@ -102,12 +108,30 @@ bash Tools/mac/errand-install.sh remove   # снять
 Assets/
   Scripts/
     Core/      Height1079.Core     — правила без UnityEngine: NightRun (ночь, исходы), SurvivalRules, WorldData (кадр мира, высоты,
-                                     места событий), Sites (исторические константы), Campaign/Prologue (пролог). Гоняется в dotnet.
+                                     места событий), Sites (исторические константы), Campaign/Prologue (пролог),
+                                     ILocation + Locations (договор локации и реестр), KholatLocation, World (обёртка над активной
+                                     локацией). Гоняется в dotnet.
+    Core/Elbrus/ Height1079.Elbrus.Core — Эльбрус: Elbrus (география), Ascent*/Programme*/Camp/Forecast/Lodging/Rescue/Rental/
+                                     Refreshments/Ropeway, сейвы (SaveGame, SaveStore) и ElbrusLocation. Без движка, видит только
+                                     Core. Необязательный слой: defineConstraints ["!HEIGHT1079_NO_ELBRUS"] — по умолчанию в сборке,
+                                     с этим define выпадает (docs/ELBRUS.md).
+    Runtime/Elbrus/ Height1079.Elbrus — мир Эльбруса и его стойки: ElbrusWorld, ElbrusDressing, кафе, прокат, приюты,
+                                     ратраки, канатки, группы, лагерь, доски погоды, кадры демо-ролика и ElbrusView
+                                     (реализация ILocationView + регистрация локации). Видит Runtime; тот её — нет.
+                                     Тот же констрейнт ["!HEIGHT1079_NO_ELBRUS"].
+    Editor/Elbrus/ Height1079.Elbrus.Editor — генерация Эльбруса: ElbrusImporter, ElbrusValley, ElbrusFactory,
+                                     ElbrusLodge, ElbrusProps, ElbrusAscent, ElbrusMapFactory и ElbrusEditorBoot
+                                     (подписка на WorldImporter.Extras). Тот же констрейнт.
     Runtime/   Height1079.Runtime  — игра: Bootstrap (строит всё из кода при старте), HikerController (игрок, камера),
                                      Equipment (компас, фонари), NightSession (сеть, хост считает ночь), HudController (uGUI из кода),
                                      SnowFx/SnowTrail (снег, следы), WeatherDriver (что игра хочет от Night/Weather), Ambience (звук),
                                      MenkBrain (ИИ Менка, сервер) + MenkView (модель, анимация, звук),
-                                     WorldDressing (архивный слой F2, осмотр F3), TerrainBuilder, CampSmoke.
+                                     WorldDressing (архивный слой F2, осмотр F3), TerrainBuilder, CampSmoke,
+                                     LocationView (ILocationView + LocationViews — движковая половина договора карты),
+                                     UiWindows (кто держит клавиатуру). Файлы *.Climb.cs, NightSession.{Ascent,Camp,…}.cs
+                                     и Climb/ClimbGear/Camps/Programmes/Saves/MountainDay/RescueDesk/Lodges/Purse —
+                                     части Эльбруса, которые нельзя вынести (частичный класс не режется между
+                                     сборками): они здесь за #if !HEIGHT1079_NO_ELBRUS.
     Editor/    Height1079.Editor   — генерация: ProjectSetup (префабы, сцена, сборки, настройки проекта),
                                      World/WorldImporter (пайплайн мира, PipelineVersion), TreeFactory, SiteFactory*.cs (реконструкции
                                      мест), ItemsFactory (предметы), CreatureFactory (Менк), PropKit/MeshBuilder/Materials/PropTextures.
@@ -127,7 +151,9 @@ Assets/
                                      рассвет; погода приходит и уходит — над Night/SkyDome и Night/Weather). Видит Core, Snow,
                                      Puppet, Night; не видит Runtime.
     Steam/     Height1079.Steam    — лобби Steam, компилируется только с define STEAM_FACEPUNCH.
-  Tests/EditMode/                  — NUnit. CoreTests/CampaignTests/PrologueTests — только Core; MenkTests — Runtime (только в Unity).
+  Tests/EditMode/                  — NUnit, сборка Height1079.Tests. CoreTests/CampaignTests/PrologueTests/LocationTests — только Core;
+                                     MenkTests — Runtime (только в Unity).
+  Tests/EditMode/Elbrus/           — Height1079.Elbrus.Tests: тесты Эльбруса, тот же define-констрейнт "!HEIGHT1079_NO_ELBRUS".
   Data/                            — рельеф, полог, деревья, камни, ручьи (Tools/terrain), elbrus/ — рельеф и маски Эльбруса,
                                      модель путника hiker-v1.glb.
   Art/Shaders/                     — TreeWind.shader (качание деревьев).
@@ -144,7 +170,8 @@ docs/   — дизайн и данные (см. README).
 - **Авторитет у хоста.** `NightSession` (NetworkBehaviour) на сервере ведёт `NightRun` и `MenkBrain`, а клиентам отдаёт `NetworkVariable` и RPC. Клиентские эффекты (снег, звук, анимация) опираются только на эти значения. Игрок пишет свои переменные сам (owner-writable): что держит, фонарь, направление взгляда.
 - **Core не зависит от движка.** В `Assets/Scripts/Core` нельзя `using UnityEngine`. Новые правила пиши здесь и покрывай тестами: они пойдут и в Unity, и в `dotnet`.
 - **Кадр мира:** x — восток, **z — север**, y — метры над уровнем моря, 1 единица = 1 м. Высота земли — `World.Ground` / `TerrainBuilder.Height`.
-- **Две локации.** `World.Current` (Core) выбирается в меню до старта сессии и больше не меняется: от неё зависят кадр, сетка высот, ассет террейна и сценарий `NightRun`. Холатчахль — 4,1 км на сетке 2 м, Эльбрус — 12,3 км на сетке 6 м (`docs/ELBRUS.md`). Новый код, который берёт `WorldData.*`, должен спросить себя, что он делает на Эльбрусе.
+- **Две локации, и общий код их не различает.** `World.Current` (Core) выбирается в меню до старта сессии и больше не меняется: от неё зависят кадр, сетка высот, ассет террейна и сценарий `NightRun`. Холатчахль — 4,1 км на сетке 2 м, Эльбрус — 12,3 км на сетке 6 м (`docs/ELBRUS.md`). Спрашивай не «это Эльбрус?», а активную локацию: `World.*` и `Locations.Active` отвечают через `ILocation`. Новый код, который берёт `WorldData.*` (это Холатчахль), должен спросить себя, что он делает на Эльбрусе.
+- **Эльбрус — необязательный слой.** Он в сборке по умолчанию, но живёт в четырёх своих сборках за `defineConstraints` `["!HEIGHT1079_NO_ELBRUS"]` (как Steam за `STEAM_FACEPUNCH`). Правило простое: ядро и общий код не должны знать о нём ничего, кроме члена перечисления `Place.Elbrus` (его требует формат сейва). Общий код спрашивает не «это Эльбрус?», а активную карту: правила — через `ILocation`, движок — через `ILocationView` (`Runtime/LocationView.cs`). То, что нельзя вынести в отдельную сборку (частичные классы `NightSession`, `HudController`, `HikerController`), остаётся в `Height1079.Runtime` за `#if` и зовётся из общего кода **только через `partial void`-крючки**: нет реализации — нет и вызова. Проверки: `dotnet run -p:NoElbrus=true` (ядро) и `Tools/mac/check.command --no-elbrus` (весь проект). Меню строится из `Locations.Available`, а не из членов `Place`. Подробности — `docs/ELBRUS.md`.
 - **Что нужно и игре, и песочнице, кладём в общую сборку**, а не копируем. Песочница (`Sandbox`) намеренно не видит `Runtime` (сеть, мир, сессия), поэтому общий код — снег под ногами, погода и звук, тело — живёт в своих сборках (`Snow`, `Night`, `Puppet`), на которые ссылаются обе. Правила без движка — в `Core` (например, `Hunt.cs`: чувства Менка на площадке).
 - **Звук синтезируется** (`Synth.cs`), сэмплов в репозитории нет. Новый звук добавляй функцией в `Synth`.
 - **Сторонние ассеты** кладём в `Assets/Art/ThirdParty/<источник>/`, в `SOURCES.json` пишем автора, ссылку и лицензию. Только CC0 или CC-BY, авторов CC-BY указываем в титрах. Фабрика должна работать и без скана: у каждой модели есть процедурная замена (`PlaceScan` / `SketchfabModel` возвращают null).
@@ -167,6 +194,9 @@ docs/   — дизайн и данные (см. README).
 - **Имя сборки не должно совпадать с типом ядра.** Сборка `Height1079.Gear` ломала Runtime: там `Gear` — enum из `Core/Ascent.cs`, а пространство имён-сосед побеждает `using Height1079.Core`. Прежде чем заводить сборку, проверь `grep -rn "enum X\|class X" Assets/Scripts/Core`.
 - **Верь строке итога, а не коду выхода.** У самотеста песочницы итог пишется в `sandbox-selftest.log` последней строкой («итог — провалов N»). Скрипт `sandbox.command` раньше возвращал код `grep` по логу, а не код проверки, и семь провалов выглядели как успех (исправлено 20.09.2026). Любую проверку сверяй по её собственной строке итога.
 - **Сгенерированный набор пересобирается по версии, а не по наличию.** `ImportedFactory` пишет `imported.version` рядом с префабами и сверяет с `WorldImporter.PipelineVersion`. Сборка песочницы не гоняет весь пайплайн мира, поэтому без поднятой версии правка таблицы моделей молча не попадёт в плеер.
+- **Частичный класс нельзя разрезать между сборками.** Вынести `NightSession.Ascent.cs` в сборку локации невозможно: `partial class NightSession` обязан целиком лежать в `Height1079.Runtime`. Поэтому необязательная карта делится на две части — то, что уезжает в свою сборку, и то, что остаётся здесь за `#if`. И направление ссылок одно: `Height1079.Elbrus` → `Height1079.Runtime`, значит ни один файл `Runtime` (даже за `#if`) не имеет права назвать тип из сборки локации, иначе Unity откажет из-за кольца. Проверять это надо руками: ошибка вылезет только в редакторе.
+- **Папка сборки не должна называться как тип ядра.** То же, что с именем сборки, но про `rootNamespace`: пространство имён `Height1079.Runtime.Elbrus` победило бы класс `Elbrus` на каждом вызове внутри папки. Поэтому у `Assets/Scripts/Runtime/Elbrus` пространство имён осталось `Height1079.Runtime`, а у `Assets/Scripts/Editor/Elbrus` — `Height1079.EditorTools.World`.
+- **Выключенная локация всё равно поедет в плеер, если её не вычистить с диска.** Сборки исчезают по define, а сгенерированные ассеты — нет: `Assets/Resources` Unity кладёт в каждый плеер целиком. `WorldKitBuilder` описывает только зарегистрированные карты и с флагом `HEIGHT1079_NO_ELBRUS` удаляет остатки локации из обоих деревьев. Заводишь новую необязательную карту — добавь её вывод туда же.
 - **Тесты с UnityEngine в dotnet не собираются.** Новый тест, которому нужен Runtime или UnityEngine, добавь в `Exclude` в `Tools/CoreTests/CoreTests.csproj`.
 
 ## 5. Как работаем вместе (коммиты)
@@ -175,6 +205,7 @@ docs/   — дизайн и данные (см. README).
 2. **Небольшая правка** (опечатка, настройка, одна система): можно коммитить прямо в `main`. **Крупная фича**: ветка `feature/<коротко>` и Pull Request в `main`. Второй человек (или его агент) смотрит PR, влить может любой.
 3. Перед push:
    - `cd Tools/CoreTests && dotnet run` — обязательно, `fail 0`;
+   - `dotnet run -p:NoElbrus=true` — если трогал `Core` или `Core/Elbrus`, тоже `fail 0`;
    - `check`-скрипт — если трогал Unity-код, `failed="0"`;
    - сборка и игра — если менял то, что видно или слышно. Проверь в *сборке* и напиши в коммите, что проверил;
    - `git pull --rebase origin main`, затем `git push`. **Никогда не делай `push --force` в `main`.**

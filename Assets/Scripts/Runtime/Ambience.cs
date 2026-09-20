@@ -149,7 +149,8 @@ namespace Height1079.Runtime
 
         static Vector3 CampPoint()
         {
-            var (cx, cz) = Height1079.Core.World.IsElbrus ? (Elbrus.Start.x, Elbrus.Start.z) : WorldData.Camp;
+            // where the run starts on whatever map this is — the camp of 31 January, the Azau meadow (World.Scenario)
+            var (cx, cz) = Height1079.Core.World.Scenario.Start;
             return new Vector3(cx, TerrainBuilder.Height(Bootstrap.Dem, cx, cz) + .8f, cz);
         }
 

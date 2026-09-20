@@ -1,3 +1,7 @@
+#if !HEIGHT1079_NO_ELBRUS
+// Compiled only when the southern slope of Elbrus is in the build (docs/ELBRUS.md). It has to live in
+// Height1079.Runtime and not in the location's own assembly because a partial class cannot be split across
+// assemblies, and because the rest of Height1079.Runtime's Elbrus partials name what is in here.
 using System;
 using System.Collections.Generic;
 using Unity.Collections;
@@ -98,7 +102,7 @@ namespace Height1079.Runtime
 
         /// <summary>Server, once the run exists: take whatever the menu handed over and put the mountain back the way
         /// it was left. Called from <see cref="OnNetworkSpawn"/>.</summary>
-        void InitCamps()
+        partial void InitCamps()
         {
             var pending = Saves.TakePending();
             if (pending == null || !Climb.On || pending.Place != Height1079.Core.World.Current) return;
@@ -116,14 +120,14 @@ namespace Height1079.Runtime
 
         /// <summary>Server: a participant of a loaded run wakes up beside the tent and not down on the Azau meadow.
         /// Called from <see cref="OnClientConnected"/> before the hiker is placed.</summary>
-        void CampSpawn(Participant p)
+        partial void CampSpawn(Participant p)
         {
             // the camp of the save this session is living in — which is the one it was started from until somebody
             // spends a night somewhere else, and that camp from then on
             if (loaded == null || p == null) return;
             // the same spread the spawn ring uses, so two people never appear inside one another
             float a = run.Players.Count * 2.1f;
-            float r = Height1079.Core.World.ElbrusPlan.SpawnRadius + 1.6f;
+            float r = Height1079.Core.ElbrusLocation.Plan.SpawnRadius + 1.6f;
             p.X = loaded.CampX + Mathf.Cos(a) * r;
             p.Z = loaded.CampZ + Mathf.Sin(a) * r;
         }
@@ -532,8 +536,9 @@ namespace Height1079.Runtime
         void RestoredRpc(float acclim, float highest, int roubles, RpcParams rpc)
         {
             ClimbGear.RememberSortie(acclim, highest);
-            CafeService.Purse.Roubles = Mathf.Max(0, roubles);
+            Purse.Money.Roubles = Mathf.Max(0, roubles);
             Note("Продолжаем с привала.");
         }
     }
 }
+#endif

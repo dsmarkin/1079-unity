@@ -13,7 +13,9 @@ namespace Height1079.Runtime
         static Font font;
         Canvas canvas;
         GameObject menu, hud, protocol;
-        Button kholatButton, elbrusButton, hostButton, continueButton;
+        Button hostButton, continueButton;
+        Button[] placeButtons;
+        Place[] placePlaces;
         Text kicker, lede;
         static readonly Color PlaceOff = new Color(.13f, .22f, .27f), PlaceOn = new Color(.28f, .45f, .5f);
         InputField nameField, addressField;
@@ -144,14 +146,45 @@ namespace Height1079.Runtime
             return f;
         }
 
+        /// <summary>One button per map this build was compiled with (<see cref="Locations.Available"/>), never one
+        /// button per member of <see cref="Place"/> — a map that was left out of the build has no button and cannot be
+        /// chosen. With a single map there is nothing to choose and the whole row is gone.</summary>
+        void BuildPlaces(RectTransform card)
+        {
+            var have = Locations.Available;
+            if (have.Count < 2) { placeButtons = new Button[0]; return; }
+            Label("PlaceLabel", card, new Vector2(32, -256), new Vector2(380, 18), 12, new Color(.67f, .76f, .8f)).text = "Где играем";
+            placeButtons = new Button[have.Count];
+            placePlaces = new Place[have.Count];
+            // two to a row, the same 186×40 the two hand-written buttons had
+            for (int i = 0; i < have.Count; i++)
+            {
+                var place = have[i].Place;
+                placePlaces[i] = place;
+                float px = 32 + (i % 2) * 190, py = -278 - (i / 2) * 46;
+                placeButtons[i] = ButtonUi("Place" + place, card, new Vector2(px, py), new Vector2(186, 40),
+                    MenuTitle(have[i]), PlaceOff, Ink, () => SetPlace(place));
+            }
+        }
+
+        /// <summary>The short name on the button: the location's own title up to its first «·».</summary>
+        static string MenuTitle(ILocation location)
+        {
+            string t = location.Title;
+            int dot = t.IndexOf('·');
+            return (dot > 0 ? t.Substring(0, dot) : t).Trim().ToUpperInvariant();
+        }
+
         /// <summary>Picks the place before the session starts. Both players have to pick the same one:
         /// the location is not negotiated over the network yet (docs/BACKLOG.md).</summary>
         void SetPlace(Place place)
         {
             Bootstrap.SetPlace(place);
+            if (placeButtons != null)
+                for (int i = 0; i < placeButtons.Length; i++)
+                    if (placeButtons[i] != null)
+                        placeButtons[i].GetComponent<Image>().color = placePlaces[i] == place ? PlaceOn : PlaceOff;
             bool elbrus = place == Place.Elbrus;
-            if (kholatButton != null) kholatButton.GetComponent<Image>().color = elbrus ? PlaceOff : PlaceOn;
-            if (elbrusButton != null) elbrusButton.GetComponent<Image>().color = elbrus ? PlaceOn : PlaceOff;
             if (kicker != null) kicker.text = elbrus ? "ПРИЭЛЬБРУСЬЕ / UNITY-ПРОТОТИП" : "СЕВЕРНЫЙ УРАЛ / UNITY-ПРОТОТИП";
             if (lede != null) lede.text = elbrus
                 ? "Поляна Азау, 2350 м. Канатная дорога до Гара-Баши,\nратрак до 5100 и пешком на вершину 5642."
@@ -162,19 +195,17 @@ namespace Height1079.Runtime
             ApplyPlace();
         }
 
-        /// <summary>«Продолжить» appears only when this place has a save, and says which one:
-        /// «ПРОДОЛЖИТЬ · косая полка, 5290 м · 08:40 · вчера». The night on Kholat Syakhl is one night and never has
-        /// one (<see cref="Camp.AllowedIn"/>), so the button simply is not there.</summary>
+        /// <summary>«Продолжить» appears only when the chosen map has a save, and says which one:
+        /// «ПРОДОЛЖИТЬ · косая полка, 5290 м · 08:40 · вчера». Reading the save stack is the map's own business
+        /// (<see cref="ILocationView.Saved"/>); a map that cannot be saved — the night of 1959 is one night — answers
+        /// nothing and the button is simply not there.</summary>
         void RefreshContinue()
         {
             if (continueButton == null) return;
-            var slot = Saves.Newest(World.Current);
-            bool show = !slot.IsEmpty;
+            string line = LocationViews.Of(World.Current)?.Saved;
+            bool show = !string.IsNullOrEmpty(line);
             if (continueButton.gameObject.activeSelf != show) continueButton.gameObject.SetActive(show);
-            if (!show) return;
-            string where = string.IsNullOrEmpty(slot.Where) ? "склон" : slot.Where;
-            continueButton.GetComponentInChildren<Text>().text =
-                $"ПРОДОЛЖИТЬ · {where} · {AscentRoute.Clock(slot.Hour)} · {SaveStore.When(slot.SavedUtc.ToLocalTime(), System.DateTime.Now)}";
+            if (show) continueButton.GetComponentInChildren<Text>().text = line;
         }
 
         /// <summary>Everything the HUD draws differently in the two places. The HUD is built once and lives through
@@ -217,9 +248,7 @@ namespace Height1079.Runtime
             Label("Title", card, new Vector2(32, -60), new Vector2(380, 90), 84, Ink, TextAnchor.UpperLeft, FontStyle.Bold).text = "1079";
             Label("Sub", card, new Vector2(34, -150), new Vector2(380, 24), 15, Ink).text = "В Ы С О Т А";
             lede = Label("Lede", card, new Vector2(32, -190), new Vector2(380, 60), 15, new Color(.74f, .8f, .83f));
-            Label("PlaceLabel", card, new Vector2(32, -256), new Vector2(380, 18), 12, new Color(.67f, .76f, .8f)).text = "Где играем";
-            kholatButton = ButtonUi("PlaceKholat", card, new Vector2(32, -278), new Vector2(186, 40), "ХОЛАТЧАХЛЬ", PlaceOff, Ink, () => SetPlace(Place.Kholat));
-            elbrusButton = ButtonUi("PlaceElbrus", card, new Vector2(222, -278), new Vector2(186, 40), "ЭЛЬБРУС", PlaceOff, Ink, () => SetPlace(Place.Elbrus));
+            BuildPlaces(card);
             Label("NameLabel", card, new Vector2(32, -332), new Vector2(380, 18), 12, new Color(.67f, .76f, .8f)).text = "Ваше имя";
             nameField = Field("Name", card, new Vector2(32, -354), new Vector2(376, 40), "Путник");
             Label("AddrLabel", card, new Vector2(32, -406), new Vector2(380, 18), 12, new Color(.67f, .76f, .8f)).text = "Адрес хоста (для подключения)";
@@ -266,9 +295,9 @@ namespace Height1079.Runtime
             // the two things a climber does with his hands. Letter keys (C, T) do not reach the game under UI
             // automation, so both have a button as well as a spare function key — the same rule G/R/X follow.
             cramponButton = ButtonUi("Crampons", box, new Vector2(22, -136), new Vector2(180, 30), "Надеть кошки", new Color(.29f, .4f, .47f), Color.white,
-                () => { var s = NightSession.Instance; var me = Bootstrap.LocalHiker; if (s != null && me != null && me.Climbing != null) s.RequestCrampons(!me.Climbing.CramponsOn); });
+                CramponsClicked);
             thermosButton = ButtonUi("Thermos", box, new Vector2(212, -136), new Vector2(126, 30), "Термос", new Color(.4f, .33f, .27f), Color.white,
-                () => NightSession.Instance?.RequestSip());
+                ThermosClicked);
             cramponButton.gameObject.SetActive(false);
             thermosButton.gameObject.SetActive(false);
             heat = Meter("ТЕПЛО", box, new Vector2(22, -178));
@@ -511,19 +540,20 @@ namespace Height1079.Runtime
         string CompassLine(HikerController me)
         {
             const string card = "Компас · склонение +19° к востоку";
-            var aim = Programmes.Aim(me);
-            return aim.Has ? card + " · " + Programmes.AimLine(aim) : card + " · стрелка на магнитный север";
+            string aim = null; MapCompassLine(me, ref aim);
+            return aim != null ? card + " · " + aim : card + " · стрелка на магнитный север";
         }
 
         /// <summary>The line under the crosshair. The mountain takes it whenever it has something urgent to say —
         /// crampons going on, a slide, the gate at the rocks — and the rucksack has it the rest of the time.</summary>
         string UnderCrosshair(HikerController me)
         {
-            string climb = me.Climbing != null ? me.Climbing.Prompt() : "";
-            if (climb.Length > 0) return climb;
+            string urgent = null; MapPrompt(me, ref urgent);
+            if (!string.IsNullOrEmpty(urgent)) return urgent;
             string pack = Backpacks.Prompt(me);
             if (pack.Length > 0) return pack;
-            return Camps.Prompt(me);
+            string camp = null; MapCampPrompt(me, ref camp);
+            return camp ?? "";
         }
 
         /// <summary>The line about the snow: how you are getting through it, how deep you are in it, whether somebody has
@@ -533,160 +563,38 @@ namespace Height1079.Runtime
         {
             if (travel == null) return;
             var gear = me.Skis;
-            if (World.IsElbrus || gear == null) { travel.text = ""; return; }
+            if (!LocationViews.RunsNight || gear == null) { travel.text = ""; return; }
             string track = gear.OnTrack ? " · по лыжне" : "";
             int left = Mathf.RoundToInt(me.Strength.Value / 255f * 100f);
             string legs = left < 30 ? $" · силы {left}% — надо отдышаться" : $" · силы {left}%";
             travel.text = $"{Skiing.Title(gear.Mode)} · {Skiing.SinkTitle(gear.Sink).ToLowerInvariant()}{track}{legs}";
         }
 
-        /// <summary>The ascent block. Four lines at most, and it says nothing it does not have to: the clock and the
-        /// turn-round time are always there, the ground and the air appear where they start to matter, the body speaks
-        /// only when something is going wrong with it, and the last line is whatever there is to DO about it right now.
-        /// Everything is read off the state the host publishes (<see cref="ClimbNet"/>) and the position, which both
-        /// sides have — the HUD asks <see cref="Ascent"/> and <see cref="AscentCold"/> for the words.</summary>
-        void UpdateClimb(HikerController me, NightSession s)
-        {
-            if (climbLine == null) return;
-            if (!World.IsElbrus || me.Climbing == null)
-            {
-                climbLine.text = "";
-                if (cramponButton != null) cramponButton.gameObject.SetActive(false);
-                if (thermosButton != null) thermosButton.gameObject.SetActive(false);
-                return;
-            }
-            var gear = me.Climbing;
-            var net = me.Climb.Value;
-            var p = gear.Where;
-            var sb = new StringBuilder();
-
-            // the clock, the turn-round time, and how much of the mountain the body has taken in so far
-            float hour = Climb.Hour(s.Elapsed.Value);
-            sb.Append(AscentRoute.Clock(hour));
-            if (AscentRoute.PastTurnaround(hour)) sb.Append(" · контрольное время прошло — вниз");
-            else
-            {
-                float left = Climb.SecondsUntil(AscentRoute.TurnaroundHour, s.Elapsed.Value);
-                sb.Append(left < 900f
-                    ? $" · до разворота {Mathf.CeilToInt(left / 60f)} мин"
-                    : $" · разворот в {AscentRoute.Clock(AscentRoute.TurnaroundHour)}");
-            }
-            sb.Append($" · акклиматизация {Mathf.RoundToInt(net.Acclim / 255f * 100f)} %");
-            int legs = Mathf.RoundToInt(me.Strength.Value / 255f * 100f);
-            if (legs < 60) sb.Append($" · силы {legs} %");
-
-            // the slip at the ЭВПСО desk. A control time nobody holds you to is not a control time, so the line only
-            // appears when there is one — and the silence when there is not is itself the message (Rescue.Watched).
-            if (RescueDesk.Known && RescueDesk.Mine.Filed)
-            {
-                float backHour = RescueDesk.Mine.BackHour;
-                if (hour >= backHour) sb.Append($" · не вернулись к {AscentRoute.Clock(backHour)}");
-                else if (hour >= backHour - 1f) sb.Append($" · в лагерь к {AscentRoute.Clock(backHour)}");
-            }
-            else if (p.Ele >= AscentRoute.LastHutEle)
-                sb.Append(" · в ЭВПСО не записаны");
-
-            // and what is being done about it, once something is
-            string help = RescueDesk.Line(hour);
-            if (help.Length > 0) sb.Append('\n').Append(help);
-
-            // what is underfoot and what the air is doing, from where it starts to matter
-            float wind = net.WindMs;
-            if (p.Ele >= Ascent.FirnFromEle - 200f || wind >= AscentCold.DriftFromMs)
-            {
-                sb.Append($"\n{Ascent.SurfaceTitle(p.Ele)} · ощущается {net.Feels} °C · ветер {wind:0} м/с");
-                string gale = AscentCold.WindTitle(wind);
-                if (gale.Length > 0) sb.Append(", ").Append(gale.ToLowerInvariant());
-            }
-
-            // the body, and only when it has something to say
-            var body = new StringBuilder();
-            Add(body, AscentCold.FrostbiteWarning(Limb.Hands, net.Hands / 255f));
-            Add(body, AscentCold.FrostbiteWarning(Limb.Feet, net.Feet / 255f));
-            Add(body, AscentCold.FrostbiteWarning(Limb.Face, net.Face / 255f));
-            if (net.Phase != Ams.None) Add(body, Ascent.PhaseTitle(net.Phase));
-            if (net.Blind >= 191) Add(body, "Снежная слепота");
-            else if (net.Blind >= 128) Add(body, "Режет глаза от снега");
-            if (net.Dry >= 153) Add(body, "Обезвоживание");
-            if (net.Sleep >= 128) Add(body, "Клонит в сон");
-            if (net.Has(ClimbNet.Mark.MustStop)) Add(body, "Стоять и дышать");
-            if (body.Length > 0) sb.Append('\n').Append(body);
-
-            // and what there is to do about it here and now
-            string act = Act(gear, net, p);
-            if (act.Length > 0) sb.Append('\n').Append(act);
-            climbLine.text = sb.ToString();
-
-            // the buttons: crampons from where the ice starts to matter, the thermos whenever there is one
-            bool wantsCrampons = Climb.WantsCrampons(p) || net.Has(ClimbNet.Mark.Crampons);
-            bool haveCrampons = (net.Gear & Height1079.Core.Gear.Crampons) != 0;
-            bool showCrampons = haveCrampons && wantsCrampons;
-            if (cramponButton.gameObject.activeSelf != showCrampons) cramponButton.gameObject.SetActive(showCrampons);
-            if (showCrampons)
-            {
-                var job = (ClimbJob)net.Job;
-                string label = net.Has(ClimbNet.Mark.Crampons) ? "Снять кошки" : "Надеть кошки";
-                if (job == ClimbJob.CramponsOn || job == ClimbJob.CramponsOff)
-                    label += $" {Mathf.Clamp(Mathf.RoundToInt(net.Progress / 255f * 100f), 0, 99)} %";
-                cramponButton.GetComponentInChildren<Text>().text = label;
-            }
-            bool showThermos = (net.Gear & Height1079.Core.Gear.Thermos) != 0;
-            if (thermosButton.gameObject.activeSelf != showThermos) thermosButton.gameObject.SetActive(showThermos);
-            if (showThermos)
-                thermosButton.GetComponentInChildren<Text>().text = (ClimbJob)net.Job == ClimbJob.Sip
-                    ? $"Термос {Mathf.Clamp(Mathf.RoundToInt(net.Progress / 255f * 100f), 0, 99)} %"
-                    : $"Термос ({net.Sips})";
-        }
-
-        /// <summary>The amber line of the ascent. <see cref="Ascent.Warning"/> is written so that every phase of the
-        /// mountain sickness is announced before the next one arrives and the first word comes before there is any
-        /// phase at all, so a player always has time to turn round; it takes the line whenever it has one.</summary>
-        string ClimbHint(HikerController me)
-        {
-            var gear = me.Climbing;
-            if (gear == null) return "Южный склон. Наверх — канаткой, ратраком или пешком.";
-            string warn = Ascent.Warning(gear.Mirror, gear.Where);
-            if (warn.Length > 0) return warn;
-            if (gear.Where.Ele < Ascent.FirnFromEle) return "Южный склон. Наверх — канаткой, ратраком или пешком.";
-            return "Шаг — вдох. Здесь спешка кончается вынужденной остановкой.";
-        }
-
-        static void Add(StringBuilder sb, string line)
-        {
-            if (string.IsNullOrEmpty(line)) return;
-            if (sb.Length > 0) sb.Append(" · ");
-            sb.Append(line);
-        }
-
-        /// <summary>The one thing the player should be doing about the mountain right now, or "".</summary>
-        string Act(ClimbGear gear, ClimbNet net, RoutePoint p)
-        {
-            if (gear.Sliding) return "Срыв! Вас несёт вниз";
-            // the thing that kills seven parties in ten on this side: coming down off the saddle past the corridor
-            // between the two lava ridges of Pastukhov rocks (AscentRoute.MissedTheGate)
-            if (net.Has(ClimbNet.Mark2.MissedGate) && (net.Way == Going.Down || Mathf.Abs(p.OffRouteM) > AscentRoute.GateHalfWidthM * 2f))
-                return net.Way == Going.Down
-                    ? $"Коридор между грядами в стороне: {Mathf.RoundToInt(Mathf.Abs(p.OffRouteM))} м от линии. Траверс к вешкам, вниз отсюда нельзя"
-                    : $"Вы мимо коридора скал Пастухова, {Mathf.RoundToInt(Mathf.Abs(p.OffRouteM))} м вбок";
-            if (net.Has(ClimbNet.Mark.Lost))
-                return net.Wander != 0
-                    ? $"Маршрут потерян, сносит с линии ({Mathf.Abs(net.WanderPerMetre) * 100f:0} см на метр). Лучше встать и копать траншею, чем идти"
-                    : "Маршрут потерян: ни вешки, ни троса, ни колеи. Лучше встать и копать траншею, чем идти";
-            // the gate is announced from the top station on, a good eight hundred metres of height before it, so
-            // that turning round is a choice and not a surprise
-            if (net.Has(ClimbNet.Mark.Barred))
-                return p.Ele >= ClimbGear.GateFromEle
-                    ? "Выше скал Пастухова не пускают · " + Climb.GateLine(net.Gear)
-                    : p.Ele >= Ascent.GearGateEle - 850f
-                        ? $"Без снаряжения выше скал Пастухова (4650) не пустят · {Climb.GateLine(net.Gear)} · прокат внизу, {Rental.BundleRoubles(net.Gear)} ₽"
-                        : "";
-            if (Climb.WantsCrampons(p) && !net.Has(ClimbNet.Mark.Crampons)) return "Наденьте кошки (C/F1) — стоя, 12 секунд";
-            if (net.Has(ClimbNet.Mark.OnRope)) return "Перила МЧС в руках · пристёгнуты усом, руки мёрзнут";
-            if (AscentRoute.HasFixedRope(p.Ele) && (net.Gear & Height1079.Core.Gear.Harness) != 0 && Mathf.Abs(p.OffRouteM) < 40f)
-                return "Тросовые перила рядом — держитесь их";
-            if (net.Sleep >= 128 && net.Sips > 0) return "Глоток из термоса (T/F2) прогоняет сон";
-            return "";
-        }
+        /// <summary>Everything on the screen that belongs to one map and not to the game. Each is implemented in a
+        /// partial of this class that is compiled only when that map is in the build (docs/ELBRUS.md): with the map
+        /// left out the implementation is gone and every call above disappears with it. A partial class cannot cross
+        /// an assembly boundary, which is why those files stay here behind <c>#if</c> instead of moving.</summary>
+        partial void UpdateClimb(HikerController me, NightSession s);
+        /// <summary>The amber line, when the map has something more urgent to say than the night does.</summary>
+        partial void MapHint(HikerController me, ref string line);
+        /// <summary>The bearing half of the compass reading — the line the guide's programme is on.</summary>
+        partial void MapCompassLine(HikerController me, ref string line);
+        /// <summary>The prompt under the crosshair the map takes priority with: crampons, a slide, a gate.</summary>
+        partial void MapPrompt(HikerController me, ref string line);
+        /// <summary>And the one it offers when the rucksack has nothing to say: the camp under the feet.</summary>
+        partial void MapCampPrompt(HikerController me, ref string line);
+        partial void RefreshPackMap(HikerController me);
+        partial void CampClicked();
+        partial void SleepClicked();
+        partial void SosClicked();
+        partial void SheetClicked();
+        partial void CramponsClicked();
+        partial void ThermosClicked();
+        /// <summary>The programme card and the marks on both maps (HudController.Plan.cs).</summary>
+        partial void BuildPlan();
+        partial void ResetPlan();
+        partial void ApplyPlacePlan();
+        partial void UpdatePlan(HikerController me, float x, float z);
 
         /// <summary>The E-work button: it shows what E would do here and how far along the job is.</summary>
         void UpdateWorkButton(HikerController me, NightSession s)
@@ -766,21 +674,29 @@ namespace Height1079.Runtime
             // the camp lives here as well as on B/7 and P/8: letter keys never reach the game under UI automation,
             // and the rucksack window is where the tent is anyway
             packCampButton = ButtonUi("Camp", packPanel, new Vector2(20, -574), new Vector2(148, 28), "Поставить лагерь", new Color(.26f, .4f, .34f), Ink,
-                () => NightSession.Instance?.RequestCamp());
+                CampClicked);
             packSleepButton = ButtonUi("Sleep", packPanel, new Vector2(176, -574), new Vector2(148, 28), "Ночёвка", new Color(.3f, .34f, .45f), Ink,
-                () => NightSession.Instance?.RequestSleep());
+                SleepClicked);
             // and the other half of playing in pieces: a way out that is not killing the process. The save is already
             // on disk by then, and «Продолжить» will be waiting in the menu
             // the call for help. It has the key 9 as well, but a button is the only thing that is certain to reach the
             // game under UI automation, and this is the one button nobody should have to find twice
             packSosButton = ButtonUi("Sos", packPanel, new Vector2(20, -606), new Vector2(304, 28), "SOS — вызвать спасателей (9)", new Color(.45f, .2f, .18f), Ink,
-                () => NightSession.Instance?.SendSos());
+                SosClicked);
             packLeaveButton = ButtonUi("Leave", packPanel, new Vector2(20, -638), new Vector2(304, 28), "Выйти в меню", new Color(.28f, .22f, .22f), Ink,
                 Bootstrap.Leave);
             // the folded sheet of the guide's programme: an ordinary item in this very rucksack, so the button only
             // does what clicking its row would do — take it out and unfold it (Programmes.Toggle)
             packSheetButton = ButtonUi("Sheet", packPanel, new Vector2(20, -670), new Vector2(304, 28), "Программа восхождения (U/F3)", new Color(.34f, .3f, .22f), Ink,
-                () => Programmes.Toggle(Bootstrap.LocalHiker));
+                SheetClicked);
+            // the five buttons above belong to a map that has camps, a programme and a rescue service: they start
+            // hidden and only that map's own half of the panel puts them up (RefreshPackMap). Without such a map in
+            // the build there is nobody to put them up, which is exactly right.
+            packCampButton.gameObject.SetActive(false);
+            packSleepButton.gameObject.SetActive(false);
+            packSosButton.gameObject.SetActive(false);
+            packLeaveButton.gameObject.SetActive(false);
+            packSheetButton.gameObject.SetActive(false);
             packPanel.gameObject.SetActive(false);
         }
 
@@ -814,24 +730,8 @@ namespace Height1079.Runtime
             packWearButton.gameObject.SetActive(canWear);
             packWearButton.GetComponentInChildren<Text>().text = mine ? "Снять рюкзак" : "Надеть";
 
-            // the camp: put one up where the mountain allows it, take down the one you are standing at, spend the
-            // night in it. Elbrus only — on Kholat Syakhl there is one night and it is not saved
-            int atCamp = Camps.Here(me);
-            bool camping = Camps.On;
-            if (packCampButton.gameObject.activeSelf != camping) packCampButton.gameObject.SetActive(camping);
-            bool canSleep = camping && atCamp != 0;
-            if (packSleepButton.gameObject.activeSelf != canSleep) packSleepButton.gameObject.SetActive(canSleep);
-            if (camping) packCampButton.GetComponentInChildren<Text>().text = Camps.ToggleLabel(me);
-            if (packLeaveButton.gameObject.activeSelf != camping) packLeaveButton.gameObject.SetActive(camping);
-            if (packSosButton.gameObject.activeSelf != camping) packSosButton.gameObject.SetActive(camping);
-            bool sheet = Programmes.On;
-            if (packSheetButton.gameObject.activeSelf != sheet) packSheetButton.gameObject.SetActive(sheet);
-            if (sheet) packSheetButton.GetComponentInChildren<Text>().text = Programmes.Unfolded(me)
-                ? "Сложить программу (U/F3)" : "Программа восхождения (U/F3)";
-            if (camping)
-                packSosButton.GetComponentInChildren<Text>().text = RescueDesk.Known && RescueDesk.Mine.Mission.Coming
-                    ? "Помощь вызвана (9 — повторить)"
-                    : "SOS — вызвать спасателей (9)";
+            // the camp, the programme sheet and the call for help: a map that has none leaves them hidden
+            RefreshPackMap(me);
 
             // rows are rebuilt only when the contents change
             var key = new StringBuilder().Append(Backpacks.OpenPack).Append(':');
@@ -918,9 +818,10 @@ namespace Height1079.Runtime
                 var c = Camera.main.transform.position;
                 debug.text = $"{fps:0} fps · cam {c.x:0},{c.y:0},{c.z:0} · ground under cam {TerrainBuilder.Height(Bootstrap.Dem, c.x, c.z):0} · me {x:0},{me.transform.position.y:0},{z:0} · ground {TerrainBuilder.Height(Bootstrap.Dem, x, z):0} · fog {RenderSettings.fogDensity:0.0000} · v {me.Speed:0.0} · keys {Controls.Debug} · {(me.FirstPerson ? "1st" : "3rd")} · grounded {me.Grounded}";
             }
-            float gx = World.IsElbrus ? Elbrus.WestSummit.X : WorldData.Tent.X, gz = World.IsElbrus ? Elbrus.WestSummit.Z : WorldData.Tent.Z;
+            // what this map is walked towards, whichever one it is (ILocation.Goal)
+            var (gx, gz) = World.Goal;
             float dist = WorldData.Distance(x, z, gx, gz);
-            bool nearFire = !World.IsElbrus && WorldData.NearCamp(x, z);
+            bool nearFire = LocationViews.RunsNight && WorldData.NearCamp(x, z);
             float fire = s.FireRemaining.Value;
             fireButton.gameObject.SetActive(nearFire && fire <= 0f);
             UpdateWorkButton(me, s);
@@ -943,12 +844,13 @@ namespace Height1079.Runtime
                 string kindle = s.KindleNeeded > 0 ? $" {Mathf.Min(99, Mathf.RoundToInt(s.KindleProgress / s.KindleNeeded * 100f))}%" : "";
                 UpdateTravel(me);
                 UpdateClimb(me, s);
+                string mapHint = null; MapHint(me, ref mapHint);
                 hint.text = !NetworkManager.Singleton.IsConnectedClient && !NetworkManager.Singleton.IsHost ? "Связь потеряна · ночь идёт на сервере"
                     : me.Paused ? "Пауза · ночь продолжается, нажмите на сцену"
                     : me.Skis != null && me.Skis.Busy ? me.Skis.BusyNote()
                     : me.Crawling ? "Палатка · внутри только ползком"
                     : nearFire ? (fire > 0 ? $"У огня · ещё {Mathf.CeilToInt(fire)} с" : s.KindleNeeded > 0 ? $"Разжигаете… держите E{kindle}" : "Кострище · стойте и удерживайте E")
-                    : World.IsElbrus ? ClimbHint(me)
+                    : mapHint != null ? mapHint
                     : s.Heat < 30 ? "Холод мешает думать. Вернитесь к огню." : s.Storm.Value ? "Метель. Держитесь рядом." : "Свет уходит. Выбирайте путь.";
                 heat.value = s.Heat; hands.value = s.Hands; clarity.value = s.Clarity;
             }

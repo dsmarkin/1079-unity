@@ -32,9 +32,6 @@ namespace Height1079.Runtime
         /// (see <see cref="Camps.HandleInput"/>).</summary>
         public static bool Ordering => Instance != null && Instance.open;
 
-        /// <summary>What the local hiker has left to spend. One purse per client: nobody else's money is at stake.</summary>
-        public static Wallet Purse = Wallet.Start();
-
         readonly List<Transform> counters = new List<Transform>();
         static Dish[] menu;
 
@@ -79,7 +76,7 @@ namespace Height1079.Runtime
             var go = new GameObject("CafeService");
             if (parent != null) go.transform.SetParent(parent, false);
             Instance = go.AddComponent<CafeService>();
-            Purse = Wallet.Start();
+            Purse.Money = Wallet.Start();
             return Instance;
         }
 
@@ -178,8 +175,8 @@ namespace Height1079.Runtime
         {
             if (Vector3.Distance(me.transform.position, orderedAt) > Refreshments.LeaveReach)
             {
-                Purse.Refund(paid);
-                Say($"Заказ отменён · {Purse.Text}");
+                Purse.Money.Refund(paid);
+                Say($"Заказ отменён · {Purse.Money.Text}");
                 ordered = DishId.None; paid = 0;
                 return;
             }
@@ -197,11 +194,11 @@ namespace Height1079.Runtime
             var spec = Refreshments.Get(dish);
             if (!served)
             {
-                Purse.Refund(spec.Roubles);
+                Purse.Money.Refund(spec.Roubles);
                 Say(takeAway ? "С собой не влезает · деньги назад" : "Не подали · деньги назад");
                 return;
             }
-            Say(takeAway ? $"{Items.Spec(spec.TakeAway).Name} — в рюкзак · {Purse.Text}" : $"{spec.Name}. {spec.Note}");
+            Say(takeAway ? $"{Items.Spec(spec.TakeAway).Name} — в рюкзак · {Purse.Money.Text}" : $"{spec.Name}. {spec.Note}");
         }
 
         void Say(string text) { note = text; noteUntil = Time.time + 5f; }
@@ -243,7 +240,7 @@ namespace Height1079.Runtime
             var me = Bootstrap.LocalHiker;
             if (me == null) return;
             if (takeAway && !dish.Portable) { Say("Это едят за столом"); Refresh(); return; }
-            if (!Purse.Pay(dish.Roubles)) { Say("Не хватает денег"); Refresh(); return; }
+            if (!Purse.Money.Pay(dish.Roubles)) { Say("Не хватает денег"); Refresh(); return; }
             paid = dish.Roubles;
             ordered = dish.Id;
             orderedAway = takeAway;
@@ -343,7 +340,7 @@ namespace Height1079.Runtime
         {
             if (panel == null) return;
             title.text = "Кафе · заказ";
-            purseLine.text = $"В кошельке {Purse.Text}";
+            purseLine.text = $"В кошельке {Purse.Money.Text}";
             int pages = (Menu.Length + PageSize - 1) / PageSize;
             if (page >= pages) page = 0;
             pageButton.gameObject.SetActive(pages > 1);
@@ -357,7 +354,7 @@ namespace Height1079.Runtime
                 var d = Menu[index];
                 string warm = d.Warmth >= 5f ? $" · тепло +{Mathf.RoundToInt(d.Warmth)}" : "";
                 rows[i].GetComponentInChildren<Text>().text = $"{i + 1}. {d.Name} — {d.Roubles} ₽{warm}";
-                rows[i].GetComponent<Image>().color = Purse.CanAfford(d.Roubles) ? RowBg : new Color(.14f, .14f, .16f);
+                rows[i].GetComponent<Image>().color = Purse.Money.CanAfford(d.Roubles) ? RowBg : new Color(.14f, .14f, .16f);
             }
         }
 
@@ -387,7 +384,7 @@ namespace Height1079.Runtime
                 return orderedAway ? $"{d.Name} · заворачивают, ещё {left} с" : $"{d.Name} · ещё {left} с · стойте у стойки";
             }
             if (open) return "Кафе · цифры 1–9 — заказать · 0 — ещё · Esc — закрыть";
-            if (near != null) return $"Кафе · E — заказать · в кошельке {Purse.Text}";
+            if (near != null) return $"Кафе · E — заказать · в кошельке {Purse.Money.Text}";
             return "";
         }
 
@@ -415,49 +412,5 @@ namespace Height1079.Runtime
             try { return Input.GetKeyDown(DigitCodes[digit]); }
             catch (System.InvalidOperationException) { return false; }
         }
-    }
-
-    /// <summary>The café counter on the host. Money is the client's own business, but the warmth a portion gives back is
-    /// the night's, so the order comes here: the host feeds the participant through <see cref="Refreshments"/> and puts
-    /// a parcel taken away into the rucksack it keeps.</summary>
-    public sealed partial class NightSession
-    {
-        /// <summary>Local: what came of our last café order (dish, taken away, actually served).</summary>
-        public event System.Action<DishId, bool, bool> CafeServed;
-
-        /// <summary>Owner asks a café to serve one portion, eaten at the table or wrapped for the rucksack.</summary>
-        public void OrderRefreshment(DishId dish, bool takeAway) => CafeOrderRpc((byte)dish, takeAway);
-
-        [Rpc(SendTo.Server)]
-        void CafeOrderRpc(byte dish, bool takeAway, RpcParams rpc = default)
-        {
-            ulong sender = rpc.Receive.SenderClientId;
-            var spec = Refreshments.Get((DishId)dish);
-            string token = Token(sender);
-            bool served = false;
-            if (!spec.IsEmpty && run != null && Height1079.Core.World.IsElbrus
-                && run.Players.TryGetValue(token, out var p) && p.Outcome == Outcome.None)
-            {
-                if (takeAway)
-                {
-                    served = spec.Portable && packs != null && packs.Receive(token, new ItemStack(spec.TakeAway)) == PackResult.Ok;
-                    if (served)
-                    {
-                        SyncPacks();
-                        run.Record($"{p.Name} берёт с собой: {Items.Spec(spec.TakeAway).Name}.");
-                    }
-                }
-                else
-                {
-                    var meal = Refreshments.Eat((DishId)dish, p);
-                    served = !meal.IsEmpty;
-                    if (served) run.Record($"{p.Name}: {meal.Text}");
-                }
-            }
-            CafeServedRpc(dish, takeAway, served, RpcTarget.Single(sender, RpcTargetUse.Temp));
-        }
-
-        [Rpc(SendTo.SpecifiedInParams)]
-        void CafeServedRpc(byte dish, bool takeAway, bool served, RpcParams rpc) => CafeServed?.Invoke((DishId)dish, takeAway, served);
     }
 }

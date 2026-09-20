@@ -1,3 +1,7 @@
+#if !HEIGHT1079_NO_ELBRUS
+// Compiled only when the southern slope of Elbrus is in the build (docs/ELBRUS.md). It has to live in
+// Height1079.Runtime and not in the location's own assembly because a partial class cannot be split across
+// assemblies, and because the rest of Height1079.Runtime's Elbrus partials name what is in here.
 using System.Collections.Generic;
 using Unity.Netcode;
 using UnityEngine;
@@ -94,9 +98,16 @@ namespace Height1079.Runtime
 
         // ── the tick ──────────────────────────────────────────────────────────────────────────────────────
 
+        /// <summary>One press of F6 on the southern slope is a whole hour of the ascent clock: the day runs nine
+        /// hours over an hour and a half of play, and the turn-round time is worth being able to reach in a check.</summary>
+        partial void SkipStep(ref int seconds) { if (Climb.On) seconds = 600; }
+
+        /// <summary>The mountain's own blizzard, which is not the night's (<see cref="NightSession.MapStorm"/>).</summary>
+        partial void MapStormNow(ref bool blowing) { if (MountainStorm.Value) blowing = true; }
+
         /// <summary>Host tick for the mountain. Driven from <see cref="Update"/>, which already runs on the server
         /// every frame.</summary>
-        void TickAscentServer(float dt)
+        partial void TickAscentServer(float dt)
         {
             if (!IsServer || run == null || dem == null || !Climb.On || dt <= 0f) return;
             MountainWeather(dt);
@@ -398,7 +409,7 @@ namespace Height1079.Runtime
         /// seed and the date the save carries, so the mountain a party comes back to is the mountain they left; a
         /// fresh run draws a new seed and takes today's date. From here on the weather is not rolled at all — it is
         /// read out of <see cref="Forecast.Day"/> (see <see cref="MountainWeather"/>).</summary>
-        void InitWeather()
+        partial void InitWeather()
         {
             if (!IsServer || !Climb.On || run == null) return;
             int seed = loaded != null && loaded.Seed != 0 ? loaded.Seed : NewSeed();
@@ -656,7 +667,7 @@ namespace Height1079.Runtime
         /// <summary>Everything the host keeps about one participant, in one place. Called from
         /// <see cref="PruneClimb"/> and, for the state that is filled straight from RPCs and never waits for a tick,
         /// from <see cref="OnClientDisconnected"/>.</summary>
-        void ForgetClient(ulong id)
+        partial void ForgetClient(ulong id)
         {
             climbers.Remove(id); climbWere.Remove(id); gateSafe.Remove(id);
             droppedAt.Remove(id); climbJobs.Remove(id); sortieSent.Remove(id);
@@ -668,3 +679,4 @@ namespace Height1079.Runtime
         }
     }
 }
+#endif

@@ -1,3 +1,7 @@
+#if !HEIGHT1079_NO_ELBRUS
+// Compiled only when the southern slope of Elbrus is in the build (docs/ELBRUS.md). It has to live in
+// Height1079.Runtime and not in the location's own assembly because a partial class cannot be split across
+// assemblies, and because the rest of Height1079.Runtime's Elbrus partials name what is in here.
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
@@ -95,7 +99,7 @@ namespace Height1079.Runtime
 
         // ── building ──────────────────────────────────────────────────────────────────────────────────────
 
-        void BuildPlan()
+        partial void BuildPlan()
         {
             // the card, standing on top of the ascent block in the same corner
             planCard = Rect("Plan", hud.transform, Vector2.zero, Vector2.zero, new Vector2(20, 452), new Vector2(360, 134));
@@ -161,7 +165,7 @@ namespace Height1079.Runtime
 
         /// <summary>Back in the menu: the next ascent gets its opening card again, and nothing is left saying that a
         /// step of the last one has just closed.</summary>
-        void ResetPlan()
+        partial void ResetPlan()
         {
             introDone = false; introUntil = 0f;
             Programmes.Done = ""; Programmes.DoneUntil = 0f;
@@ -172,7 +176,7 @@ namespace Height1079.Runtime
 
         /// <summary>Everything the programme draws is Elbrus only: on Kholat Syakhl there is one night, it has its
         /// own script, and none of this exists (<see cref="Programme.AllowedIn"/>).</summary>
-        void ApplyPlacePlan()
+        partial void ApplyPlacePlan()
         {
             if (planCard == null) return;
             bool on = Programmes.On;
@@ -191,7 +195,7 @@ namespace Height1079.Runtime
 
         // ── the tick ──────────────────────────────────────────────────────────────────────────────────────
 
-        void UpdatePlan(HikerController me, float x, float z)
+        partial void UpdatePlan(HikerController me, float x, float z)
         {
             if (planCard == null) return;
             if (!Programmes.On) { ApplyPlacePlan(); return; }
@@ -375,3 +379,4 @@ namespace Height1079.Runtime
         };
     }
 }
+#endif

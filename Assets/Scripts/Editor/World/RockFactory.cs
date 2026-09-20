@@ -6,7 +6,7 @@ using UnityEngine;
 namespace Height1079.EditorTools.World
 {
     /// <summary>Boulders of the stone ridges (курумы, "каменные гряды"): noise-displaced icospheres, lichen rock on the sides, snow on faces that look up.</summary>
-    public static class RockFactory
+    public static partial class RockFactory
     {
         const string MeshDir = WorldPaths.Generated + "/Meshes/Rocks";
         const string PrefabDir = WorldPaths.Generated + "/Prefabs/Rocks";
@@ -67,11 +67,6 @@ namespace Height1079.EditorTools.World
         }
 
         public static List<GameObject> BuildLibrary() => BuildLibrary("Boulder", Materials.Snow);
-
-        /// <summary>The same boulders in bare stone, for the summer moraines of Elbrus: what lies on the upward faces
-        /// there is grey lichen and dust, not snow.</summary>
-        public static List<GameObject> BuildElbrusLibrary()
-            => BuildLibrary("Boulder_Elb", Materials.Get("ElbBoulderTop", new Color(.66f, .64f, .6f), smoothness: .08f));
 
         static List<GameObject> BuildLibrary(string name, Material top)
         {

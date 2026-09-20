@@ -1,0 +1,14 @@
+{
+  "name": "Height1079.Elbrus.Core",
+  "rootNamespace": "Height1079.Core",
+  "references": ["Height1079.Core"],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": true,
+  "defineConstraints": ["!HEIGHT1079_NO_ELBRUS"],
+  "versionDefines": [],
+  "noEngineReferences": true
+}

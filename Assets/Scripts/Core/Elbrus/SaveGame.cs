@@ -101,7 +101,7 @@ namespace Height1079.Core
         public readonly List<SaveClimber> Climbers = new List<SaveClimber>();
 
         /// <summary>The hour of the day this save stopped at, for the menu line.</summary>
-        public float Hour => AscentRoute.HourAt(Elapsed, World.ElbrusPlan.Profile.Seconds);
+        public float Hour => AscentRoute.HourAt(Elapsed, ElbrusLocation.Plan.Profile.Seconds);
 
         public SaveClimber Find(string key)
         {
@@ -231,7 +231,7 @@ namespace Height1079.Core
             // the camp is a place to stand the party on at load: a coordinate from outside the map would spawn them
             // off the terrain, where there is no ground to sample and the fall never ends
             var camp = root["camp"];
-            float half = save.Place == Place.Elbrus ? Elbrus.Half : HeightField.Half;
+            float half = Locations.Of(save.Place).Half;
             save.CampX = Clamp(camp.Float("x"), -half, half);
             save.CampY = Clamp(camp.Float("y"), -1000f, 10000f);
             save.CampZ = Clamp(camp.Float("z"), -half, half);

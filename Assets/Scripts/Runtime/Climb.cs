@@ -1,3 +1,7 @@
+#if !HEIGHT1079_NO_ELBRUS
+// Compiled only when the southern slope of Elbrus is in the build (docs/ELBRUS.md). It has to live in
+// Height1079.Runtime and not in the location's own assembly because a partial class cannot be split across
+// assemblies, and because the rest of Height1079.Runtime's Elbrus partials name what is in here.
 using System;
 using Unity.Netcode;
 using UnityEngine;
@@ -217,10 +221,10 @@ namespace Height1079.Runtime
 
         /// <summary>The hour of the day on the slope, from the run's own elapsed seconds.</summary>
         public static float Hour(float elapsed)
-            => AscentRoute.HourAt(elapsed, Height1079.Core.World.ElbrusPlan.Profile.Seconds);
+            => AscentRoute.HourAt(elapsed, Height1079.Core.ElbrusLocation.Plan.Profile.Seconds);
 
         public static float SecondsUntil(float hour, float elapsed)
-            => AscentRoute.SecondsUntil(hour, elapsed, Height1079.Core.World.ElbrusPlan.Profile.Seconds);
+            => AscentRoute.SecondsUntil(hour, elapsed, Height1079.Core.ElbrusLocation.Plan.Profile.Seconds);
 
         /// <summary>The hour the local client believes it is (the run clock is a NetworkVariable, so everybody agrees).</summary>
         public static float Hour() => Hour(NightSession.Instance != null ? NightSession.Instance.Elapsed.Value : 0f);
@@ -241,7 +245,7 @@ namespace Height1079.Runtime
         /// <summary>Inside a roof: a station, a barrel, a hut of the moraine, or the emergency box on the saddle.</summary>
         public static bool Sheltered(float x, float z, float visibilityM)
         {
-            if (Height1079.Core.World.ElbrusSheltered(x, z)) return true;
+            if (Height1079.Core.ElbrusLocation.Sheltered(x, z)) return true;
             var hut = SaddleHut;
             return Vector2.Distance(new Vector2(x, z), hut) <= 4f && AscentRoute.HutFound(0f, visibilityM);
         }
@@ -262,3 +266,4 @@ namespace Height1079.Runtime
         }
     }
 }
+#endif

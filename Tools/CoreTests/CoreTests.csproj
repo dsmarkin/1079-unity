@@ -14,4 +14,14 @@
     <Compile Include="../../Assets/Tests/EditMode/**/*.cs" Exclude="../../Assets/Tests/EditMode/MenkTests.cs;../../Assets/Tests/EditMode/PuppetTests.cs;../../Assets/Tests/EditMode/SnowPrintsTests.cs;../../Assets/Tests/EditMode/PaletteTests.cs;../../Assets/Tests/EditMode/YardLayoutTests.cs" />
     <None Include="../../Assets/Data/World/*" LinkBase="Assets/Data/World" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
+  <!-- The Elbrus location is optional, the way the Steam layer is: dotnet run -p:NoElbrus=true builds the game
+       without it and proves the core still compiles and passes on its own. Unity does the same thing with the
+       defineConstraints "!HEIGHT1079_NO_ELBRUS" on Height1079.Elbrus.Core and Height1079.Elbrus.Tests. -->
+  <ItemGroup Condition="'$(NoElbrus)' == 'true'">
+    <Compile Remove="../../Assets/Scripts/Core/Elbrus/**/*.cs" />
+    <Compile Remove="../../Assets/Tests/EditMode/Elbrus/**/*.cs" />
+  </ItemGroup>
+  <PropertyGroup Condition="'$(NoElbrus)' == 'true'">
+    <DefineConstants>$(DefineConstants);HEIGHT1079_NO_ELBRUS</DefineConstants>
+  </PropertyGroup>
 </Project>

@@ -19,12 +19,12 @@ namespace Height1079.Runtime
             if (weather == null) return;
             var s = NightSession.Instance;
             var me = Bootstrap.LocalHiker;
-            bool storming = s != null && (s.Storm.Value || s.MountainStorm.Value);
+            bool storming = s != null && (s.Storm.Value || s.MapStorm);
             weather.Want = storming ? 1f : 0f;
             weather.RiseSeconds = 25f; weather.FallSeconds = 40f;
             if (DemoReel.StormWanted >= 0f) { weather.Want = DemoReel.StormWanted; weather.RiseSeconds = weather.FallSeconds = 1.3f; }
             weather.Live = s != null || DemoReel.StormWanted >= 0f;
-            weather.DayWind = MountainDay.WindShare;
+            weather.DayWind = LocationViews.DayWind;
             weather.Inside = me != null && me.Crawling;
             weather.GroundY = me != null ? me.transform.position.y : float.NaN;
         }

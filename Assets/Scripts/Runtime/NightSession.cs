@@ -50,8 +50,8 @@ namespace Height1079.Runtime
             if (!IsServer) return;
             dem = TerrainBuilder.LoadDem();
             run = new NightRun(Time.timeAsDouble, (x, z) => TerrainBuilder.Height(dem, x, z), Height1079.Core.World.Scenario);
-            // the forest giant belongs to the taiga of Kholat Syakhl, not to the glaciers of Elbrus
-            if (!Height1079.Core.World.IsElbrus)
+            // the forest giant belongs to a map that is walked at night, and the map says whether it is one
+            if (LocationViews.RunsNight)
             {
                 menk = new MenkBrain((x, z) => TerrainBuilder.Height(dem, x, z));
                 menk.Say = text => run.Record(text);
@@ -67,7 +67,7 @@ namespace Height1079.Runtime
             // a save the menu picked with «Продолжить»: the clock, the weather and the tent go back before the first
             // player is placed, because CampSpawn puts everybody beside that tent
             InitCamps();
-            // and the one seed the whole weather of the day comes out of (MountainDay)
+            // and the one seed the whole weather of a day comes out of
             InitWeather();
             NetworkManager.OnClientConnectedCallback += OnClientConnected;
             NetworkManager.OnClientDisconnectCallback += OnClientDisconnected;
@@ -126,6 +126,24 @@ namespace Height1079.Runtime
             ForgetClient(clientId);
         }
 
+        /// <summary>The parts of a session that belong to one map and not to the game (docs/ELBRUS.md). Each is
+        /// implemented in a partial of this class that is compiled only when that map is in the build; with the map
+        /// left out the implementation is gone and every call below disappears with it, which is exactly what
+        /// <c>partial void</c> is for. The set of <see cref="NetworkVariable{T}"/>s on this behaviour therefore
+        /// differs between the two builds, and they cannot play together — see docs/ELBRUS.md.</summary>
+        partial void InitCamps();
+        /// <summary>Whether the map's own weather is blowing on top of the night's storm. Read by the client too
+        /// (<see cref="WeatherDriver"/>), so it is a property and not a server-side field.</summary>
+        public bool MapStorm { get { bool blowing = false; MapStormNow(ref blowing); return blowing; } }
+        partial void MapStormNow(ref bool blowing);
+        partial void InitWeather();
+        partial void CampSpawn(Participant p);
+        partial void ForgetClient(ulong id);
+        partial void TickAscentServer(float dt);
+        /// <summary>How much clock one press of F6 moves. A day that runs nine hours over ninety minutes of play
+        /// wants a bigger step than a minute of the night.</summary>
+        partial void SkipStep(ref int seconds);
+
         /// <summary>Called by the server once a player object has its name; keeps the protocol readable.</summary>
         public void RenameServer(ulong clientId, string name)
         {
@@ -141,7 +159,7 @@ namespace Height1079.Runtime
 
         void TickMenk()
         {
-            // No Menk, no work: on Elbrus there is none, and the loop below was walking every client with a
+            // No Menk, no work: a daylight map has none, and the loop below was walking every client with a
             // GetComponent and a dictionary lookup each frame to fill a list nobody would read
             if (menk == null) return;
             seen.Clear();
@@ -178,9 +196,8 @@ namespace Height1079.Runtime
         {
             if (!IsServer || run == null) return;
             if (Controls.MenkWake && menk != null) menk.WakeNow();
-            // F6: a minute of the night, or a whole hour of the Elbrus clock — the ascent runs nine hours of the day
-            // over an hour and a half of play, and the turn-round time is worth being able to reach in a check
-            if (Controls.SkipMinute) run.SkipAhead(Climb.On ? 600 : 60);
+            // F6: a minute of the night, unless the map we are in wants a bigger step of its own clock
+            if (Controls.SkipMinute) { int step = 60; SkipStep(ref step); run.SkipAhead(step); }
             TickMenk();
             TickWork();
             TickAscentServer(Time.deltaTime);
