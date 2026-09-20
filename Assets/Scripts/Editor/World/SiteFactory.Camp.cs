@@ -218,19 +218,29 @@ namespace Height1079.EditorTools.World
         /// <summary>Canvas (sagging, wrinkled), 8 pairs of skis under the floor, ski-pole stands and guys, middle stand of one pair of skis, ice axe.
         /// Shared by the slope tent and the forest camp. <paramref name="skiRow"/> = centre of each ski row from the middle (larger pushes the tips out);
         /// <paramref name="open"/>: doorway (±<see cref="DoorHalf"/>) with the sheet rolled up.</summary>
-        static void TentBody(Transform t, float skiRow, bool open = false, float roofSnow = 0f)
+        /// <param name="skisUnderFloor">Eight pairs of skis laid under the floor. Documented for the slope camp
+        /// (protocol 28.02.1959, Brusnitsyn: "bindings face down"), and NOT for a camp in the forest — the diary of
+        /// 30.01 says the tent went up on fir branches there, so <see cref="Camp31"/> passes false.</param>
+        /// <param name="slump">Height factor along the tent, u = 0 at the far (northern) end, u = 1 at the entrance.
+        /// Null leaves it standing. The search party found the northern half down and buried, the rear guys torn and
+        /// the rear pole gone, with only the entrance end still up — so the 26 Feb state passes a curve here instead
+        /// of showing the taut tent that every dramatisation shows.</param>
+        static void TentBody(Transform t, float skiRow, bool open = false, float roofSnow = 0f,
+                             bool skisUnderFloor = true, System.Func<float, float> slump = null)
         {
+            float S(float u) => slump == null ? 1f : Mathf.Clamp01(slump(u));
             float L = Sites.Tent.Length, W = Sites.Tent.Width, Hr = Sites.Tent.RidgeHeight, wall = Hr - Mathf.Sqrt(Sites.Tent.SlopeLength * Sites.Tent.SlopeLength - W * W / 4);
             var k = new Kit();
             var id = Matrix4x4.identity;
 
             // skis under the floor: two rows along the tent, tips out at the ends
-            for (int row = 0; row < 2; row++)
-                for (int i = 0; i < 8; i++)
-                {
-                    float x = -W / 2 + .12f + i * (W - .24f) / 7f, z = (row == 0 ? -1 : 1) * skiRow;
-                    Ski(k, TRS(new Vector3(x, -.03f, z), Yaw(row == 0 ? 180 + (i % 2) * 1.2f : (i % 2) * -1.2f)), 200 + row * 10 + i, false);
-                }
+            if (skisUnderFloor)
+                for (int row = 0; row < 2; row++)
+                    for (int i = 0; i < 8; i++)
+                    {
+                        float x = -W / 2 + .12f + i * (W - .24f) / 7f, z = (row == 0 ? -1 : 1) * skiRow;
+                        Ski(k, TRS(new Vector3(x, -.03f, z), Yaw(row == 0 ? 180 + (i % 2) * 1.2f : (i % 2) * -1.2f)), 200 + row * 10 + i, false);
+                    }
 
             // canvas: floor + one sheet floor→wall→ridge→wall→floor, sagging between the stands, wrinkled by the guys
             float y0 = .04f;
@@ -242,6 +252,8 @@ namespace Height1079.EditorTools.World
             Emit(cv, 0, 26, 30, (u, v) =>
             {
                 var p2 = prof(v); float z = -L / 2 + u * L;
+                float sc = S(u);
+                if (sc < .999f) p2 = new Vector2(p2.x * (1f + (1f - sc) * .22f), y0 + (p2.y - y0) * sc);
                 float along = Mathf.Sin(Mathf.PI * u);
                 float d = v * total, half = total / 2; bool roof = d > roofA && d < total - roofA;
                 float roofT = roof ? Mathf.Sin(Mathf.PI * (d < half ? Mathf.InverseLerp(roofA, half, d) : Mathf.InverseLerp(half, total - roofA, d))) : 0f;
@@ -267,7 +279,8 @@ namespace Height1079.EditorTools.World
                         (tt, a) => .045f * (1f + .15f * Noise.N(tt * 9f, a, 2f)), 9, 10, new Options { UvScale = new Vector2(1, 2) });
                     continue;
                 }
-                Vector3 bl = new Vector3(-W / 2, y0, z), br = new Vector3(W / 2, y0, z), tl = new Vector3(-W / 2 + .02f, wall, z), tr = new Vector3(W / 2 - .02f, wall, z), ap = new Vector3(0, Hr, z);
+                float es = S(end < 0 ? 0f : 1f), ew = y0 + (wall - y0) * es, eh = y0 + (Hr - y0) * es, ex = W / 2 * (1f + (1f - es) * .22f);
+                Vector3 bl = new Vector3(-ex, y0, z), br = new Vector3(ex, y0, z), tl = new Vector3(-ex + .02f, ew, z), tr = new Vector3(ex - .02f, ew, z), ap = new Vector3(0, eh, z);
                 cv.Quad(0, bl, br, tr, tl, new Vector2(0, 0), new Vector2(W, 0), new Vector2(W, wall), new Vector2(0, wall), true);
                 int a0 = cv.Vert(tl, Vector3.forward * end, new Vector2(0, wall)), b0 = cv.Vert(tr, Vector3.forward * end, new Vector2(W, wall)), c0 = cv.Vert(ap, Vector3.forward * end, new Vector2(W / 2, Hr));
                 cv.Tri(0, a0, c0, b0); cv.Tri(0, a0, b0, c0);

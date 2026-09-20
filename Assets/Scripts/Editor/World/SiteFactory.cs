@@ -47,7 +47,9 @@ namespace Height1079.EditorTools.World
         }
 
         // ------------------------------------------------------------------ tent
-        /// <summary>The tent on the evening of 1 Feb 1959. Local frame: +Z = entrance end (toward the pass), +X = downslope side (where the cuts were made).</summary>
+        /// <summary>The tent on the evening of 1 Feb 1959, with the 26 Feb state as a second, disabled body.
+        /// Local frame: +Z = entrance end (which faces SOUTH — see Sites.Tent.Orientation), +X = downslope side,
+        /// which is the slant that carries the three cuts and the two torn-out sections.</summary>
         public static GameObject Tent()
         {
             float L = Sites.Tent.Length, W = Sites.Tent.Width, Hr = Sites.Tent.RidgeHeight, wall = Hr - Mathf.Sqrt(Sites.Tent.SlopeLength * Sites.Tent.SlopeLength - W * W / 4);
@@ -58,29 +60,75 @@ namespace Height1079.EditorTools.World
             var snow = new MeshBuilder(1);
             snow.Box(0, new Vector3(0, -.14f, 0), new Vector3(W + .5f, .3f, L + .5f), Quaternion.identity, .5f);
             for (int k = 0; k < 6; k++) Mound(snow, 0, new Vector3(W / 2 + .55f, -.25f, -2.5f + k * 1.0f), new Vector3(.95f, .32f, .85f), 30 + k); // spoil on the downslope side
-            snow.Box(0, new Vector3(-W / 2 - .75f, Sites.Tent.CutDepth / 2 - .1f, 0), new Vector3(.6f, Sites.Tent.CutDepth + .2f, Sites.Tent.CutLength + 1.2f), Quaternion.Euler(0, 0, -12), .5f);
+            snow.Box(0, new Vector3(-W / 2 - .75f, Sites.Tent.PadCut / 2 - .1f, 0), new Vector3(.6f, Sites.Tent.PadCut + .2f, Sites.Tent.PadLength + 1.2f), Quaternion.Euler(0, 0, -12), .5f);
             for (int k = 0; k < 5; k++) Mound(snow, 0, new Vector3(-W / 2 - 1.2f, .15f, -2.2f + k * 1.1f), new Vector3(.9f, .35f, .8f), 10 + k);
             Mound(snow, 0, new Vector3(-.3f, .05f, -L / 2 - .9f), new Vector3(1.4f, .3f, .7f), 20);
             Part(t, "SnowPlatform", snow, Materials.Snow);
 
-            TentBody(t, 1.07f);
+            // The evening of 1 February: pitched, taut, as the group left it.
+            var evening = new GameObject("Evening_1959-02-01"); evening.transform.SetParent(t, false);
+            TentBody(evening.transform, 1.07f);
 
-            // search state (26 Feb): cuts on the downslope roof, snow on the northern part, flashlight on the roof — disabled by default
+            // 26 February, as the search party found it. Not the taut tent of every dramatisation: the northern half
+            // was down and buried, the guys on that side torn, the rear pole gone altogether and the middle sagging,
+            // with only the southern, entrance end still standing (Tempalov 18.IV, Maslennikov 10.III, Lebedev 20.IV,
+            // Brusnitsyn 15.V, Slobtsov 15.IV — "the entrance came out from under the snow, the rest was under it").
+            // u = 0 is the northern end here, because +Z is the entrance and the entrance faces south.
+            const float Y0 = .04f;
+            float Slump(float u) => Mathf.Lerp(.16f, 1f, Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(u * 1.4f - .12f)));
+            float SlumpAtZ(float z) => Slump((z + L / 2) / L);
+            Vector3 OnSlant(float z, float up, float across)
+            {
+                float sc = SlumpAtZ(z);
+                var flat = Vector3.Lerp(new Vector3(W / 2 - .02f, wall, z), new Vector3(0, Hr, z), up) + new Vector3(across, 0, 0);
+                return new Vector3(flat.x * (1f + (1f - sc) * .22f) + .012f, Y0 + (flat.y - Y0) * sc + .01f, z);
+            }
+
             var search = new GameObject("SearchState_1959-02-26"); search.transform.SetParent(t, false);
+            TentBody(search.transform, 1.07f, slump: Slump);
+
+            // three knife cuts, from the inside, on the downslope slant (Churkina)
             var cuts = new MeshBuilder(1);
             float[] zc = { -1.2f, 0.1f, 1.25f };
             for (int i = 0; i < 3; i++)
             {
                 float len = Sites.Tent.Cuts[i];
-                Vector3 c0 = Vector3.Lerp(new Vector3(W / 2 - .02f, wall, zc[i]), new Vector3(0, Hr, zc[i]), .35f) + new Vector3(.012f, .01f, 0);
-                Vector3 dirUp = (new Vector3(-W / 2, Hr - wall, 0)).normalized;
+                Vector3 c0 = OnSlant(zc[i], .35f, 0f);
+                Vector3 dirUp = (OnSlant(zc[i], .95f, 0f) - OnSlant(zc[i], .05f, 0f)).normalized;
                 Vector3 p0 = c0 - dirUp * len * .5f, p1 = c0 + dirUp * len * .5f, side = Vector3.forward * .025f;
                 cuts.Quad(0, p0 - side, p1 - side, p1 + side, p0 + side, Vector2.zero, Vector2.right, Vector2.one, Vector2.up, true);
             }
             Part(search.transform, "Cuts", cuts, Materials.Charcoal);
+
+            // and the damage that is not a cut: two rectangles torn out of the same slant, together larger than all
+            // three cuts (Churkina). They were missing here for the same reason they are missing from most retellings.
+            var torn = new MeshBuilder(1);
+            float[] zt = { -0.45f, 0.75f };
+            for (int i = 0; i < Sites.Tent.TornSections.Length; i++)
+            {
+                var (tl, tw) = Sites.Tent.TornSections[i];
+                float z = zt[i];
+                Vector3 lo = OnSlant(z, .12f, 0f), hi = OnSlant(z, .12f + tw / Sites.Tent.SlopeLength * .8f, 0f);
+                Vector3 alongZ = Vector3.forward * (tl * .5f), side = Vector3.forward * 0f;
+                torn.Quad(0, lo - alongZ, hi - alongZ, hi + alongZ, lo + alongZ, Vector2.zero, Vector2.up, Vector2.one, Vector2.right, true);
+                torn.Quad(0, lo + alongZ, hi + alongZ, hi - alongZ, lo - alongZ, Vector2.zero, Vector2.up, Vector2.one, Vector2.right, true);
+            }
+            Part(search.transform, "TornSections", torn, Materials.Charcoal);
+
+            // snow over the northern half — 15–20 cm, wind-blown, deepest where the tent had come down
             var drift = new MeshBuilder(1);
-            Mound(drift, 0, new Vector3(0, Hr * .55f, -L / 4), new Vector3(W * .6f, Sites.Tent.SnowOnTentFound * 3, L * .3f), 31);
+            for (int k = 0; k < 4; k++)
+                Mound(drift, 0, new Vector3(0, Hr * .22f, -L / 2 + .3f + k * .62f), new Vector3(W * .72f, Sites.Tent.SnowOnTentFound * (3.4f - k * .5f), .75f), 31 + k);
             Part(search.transform, "SnowOnTent", drift, Materials.Snow);
+
+            // the rear ski pole, cut into several pieces and lying on top of everything — Brusnitsyn notes that
+            // ruining a pole when the group carried no spare "is possible only under special circumstances"
+            var pole = new MeshBuilder(1);
+            float[] pz = { -1.55f, -1.1f, -0.7f };
+            for (int i = 0; i < 3; i++)
+                pole.Tube(0, new Vector3(-.28f + i * .1f, Y0 + .07f + i * .01f, pz[i]), new Vector3(.34f + i * .06f, Y0 + .05f, pz[i] + .28f - i * .06f), .012f, .011f, 7, 1, 0, true);
+            Part(search.transform, "CutSkiPole", pole, Materials.Ski);
+
             var torch = new MeshBuilder(1);
             torch.Tube(0, new Vector3(-.2f, Hr + .02f, .6f), new Vector3(-.2f, Hr + .02f, .78f), .018f, .022f, 8, 1, 0, true);
             Part(search.transform, "Flashlight", torch, Materials.Metal);
@@ -99,10 +147,10 @@ namespace Height1079.EditorTools.World
             var root = new GameObject(morning ? "Site_Labaz_1959_Morning" : "Site_Labaz_1959");
             Vector3 goods = morning ? new Vector3(0, 0, 2.5f) : Vector3.zero, cover = morning ? new Vector3(.2f, -.28f, -2.6f) : Vector3.zero;
             var t = root.transform;
-            float Lf = Sites.Labaz.FloorLength, Wf = Sites.Labaz.FloorWidth, D = Sites.Labaz.PitDepth;
+            float Lf = Sites.Labaz.FloorLength, Wf = Sites.Labaz.FloorWidth, D = Sites.Labaz.MoundHeight;
             var snow = new MeshBuilder(1);
             Bank(snow, Matrix4x4.identity, Vector3.zero, Lf * .5f + .75f, Wf * .5f + .75f, morning ? Mathf.PI : 0f, morning ? .35f : .05f, D * .9f, 1.1f, 40);
-            Part(t, "SnowPit", snow, Materials.Snow);
+            Part(t, "SnowMound", snow, Materials.Snow);
             var floor = new MeshBuilder(1);
             for (int k = 0; k < 7; k++) floor.Box(0, new Vector3(-Lf / 2 + .11f + k * (Lf - .22f) / 6, .01f, 0), new Vector3(.24f, .012f, Wf * (.92f + .08f * (k % 2))), Quaternion.Euler(0, (k - 3) * 2f, 0), 2);
             Part(t, "BirchBarkFloor", floor, Materials.BirchCardboard);

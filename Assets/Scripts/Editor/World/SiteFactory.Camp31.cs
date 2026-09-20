@@ -22,7 +22,9 @@ namespace Height1079.EditorTools.World
             var k = new Kit();
             var id = Matrix4x4.identity;
 
-            // trampled pad (lumpy, edges sinking) and the dug wall round it, open toward the fire
+            // Trampled pad and the rim of snow pushed up round it, open toward the fire. Not a dug platform: on the
+            // slope they levelled hard наст into a pad, but here the diary gives 1.2–2 m of powder and the camp was
+            // made by treading it down. The rim is what trampling leaves, not what a shovel leaves.
             var snow = k.B("PadSnow", SnowTrodden);
             Emit(snow, 0, 22, 34, (u, v) =>
             {
@@ -31,9 +33,34 @@ namespace Height1079.EditorTools.World
                 float trodden = .025f * Noise.Fbm(new Vector3(x * 3f, 0, z * 3f), 3) + .015f * Mathf.Abs(Mathf.Sin(x * 9 + Mathf.Sin(z * 4) * 2));
                 return new Vector3(x, .012f + trodden - .3f * edge, z);
             }, new Options { UvScale = new Vector2(W + 3.6f, L + 5f) * .8f });
-            Bank(k.B("Walls", Materials.Snow), id, new Vector3(0, 0, .45f), W / 2 + 2.3f, L / 2 + 2.6f, Mathf.PI / 2, .42f, .55f, 1.2f, 31);
+            Bank(k.B("Walls", Materials.Snow), id, new Vector3(0, 0, .45f), W / 2 + 2.3f, L / 2 + 2.6f, Mathf.PI / 2, .42f, .34f, 1.2f, 31);
 
-            TentBody(t, 1.25f, open: true, roofSnow: .025f);
+            // The tent goes on fir branches, not on skis. The diary of 30.01 states the method plainly — a fire is
+            // lit and the tent pitched on лапник — and 31.01 describes the same camp. Skis under the floor and a
+            // levelled pad are documented only for the slope camp of 1 February (protocol 28.02.1959), and carrying
+            // that arrangement into the forest was our own assumption, contradicted by the group's own diary.
+            var bed = new MeshBuilder(3);
+            var bedRnd = new System.Random(3101);
+            for (int i = 0; i < 34; i++)
+            {
+                var a = new Vector3(-W / 2 - .25f + (float)bedRnd.NextDouble() * (W + .5f), .012f,
+                                    -L / 2 - .2f + (float)bedRnd.NextDouble() * (L + .4f));
+                var b = a + Quaternion.Euler(0, (float)bedRnd.NextDouble() * 360, 0) * Vector3.forward * (.55f + (float)bedRnd.NextDouble() * .35f);
+                FirBranch(bed, a, b, .5f);
+            }
+            Part(t, "FirBed", bed, Materials.Bark, Materials.Find("NeedlesFir"), Materials.Find("SnowOnBranches"));
+
+            TentBody(t, 1.25f, open: true, roofSnow: .025f, skisUnderFloor: false);
+
+            // and the skis those eight pairs were not under: stood up in the snow along the windward side, the way
+            // they stood at the slope camp too (Slobtsov: poles and a spare pair standing upright by the tent)
+            for (int i = 0; i < Sites.Camp31.SkiPairsAtTent; i++)
+            {
+                float z = -L / 2 + .3f + i * (L - .6f) / 7f;
+                for (int pair = 0; pair < 2; pair++)
+                    Ski(k, TRS(new Vector3(-W / 2 - .85f - pair * .085f, .55f, z + pair * .04f),
+                               Quaternion.Euler(-82f + (i % 3) * 2.5f, 8f + i * 3f, (i % 2 == 0 ? 3f : -4f))), 600 + i * 2 + pair, true);
+            }
 
             // stove pipe outside: horizontal out of the sleeve, a joint, then a short rise; sooty end
             var tin = k.B("Pipe", Materials.Get("PipeSoot", new Color(.2f, .19f, .18f), smoothness: .25f));
