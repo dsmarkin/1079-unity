@@ -345,10 +345,30 @@ namespace Height1079.EditorTools.World
     {
         public static bool Wants(string path) => path.StartsWith(ImportedFactory.Quaternius) || path.StartsWith("Assets/Art/ThirdParty/Kenney");
 
+        /// <summary>Skinned characters (Quaternius Modular Men) keep their bones: the puppet turns them (PuppetSkeleton).</summary>
+        public const string Characters = "Assets/Art/ThirdParty/Quaternius/ModularMen/";
+
         void OnPreprocessModel()
         {
             if (!Wants(assetPath)) return;
-            Apply((ModelImporter)assetImporter);
+            if (assetPath.StartsWith(Characters)) ApplyRig((ModelImporter)assetImporter);
+            else Apply((ModelImporter)assetImporter);
+        }
+
+        /// <summary>A character with a skeleton: Generic rig with its own avatar, bones left as transforms, no clips.
+        /// Unity imports the meshes rigid in the rest pose; FigureFactory strips the Animator and the puppet poses the bones.</summary>
+        public static void ApplyRig(ModelImporter imp)
+        {
+            imp.useFileScale = true;
+            imp.globalScale = 1f;
+            imp.animationType = ModelImporterAnimationType.Generic;
+            imp.avatarSetup = ModelImporterAvatarSetup.CreateFromThisModel;
+            imp.optimizeGameObjects = false;
+            imp.importAnimation = false;
+            imp.importBlendShapes = false;
+            imp.importCameras = false;
+            imp.importLights = false;
+            imp.isReadable = false;
         }
 
         public static void Apply(ModelImporter imp)

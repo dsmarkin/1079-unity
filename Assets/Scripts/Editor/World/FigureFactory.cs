@@ -10,7 +10,7 @@ namespace Height1079.EditorTools.World
     /// sky, forest and stone, people and kit, the players' accents, fire and dark). Read here so that a model from
     /// a file can be dressed in it (<see cref="FigureFactory"/>) and nothing on a body is a colour the palette does
     /// not have. The file is the source: this class never carries a colour of its own.</summary>
-    public static class Palette
+    public static class FigurePalette
     {
         public const string JsonPath = "docs/art/palette.json";
 
@@ -204,11 +204,11 @@ namespace Height1079.EditorTools.World
                 for (int i = 0; i < mats.Length; i++)
                 {
                     string name = mats[i] != null ? mats[i].name : "(none)";
-                    Palette.Swatch sw; string how;
-                    if (cutColour.TryGetValue(i, out var cutName) && Palette.ByName(cutName) is Palette.Swatch byBones) { sw = byBones; how = "по костям"; name = "(cut)"; }
+                    FigurePalette.Swatch sw; string how;
+                    if (cutColour.TryGetValue(i, out var cutName) && FigurePalette.ByName(cutName) is FigurePalette.Swatch byBones) { sw = byBones; how = "по костям"; name = "(cut)"; }
                     else sw = Pick(rules, r.name, name, mats[i], out how);
                     log.Append($"\n  {r.name} / {name} → {sw.name} {sw.hex} ({how})");
-                    mats[i] = Palette.Material(sw, PaletteDir);
+                    mats[i] = FigurePalette.Material(sw, PaletteDir);
                 }
                 r.sharedMaterials = mats;
                 r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.On;
@@ -273,13 +273,13 @@ namespace Height1079.EditorTools.World
             return count;
         }
 
-        static Palette.Swatch Pick(Rule[] rules, string mesh, string material, Material src, out string how)
+        static FigurePalette.Swatch Pick(Rule[] rules, string mesh, string material, Material src, out string how)
         {
             foreach (var rule in rules)
             {
                 if (!string.Equals(rule.Material, material, System.StringComparison.OrdinalIgnoreCase)) continue;
                 if (!string.IsNullOrEmpty(rule.Mesh) && mesh.IndexOf(rule.Mesh, System.StringComparison.OrdinalIgnoreCase) < 0) continue;
-                var s = Palette.ByName(rule.Colour);
+                var s = FigurePalette.ByName(rule.Colour);
                 if (s != null) { how = "по таблице"; return s; }
                 Debug.LogWarning("1079 figure: в палитре нет цвета «" + rule.Colour + "»");
             }
@@ -288,35 +288,7 @@ namespace Height1079.EditorTools.World
             var c = src != null && src.HasProperty("_Color") ? src.color : Color.gray;
             var srgb = new Color(Mathf.LinearToGammaSpace(c.r), Mathf.LinearToGammaSpace(c.g), Mathf.LinearToGammaSpace(c.b));
             how = "ближайший к #" + ColorUtility.ToHtmlStringRGB(srgb);
-            return Palette.Nearest(srgb);
-        }
-    }
-
-    /// <summary>Import rules for third-party character models: a rig to be posed by the puppet, not by clips —
-    /// no animation, no blend shapes, nothing read back on the CPU. The rig type has to be Generic: with "None"
-    /// Unity imports the meshes rigid, in the rest pose, and no bone moves them (the Animator that Generic puts on
-    /// the root is stripped by FigureFactory). The studio convention: settings live in a postprocessor, never in
-    /// a .meta file (CLAUDE.md §5).</summary>
-    public sealed class ThirdPartyModelPostprocessor : AssetPostprocessor
-    {
-        const string Root = "Assets/Art/ThirdParty/Quaternius/";
-
-        void OnPreprocessModel()
-        {
-            if (!assetPath.StartsWith(Root)) return;
-            Apply((ModelImporter)assetImporter);
-        }
-
-        internal static void Apply(ModelImporter imp)
-        {
-            imp.animationType = ModelImporterAnimationType.Generic;
-            imp.avatarSetup = ModelImporterAvatarSetup.CreateFromThisModel;
-            imp.optimizeGameObjects = false;            // the bones must stay transforms: the puppet turns them
-            imp.importAnimation = false;
-            imp.importBlendShapes = false;
-            imp.importCameras = false;
-            imp.importLights = false;
-            imp.isReadable = false;
+            return FigurePalette.Nearest(srgb);
         }
     }
 }
