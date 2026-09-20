@@ -59,11 +59,11 @@ namespace Height1079.Sandbox
     {
         /// <summary>The hour of 1 February 1959 the map opens at, in hours (14.5 is half past two in the afternoon).
         /// The afternoon, so the first thing anyone sees is daylight; sunset over Kholat that day is 16:58.</summary>
-        public float hour = 14f;
+        public float hour = 11f;
 
         /// <summary>Real minutes one whole twenty-four hours takes. Eight: about a minute of afternoon light, a
         /// minute of sunset and dusk, five of night, and the dawn at the end.</summary>
-        public float dayMinutes = 8f;
+        public float dayMinutes = 40f;
 
         /// <summary>Fronts arrive and pass by themselves, as a condition of the world. Off, the yard is calm until a
         /// run of the errand raises its own front.</summary>
