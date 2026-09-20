@@ -1,3 +1,7 @@
+#if !HEIGHT1079_NO_ELBRUS
+// Compiled only when the southern slope of Elbrus is in the build (docs/ELBRUS.md). It has to live in
+// Height1079.Runtime and not in the location's own assembly because a partial class cannot be split across
+// assemblies, and because the rest of Height1079.Runtime's Elbrus partials name what is in here.
 using System.Text;
 using UnityEngine;
 using Height1079.Core;
@@ -201,8 +205,8 @@ namespace Height1079.Runtime
         public static void HandleInput(HikerController me)
         {
             if (!On || me == null) return;
-            if (Backpacks.UiOpen || RentalService.Ordering || CafeService.Ordering
-                || LodgeService.Booking || RescueDesk.Filing || Ratraks.Hailing || WeatherBoards.Reading) return;
+            // a counter with its window up owns the keyboard (UiWindows)
+            if (Backpacks.UiOpen || UiWindows.AnyOpen) return;
             if (Controls.Sheet) Toggle(me);
         }
 
@@ -225,3 +229,4 @@ namespace Height1079.Runtime
         public static float DoneFade => Done.Length == 0 ? 0f : Mathf.Clamp01(DoneUntil - Time.time);
     }
 }
+#endif

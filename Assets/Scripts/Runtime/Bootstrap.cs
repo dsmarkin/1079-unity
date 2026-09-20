@@ -104,7 +104,6 @@ namespace Height1079.Runtime
             Ambience.Create();
             Weather.Create().gameObject.AddComponent<WeatherDriver>();
             PackView.Create();
-            CampView.Create();
             var driver = new GameObject("Atmosphere", typeof(Atmosphere));
             Object.DontDestroyOnLoad(driver);
             atmosphere = driver.GetComponent<Atmosphere>();
@@ -160,8 +159,8 @@ namespace Height1079.Runtime
             BuildWorld();
             foreach (var go in SceneManager.GetActiveScene().GetRootGameObjects())
                 if (!before.Contains(go)) placeObjects.Add(go);
-            // the night machinery belongs to Kholat only
-            if (!World.IsElbrus)
+            // the night machinery belongs to the map that is played at night, and the map says so (ILocationView)
+            if (LocationViews.RunsNight)
             {
                 placeExtras.Add(SnowFx.Create().gameObject);
                 placeExtras.Add(SkiTrailFx.Create().gameObject);
@@ -179,15 +178,8 @@ namespace Height1079.Runtime
         {
             var cam = Camera.main; if (cam == null) return;
             Scenery.Cull(cam);
-            if (World.IsElbrus)
-            {
-                var a = Elbrus.Azau; var top = Elbrus.WestSummit;
-                float ay = Dem.Sample(a.X, a.Z) + 60f;
-                cam.transform.position = new Vector3(a.X + 120f, ay, a.Z - 260f);
-                cam.transform.LookAt(new Vector3(top.X, Dem.Sample(top.X, top.Z), top.Z));
-                cam.nearClipPlane = .1f; cam.farClipPlane = 20000f;
-                return;
-            }
+            var view = LocationViews.Active;
+            if (view != null && view.MenuCamera(cam, Dem)) return;
             var (cx, cz) = WorldData.Camp;
             float y = TerrainBuilder.Height(Dem, cx, cz) + 28f;
             // behind the camp, looking up the ascent toward the tent
@@ -208,7 +200,9 @@ namespace Height1079.Runtime
         static void BuildWorld()
         {
             TerrainBuilder.Build();
-            if (World.IsElbrus) { BuildElbrus(); return; }
+            // a map with a view of its own dresses itself and brings its own light; with none this is Холатчахль
+            var view = LocationViews.Active;
+            if (view != null) { sun = view.Build(Dem); return; }
             WorldDressing.Build(Dem);
 
             var sunGo = new GameObject("Sun", typeof(Light));
@@ -237,17 +231,6 @@ namespace Height1079.Runtime
             else Debug.LogWarning("1079: StovePipeSmoke anchor not found");
         }
 
-        /// <summary>The southern slope of Elbrus: ropeways, the Garabashi camp and the summit route, in daylight.
-        /// None of the 1959 dressing applies here — no camp fire, no archive layer, no night.</summary>
-        static void BuildElbrus()
-        {
-            var sunGo = new GameObject("Sun", typeof(Light));
-            sun = sunGo.GetComponent<Light>();
-            sun.type = LightType.Directional;
-            ElbrusWorld.Daylight(sun);
-            ElbrusWorld.Build(Dem);
-        }
-
         static void BuildNetwork()
         {
             var go = new GameObject("NetworkManager", typeof(NetworkManager), typeof(UnityTransport));
@@ -273,22 +256,18 @@ namespace Height1079.Runtime
             if (network.StartHost()) Hud.ShowMenu(false); else Hud.SetStatus("Не удалось открыть порт 7777.");
         }
 
-        /// <summary>«Продолжить»: pick up the newest save of the place chosen in the menu and host from it. The place
-        /// is applied first (it rebuilds the whole world), then the save is parked in <see cref="Saves.Pending"/>,
-        /// where the host's <see cref="NightSession"/> takes it as it spawns and puts the clock, the weather and the
-        /// tent back before anybody is placed.</summary>
+        /// <summary>«Продолжить»: pick up the newest save of the place chosen in the menu and host from it. Reading
+        /// the save, holding it for the session that is about to spawn and wording the line are all the map's own
+        /// business (<see cref="ILocationView.Resume"/>) — a map that cannot be saved answers null and the button is
+        /// never offered in the first place (<see cref="HudController"/>).</summary>
         public static void Continue(string name)
         {
-            var slot = Saves.Newest(World.Current);
-            if (slot.IsEmpty) { Hud.SetStatus("Сохранения для этого места нет."); return; }
-            var save = Saves.Read(slot.Path);
-            if (save == null) { Hud.SetStatus("Сейв не читается. Начните новый подъём."); return; }
-            SetPlace(save.Place);
-            Saves.Hold(save);
+            var view = LocationViews.Active;
+            string line = view != null ? view.Resume() : null;
+            if (line == null) { Hud.SetStatus("Сохранения для этого места нет."); return; }
             Host(name);
-            if (NetworkManager.Singleton != null && NetworkManager.Singleton.IsListening)
-                Hud.SetStatus($"Продолжаем: {save.Where}, {Height1079.Core.AscentRoute.Clock(save.Hour)}.");
-            else Saves.Forget();
+            if (NetworkManager.Singleton != null && NetworkManager.Singleton.IsListening) Hud.SetStatus(line);
+            else view.Drop();
         }
 
         public static void Join(string name, string address)
@@ -310,7 +289,7 @@ namespace Height1079.Runtime
         {
             AutoKindle = false;
             // a save that was picked but never applied must not leak into the next session
-            Saves.Forget();
+            LocationViews.DropAll();
             Cursor.lockState = CursorLockMode.None; Cursor.visible = true;
             if (Hud != null) { Hud.ShowMenu(true); Hud.SetStatus("Ночь закончена. Можно начать новую."); }
         }
@@ -355,7 +334,7 @@ namespace Height1079.Runtime
                 // takes it again here, before the dome is built
                 SkyDome.Clock = GameSky;
                 var dome = FindFirstObjectByType<SkyDome>();
-                if (Height1079.Core.World.IsElbrus)
+                if (!LocationViews.RunsNight)
                 {
                     if (dome != null) Destroy(dome.gameObject);
                     if (moonLight != null) { Destroy(moonLight.gameObject); moonLight = null; }
@@ -372,7 +351,15 @@ namespace Height1079.Runtime
 
             void Update()
             {
-                if (Height1079.Core.World.IsElbrus) { ElbrusDay(); return; }
+                // a map played in daylight takes the frame itself: it has its own light, its own haze and no night
+                // machinery to run (ILocationView.Frame)
+                var view = LocationViews.Active;
+                if (view != null && view.Frame(out float mapDark, out float mapStorm))
+                {
+                    Darkness = mapDark;
+                    if (film != null) film.Set(mapDark, mapStorm);
+                    return;
+                }
                 if (Controls.Archive && Hud != null)
                     Hud.SetStatus(WorldDressing.ToggleArchive() ? "Архивный слой: версии, ориентиры КАН, линия следов и подъём от лабаза (F2 — скрыть)." : "");
                 if (Controls.SiteView && Hud != null)
@@ -445,27 +432,6 @@ namespace Height1079.Runtime
                     float far = s == null ? 1400f : Mathf.Lerp(Mathf.Lerp(1400f, 260f, d), 120f, blizzard);
                     if (Mathf.Abs(terrain.treeDistance - far) > 10f) terrain.treeDistance = far;
                 }
-            }
-
-            /// <summary>A clear day on the southern slope: aerial perspective and nothing else.</summary>
-            const float ClearFog = .00012f;
-            static readonly Color ClearHaze = new Color(.66f, .76f, .88f), CloudHaze = new Color(.84f, .87f, .9f);
-
-            /// <summary>Daylight on Elbrus: nothing of the night machinery runs, the film stays clean — but the sky of
-            /// the day is a <em>rule</em> before it is a picture. When <see cref="AscentRoute.VisibilityM"/> says a
-            /// party can see three hundred metres, the player has to be unable to see further either, or the mountain
-            /// is lying to him in the one place it must not (docs/ELBRUS.md, «Как это вызывается из рантайма»).</summary>
-            void ElbrusDay()
-            {
-                Darkness = 0f;
-                if (film != null) film.Set(0f, 0f);
-                var cam = Camera.main;
-                if (cam != null && cam.farClipPlane < 15000f) cam.farClipPlane = 20000f;
-
-                float vis = Height1079.Core.AscentRoute.VisibilityM(Climb.Sky(Weather.Storm));
-                float want = vis >= 2000f ? ClearFog : Mathf.Clamp(1.2f / Mathf.Max(60f, vis), ClearFog, .025f);
-                RenderSettings.fogDensity = Mathf.MoveTowards(RenderSettings.fogDensity, want, Time.deltaTime * .006f);
-                RenderSettings.fogColor = Color.Lerp(ClearHaze, CloudHaze, Mathf.InverseLerp(2000f, 120f, vis));
             }
         }
     }

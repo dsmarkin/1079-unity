@@ -142,8 +142,8 @@ namespace Height1079.Runtime
         {
             if (Vector3.Distance(me.transform.position, orderedAt) > Rental.LeaveReach)
             {
-                CafeService.Purse.Refund(paid);
-                Say($"Прокат отменён · {CafeService.Purse.Text}");
+                Purse.Money.Refund(paid);
+                Say($"Прокат отменён · {Purse.Money.Text}");
                 ordered = Gear.None; paid = 0;
                 return;
             }
@@ -152,7 +152,7 @@ namespace Height1079.Runtime
             ordered = Gear.None;
             var session = NightSession.Instance;
             if (session != null) session.HireGear(want);
-            else { CafeService.Purse.Refund(paid); paid = 0; Say("Прокат закрыт"); }
+            else { Purse.Money.Refund(paid); paid = 0; Say("Прокат закрыт"); }
         }
 
         /// <summary>The host has handed over what it could. Anything that did not fit in the rucksack is paid back.</summary>
@@ -169,12 +169,12 @@ namespace Height1079.Runtime
                     if ((missed & h.Piece) != 0) rest += h.Roubles;
                 }
                 int back = all <= 0 ? paid : Mathf.RoundToInt(paid * (float)rest / all);
-                CafeService.Purse.Refund(back);
+                Purse.Money.Refund(back);
                 Say(served == 0
-                    ? $"Не влезает в рюкзак · деньги назад · {CafeService.Purse.Text}"
+                    ? $"Не влезает в рюкзак · деньги назад · {Purse.Money.Text}"
                     : $"Не влезло: {Rental.Titles(missed)} · вернули {back} ₽");
             }
-            else if (served != 0) Say($"В рюкзаке: {Rental.Titles((Gear)served)} · {CafeService.Purse.Text}");
+            else if (served != 0) Say($"В рюкзаке: {Rental.Titles((Gear)served)} · {Purse.Money.Text}");
             paid = 0;
             Refresh();
         }
@@ -232,7 +232,7 @@ namespace Height1079.Runtime
             if (me == null) return;
             var piece = Board[index];
             if ((Have(me) & piece.Piece) != 0) { Say("Это уже в рюкзаке"); Refresh(); return; }
-            if (!CafeService.Purse.Pay(piece.Roubles)) { Say("Не хватает денег"); Refresh(); return; }
+            if (!Purse.Money.Pay(piece.Roubles)) { Say("Не хватает денег"); Refresh(); return; }
             Begin(me, piece.Piece, piece.Roubles);
         }
 
@@ -244,7 +244,7 @@ namespace Height1079.Runtime
             var missing = Ascent.Missing(have);
             if (missing == Gear.None) { Say("Комплект уже собран"); Refresh(); return; }
             int price = Rental.BundleRoubles(have);
-            if (!CafeService.Purse.Pay(price)) { Say($"Не хватает денег: нужно {price} ₽"); Refresh(); return; }
+            if (!Purse.Money.Pay(price)) { Say($"Не хватает денег: нужно {price} ₽"); Refresh(); return; }
             Begin(me, missing, price);
         }
 
@@ -349,7 +349,7 @@ namespace Height1079.Runtime
             var have = Have(me);
             var missing = Ascent.Missing(have);
             title.text = "Прокат снаряжения";
-            purseLine.text = $"В кошельке {CafeService.Purse.Text}";
+            purseLine.text = $"В кошельке {Purse.Money.Text}";
             missingLine.text = missing == Gear.None
                 ? "Комплект собран. Наверх можно."
                 : "Не хватает: " + Ascent.MissingList(have);
@@ -358,7 +358,7 @@ namespace Height1079.Runtime
             if (missing != Gear.None)
             {
                 setButton.GetComponentInChildren<Text>().text = $"1. Весь недостающий комплект — {bundle} ₽  ·  {Rental.SetKg:0.0} кг · {Rental.SetLitres:0} л";
-                setButton.GetComponent<Image>().color = CafeService.Purse.CanAfford(bundle) ? SetBg : Poor;
+                setButton.GetComponent<Image>().color = Purse.Money.CanAfford(bundle) ? SetBg : Poor;
             }
             int pages = (Board.Length + PageSize - 1) / PageSize;
             if (page >= pages) page = 0;
@@ -374,7 +374,7 @@ namespace Height1079.Runtime
                 rows[i].GetComponentInChildren<Text>().text = owned
                     ? $"{i + 2}. {h.Name} — уже в рюкзаке"
                     : $"{i + 2}. {h.Name} — {h.Roubles} ₽ · {h.Kg:0.0#} кг";
-                rows[i].GetComponent<Image>().color = owned ? Poor : CafeService.Purse.CanAfford(h.Roubles) ? RowBg : Poor;
+                rows[i].GetComponent<Image>().color = owned ? Poor : Purse.Money.CanAfford(h.Roubles) ? RowBg : Poor;
             }
         }
 
@@ -401,8 +401,8 @@ namespace Height1079.Runtime
             if (near == null) return "";
             var have = Have(Bootstrap.LocalHiker);
             return Ascent.Missing(have) == Gear.None
-                ? $"Прокат · комплект собран · E — открыть · {CafeService.Purse.Text}"
-                : $"Прокат снаряжения · E — открыть · комплект {Rental.BundleRoubles(have)} ₽ · в кошельке {CafeService.Purse.Text}";
+                ? $"Прокат · комплект собран · E — открыть · {Purse.Money.Text}"
+                : $"Прокат снаряжения · E — открыть · комплект {Rental.BundleRoubles(have)} ₽ · в кошельке {Purse.Money.Text}";
         }
 
         // ── digits ───────────────────────────────────────────────────────────────────────────────────────
@@ -429,44 +429,5 @@ namespace Height1079.Runtime
             try { return Input.GetKeyDown(DigitCodes[digit]); }
             catch (System.InvalidOperationException) { return false; }
         }
-    }
-
-    /// <summary>The hire counter on the host. Money is the client's own business; what goes into the rucksack is the
-    /// host's, so the order comes here and the host fills it out of <see cref="Rental"/>.</summary>
-    public sealed partial class NightSession
-    {
-        /// <summary>Local: what came of our last hire (what was asked for, what was actually handed over).</summary>
-        public event System.Action<ushort, ushort> Hired;
-
-        /// <summary>Owner asks the counter for a set of pieces.</summary>
-        public void HireGear(Gear wanted) => HireRpc((ushort)wanted);
-
-        [Rpc(SendTo.Server)]
-        void HireRpc(ushort wanted, RpcParams rpc = default)
-        {
-            ulong sender = rpc.Receive.SenderClientId;
-            string token = Token(sender);
-            var served = Gear.None;
-            if (Climb.On && run != null && packs != null
-                && run.Players.TryGetValue(token, out var p) && p.Outcome == Outcome.None)
-            {
-                var have = Rental.Carried(packs, token);
-                foreach (var h in Rental.Board())
-                {
-                    if (((Gear)wanted & h.Piece) == 0 || (have & h.Piece) != 0) continue;
-                    if (packs.Receive(token, new ItemStack(h.Item)) != PackResult.Ok) continue;
-                    served |= h.Piece;
-                }
-                if (served != Gear.None)
-                {
-                    SyncPacks();
-                    run.Record($"{p.Name} берёт в прокате: {Rental.Titles(served)}.");
-                }
-            }
-            HiredRpc(wanted, (ushort)served, RpcTarget.Single(sender, RpcTargetUse.Temp));
-        }
-
-        [Rpc(SendTo.SpecifiedInParams)]
-        void HiredRpc(ushort wanted, ushort served, RpcParams rpc) => Hired?.Invoke(wanted, served);
     }
 }

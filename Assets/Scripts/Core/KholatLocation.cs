@@ -27,6 +27,9 @@ namespace Height1079.Core
 
         public NightRun.Scenario Scenario => NightRun.Scenario.Slope;
 
+        /// <summary>The tent on the slope: what the night is walked towards.</summary>
+        public (float x, float z) Goal => (WorldData.Tent.X, WorldData.Tent.Z);
+
         public float SnowDepth(HeightField dem, float x, float z) => SnowCover.KholatDepth(dem, x, z);
         public float SnowCrust(HeightField dem, float x, float z) => SnowCover.KholatCrust(dem, x, z);
         public float Canopy(float x, float z, float y) => SnowCover.KholatCanopy(y);

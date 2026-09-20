@@ -1,3 +1,7 @@
+#if !HEIGHT1079_NO_ELBRUS
+// Compiled only when the southern slope of Elbrus is in the build (docs/ELBRUS.md). It has to live in
+// Height1079.Runtime and not in the location's own assembly because a partial class cannot be split across
+// assemblies, and because the rest of Height1079.Runtime's Elbrus partials name what is in here.
 using UnityEngine;
 using Height1079.Core;
 using Height1079.Night;
@@ -119,7 +123,7 @@ namespace Height1079.Runtime
             var s = NightSession.Instance;
             if (s == null) return;
             told = true;
-            s.ReportProfile(Saves.MyKey, Acclimatisation, CafeService.Purse.Roubles);
+            s.ReportProfile(Saves.MyKey, Acclimatisation, Purse.Money.Roubles);
         }
 
         /// <summary>Owner, every physics step: read the ground, then work out the pace from it. The same three lines
@@ -255,3 +259,4 @@ namespace Height1079.Runtime
         }
     }
 }
+#endif

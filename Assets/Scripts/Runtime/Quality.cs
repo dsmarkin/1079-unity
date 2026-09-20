@@ -62,21 +62,22 @@ namespace Height1079.Runtime
         /// <summary>Fraction of the grass the terrain actually plants (the editor's density is the ceiling).</summary>
         public static float DetailDensity => Current switch { Level.Low => .45f, Level.Medium => .7f, _ => 1f };
 
-        /// <summary>Metres of trees. Kholat is a forest at arm's length; Elbrus looks down a valley with fifty
-        /// thousand pines in it, and those pines are the one thing left that separates a high frame from a medium
-        /// one there — at half a kilometre they are already specks, so high stops at 520 rather than 700.</summary>
-        public static float TreeDistance(bool elbrus) => Current switch
+        /// <summary>Metres of trees. A narrow map is a forest at arm's length; a wide one looks down a valley with
+        /// fifty thousand pines in it, and those pines are the one thing left that separates a high frame from a
+        /// medium one there — at half a kilometre they are already specks, so high stops at 520 rather than 700.
+        /// <paramref name="wide"/> is the map twelve kilometres across, not a map by name (ARCHITECTURE.md).</summary>
+        public static float TreeDistance(bool wide) => Current switch
         {
-            Level.Low => elbrus ? 350f : 600f,
-            Level.Medium => elbrus ? 450f : 900f,
-            _ => elbrus ? 520f : 1400f,
+            Level.Low => wide ? 350f : 600f,
+            Level.Medium => wide ? 450f : 900f,
+            _ => wide ? 520f : 1400f,
         };
 
-        public static float ShadowDistance(bool elbrus) => Current switch
+        public static float ShadowDistance(bool wide) => Current switch
         {
             Level.Low => 45f,
-            Level.Medium => elbrus ? 90f : 70f,
-            _ => elbrus ? 140f : 110f,
+            Level.Medium => wide ? 90f : 70f,
+            _ => wide ? 140f : 110f,
         };
 
         /// <summary>Every cascade re-renders every shadow caster, and a day lit by one sun over 140 m does not need
@@ -84,13 +85,13 @@ namespace Height1079.Runtime
         /// not visible at this distance.</summary>
         static int Cascades => Current switch { Level.Low => 1, _ => 2 };
 
-        /// <summary>The night is lit by torches, a stove and a fire; the day by one sun. Six per-pixel lights are a
-        /// night number, and on Elbrus they were being paid for indoor lamps burning in daylight.</summary>
-        static int PixelLights(bool elbrus) => Current switch
+        /// <summary>The night is lit by torches, a stove and a fire; a day by one sun. Six per-pixel lights are a
+        /// night number, and on a daylight map they were being paid for indoor lamps burning in broad daylight.</summary>
+        static int PixelLights(bool day) => Current switch
         {
-            Level.Low => elbrus ? 1 : 3,
-            Level.Medium => elbrus ? 2 : 4,
-            _ => elbrus ? 2 : 6,
+            Level.Low => day ? 1 : 3,
+            Level.Medium => day ? 2 : 4,
+            _ => day ? 2 : 6,
         };
 
         // ── reading and writing the player's answer ───────────────────────────────────────────────────────
@@ -164,14 +165,17 @@ namespace Height1079.Runtime
             Load();
             NoticeScreen();
 
-            bool elbrus = Height1079.Core.World.IsElbrus;
+            // two questions about the map we are in, and neither of them is its name: how far across it is, and
+            // whether it is walked at night (ILocationView)
+            bool wide = Height1079.Core.World.Size > 8000f;
+            bool day = !LocationViews.RunsNight;
             QualitySettings.vSyncCount = vsync ? 1 : 0;
             // without vsync the frame rate is worth capping somewhere sane: a menu at 900 fps only heats the machine
             Application.targetFrameRate = vsync ? -1 : 144;
-            QualitySettings.shadowDistance = ShadowDistance(elbrus);
+            QualitySettings.shadowDistance = ShadowDistance(wide);
             QualitySettings.shadowCascades = Cascades;
             QualitySettings.shadowProjection = ShadowProjection.CloseFit;
-            QualitySettings.pixelLightCount = PixelLights(elbrus);
+            QualitySettings.pixelLightCount = PixelLights(day);
             // soft vegetation draws the grass alpha-blended instead of alpha-tested, and grass fills the bottom half
             // of the screen on the meadow: it was most of the difference between the high preset and the medium one
             // there, for a softness nobody looks at while walking

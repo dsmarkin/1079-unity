@@ -1,16 +1,15 @@
 {
-  "name": "Height1079.Editor",
+  "name": "Height1079.Elbrus.Editor",
   "rootNamespace": "Height1079.EditorTools",
   "references": [
     "Height1079.Core",
     "Height1079.Elbrus.Core",
     "Height1079.Runtime",
-    "Height1079.Puppet",
-    "Height1079.Sandbox",
-    "Unity.Netcode.Runtime",
-    "Height1079.Snow",
+    "Height1079.Elbrus",
+    "Height1079.Editor",
     "Height1079.Night",
-    "Height1079.Art"
+    "Height1079.Art",
+    "Unity.Netcode.Runtime"
   ],
   "includePlatforms": [
     "Editor"
@@ -20,7 +19,7 @@
   "overrideReferences": false,
   "precompiledReferences": [],
   "autoReferenced": true,
-  "defineConstraints": [],
+  "defineConstraints": ["!HEIGHT1079_NO_ELBRUS"],
   "versionDefines": [],
   "noEngineReferences": false
 }

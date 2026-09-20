@@ -1,3 +1,7 @@
+#if !HEIGHT1079_NO_ELBRUS
+// Compiled only when the southern slope of Elbrus is in the build (docs/ELBRUS.md). It has to live in
+// Height1079.Runtime and not in the location's own assembly because a partial class cannot be split across
+// assemblies, and because the rest of Height1079.Runtime's Elbrus partials name what is in here.
 using System.Collections.Generic;
 using Unity.Collections;
 using Unity.Netcode;
@@ -272,3 +276,4 @@ namespace Height1079.Runtime
         void RescueNoteRpc(FixedString512Bytes text, RpcParams rpc) => Note(text.ToString());
     }
 }
+#endif

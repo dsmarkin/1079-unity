@@ -43,6 +43,10 @@ namespace Height1079.Core
         /// <summary>What a run in this place is about — start, shelter, goal, clock (<see cref="NightRun.Scenario"/>).</summary>
         NightRun.Scenario Scenario { get; }
 
+        /// <summary>Where the run is trying to get to, world x/z. <see cref="NightRun.Scenario.AtGoal"/> is the rule
+        /// that decides whether somebody is there; this is the point the HUD arrow and the map draw.</summary>
+        (float x, float z) Goal { get; }
+
         /// <summary>Metres of snow above the ground. Called by <see cref="SnowCover.Depth"/> after the measured
         /// raster hook has had its say, so an implementation may assume there is no raster.</summary>
         float SnowDepth(HeightField dem, float x, float z);

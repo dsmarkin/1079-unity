@@ -295,6 +295,24 @@ namespace Height1079.EditorTools
         public static void Mac() => Build(BuildTarget.StandaloneOSX, "Builds/mac/1079.app");
         public static void Windows() => Build(BuildTarget.StandaloneWindows64, "Builds/windows/1079.exe");
 
+        /// <summary>Sets the optional-map switch and exits, so a script can pass through Unity once before building.
+        /// It has to be its own session: the define changes which assemblies exist, and Unity can only act on that
+        /// after a domain reload — a build started in the same session would still be the old set of assemblies.
+        ///
+        /// <b>Every build path sets the symbol explicitly</b> (Tools/mac/build.command, Tools/win/build.ps1). Leaving
+        /// it alone means inheriting whatever the previous build left behind, and the difference between the two
+        /// players is invisible until two of them fail to talk to each other (docs/ELBRUS.md).</summary>
+        public static void WithElbrus() => SwitchAndQuit(false);
+        public static void WithoutElbrus() => SwitchAndQuit(true);
+
+        static void SwitchAndQuit(bool off)
+        {
+            LocationSwitch.Set(off);
+            AssetDatabase.SaveAssets();
+            Debug.Log($"1079: локация Эльбрус {(off ? "выключена" : "включена")} для следующей сборки.");
+            EditorApplication.Exit(0);
+        }
+
         /// <summary>The first batch build after a script change has produced players whose big data files were empty
         /// ("Mismatched serialization in the builtin class 'TextAsset'" in player.log, then the game starts with no world):
         /// the TextAsset in the library is there but holds nothing. Re-import the data files and check them before building.</summary>

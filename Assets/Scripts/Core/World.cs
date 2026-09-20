@@ -54,5 +54,8 @@ namespace Height1079.Core
         public static float Ground(HeightField dem, float x, float z) => Active.Ground(dem, x, z);
 
         public static NightRun.Scenario Scenario => Active.Scenario;
+
+        /// <summary>Where the run is trying to get to, world x/z.</summary>
+        public static (float x, float z) Goal => Active.Goal;
     }
 }

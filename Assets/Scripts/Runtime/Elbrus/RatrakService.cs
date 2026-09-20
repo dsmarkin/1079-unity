@@ -191,7 +191,7 @@ namespace Height1079.Runtime
             float drop = Ratraks.DropFor(AscentRoute.RatrakStops[1]);
             return Ratraks.TurnsBack
                 ? $"Ратрак · сегодня только до скал ({drop:0} м) · E — договориться"
-                : $"Ратрак · 4800 или 5100 · E — договориться · в кошельке {CafeService.Purse.Text}";
+                : $"Ратрак · 4800 или 5100 · E — договориться · в кошельке {Purse.Money.Text}";
         }
 
         RatrakRide Buy(HikerController me, float askEle, bool down)
@@ -199,9 +199,9 @@ namespace Height1079.Runtime
             var session = NightSession.Instance;
             if (cat == null || me == null || session == null) return null;
             int price = down ? Ratraks.PriceDown(cat.Altitude) : Ratraks.PriceUp(machine, Ratraks.DropFor(askEle));
-            if (!CafeService.Purse.Pay(price))
+            if (!Purse.Money.Pay(price))
             {
-                Say($"Не хватает: {price} ₽, в кошельке {CafeService.Purse.Text}");
+                Say($"Не хватает: {price} ₽, в кошельке {Purse.Money.Text}");
                 return null;
             }
             Close();
@@ -315,29 +315,29 @@ namespace Height1079.Runtime
             if (down)
             {
                 int price = Ratraks.PriceDown(cat.Altitude);
-                driverLine.text = $"Стоим на {cat.Altitude:0} м. В кошельке {CafeService.Purse.Text}.";
+                driverLine.text = $"Стоим на {cat.Altitude:0} м. В кошельке {Purse.Money.Text}.";
                 lowButton.gameObject.SetActive(true);
                 highButton.gameObject.SetActive(false);
                 lowButton.GetComponentInChildren<Text>().text = $"1. Вниз к бочкам — {price} ₽";
-                lowButton.GetComponent<Image>().color = CafeService.Purse.CanAfford(price) ? RowBg : Poor;
+                lowButton.GetComponent<Image>().color = Purse.Money.CanAfford(price) ? RowBg : Poor;
                 fineLine.text = "Вниз ратраком — это сорок минут вместо трёх часов по раскисшему снегу.";
                 return;
             }
             string why = Ratraks.WhyTurnsBack();
             driverLine.text = why.Length > 0 ? "Водитель: " + why
-                : $"Водитель кивает. В кошельке {CafeService.Purse.Text}.";
+                : $"Водитель кивает. В кошельке {Purse.Money.Text}.";
             float low = Ratraks.DropFor(AscentRoute.RatrakStops[0]);
             float high = Ratraks.DropFor(AscentRoute.RatrakStops[1]);
             int lowPrice = Ratraks.PriceUp(machine, low), highPrice = Ratraks.PriceUp(machine, high);
             lowButton.gameObject.SetActive(true);
             lowButton.GetComponentInChildren<Text>().text = $"1. До {low:0} м — {lowPrice} ₽";
-            lowButton.GetComponent<Image>().color = CafeService.Purse.CanAfford(lowPrice) ? RowBg : Poor;
+            lowButton.GetComponent<Image>().color = Purse.Money.CanAfford(lowPrice) ? RowBg : Poor;
             bool offerHigh = !Ratraks.TurnsBack;
             highButton.gameObject.SetActive(offerHigh);
             if (offerHigh)
             {
                 highButton.GetComponentInChildren<Text>().text = $"2. До {high:0} м — {highPrice} ₽";
-                highButton.GetComponent<Image>().color = CafeService.Purse.CanAfford(highPrice) ? RowBg : Poor;
+                highButton.GetComponent<Image>().color = Purse.Money.CanAfford(highPrice) ? RowBg : Poor;
             }
             fineLine.text = "Сорок минут вместо пяти часов — и ни грамма акклиматизации.\n"
                 + "На 5100 выходишь непрогретым в самое ветреное место: первые десять минут холод бьёт в полтора раза сильнее.";

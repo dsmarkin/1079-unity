@@ -38,6 +38,9 @@ namespace Height1079.Core
 
         public NightRun.Scenario Scenario => Plan;
 
+        /// <summary>The Western summit, 5 642 m: what the day is walked towards.</summary>
+        public (float x, float z) Goal => (Elbrus.WestSummit.X, Elbrus.WestSummit.Z);
+
         // ── shelter ───────────────────────────────────────────────────────────────────────────────────────
 
         /// <summary>Huts, barrels and terminals a hiker can shelter in on the Elbrus map.</summary>

@@ -8,7 +8,7 @@ namespace Height1079.Runtime
 {
     /// <summary>Rigidbody hiker: capsule on the slope, slope sliding, stumble on hard landings, first/third-person camera, kindling intent.</summary>
     [RequireComponent(typeof(Rigidbody), typeof(CapsuleCollider))]
-    public sealed class HikerController : NetworkBehaviour
+    public sealed partial class HikerController : NetworkBehaviour
     {
         public const float WalkSpeed = 2.8f, RunSpeed = 5.8f, SlopeLimit = 42f, HardLanding = 7f;
         /// <summary>Game pace on top of <see cref="Skiing.Speed"/>. The snow rules are measured in real metres per second — a
@@ -38,11 +38,6 @@ namespace Height1079.Runtime
         /// <summary>What is left in the legs, 0..255. The host spends it through <see cref="Skiing.Effort"/> and gives it back
         /// when a hiker stands still (<see cref="NightSession.TickSkisServer"/>).</summary>
         public readonly NetworkVariable<byte> Strength = new NetworkVariable<byte>(255);
-        /// <summary>Everything the mountain is doing to this one on the southern slope of Elbrus: the frostbite pools,
-        /// the sickness, the heart, the kit in the rucksack and what the rules make of it. The host writes it — it is
-        /// the only one that runs <see cref="Ascent.Tick"/> — and both the legs and the HUD read it
-        /// (<see cref="ClimbGear"/>). Untouched on Kholat Syakhl.</summary>
-        public readonly NetworkVariable<ClimbNet> Climb = new NetworkVariable<ClimbNet>();
         /// <summary>Carried by a cabin, a chair or a snow-cat. The owner writes it, because only the owner knows
         /// (<see cref="Ride"/> is a local transform); the host needs it to stop charging a passenger for the cold and
         /// to know the moment a snow-cat puts somebody down at 5 100 m.</summary>
@@ -50,10 +45,6 @@ namespace Height1079.Runtime
 
         /// <summary>What the hiker carries in the hands out of a rucksack (Core.ItemId); written by the host's PackWorld.</summary>
         public readonly NetworkVariable<StackNet> Carried = new NetworkVariable<StackNet>();
-        /// <summary>How far along the guide's programme this one is (<see cref="Programme"/>). The host ticks the
-        /// steps — it is the only side that can see every condition — and publishes the answer here for the card, the
-        /// compass and the two maps (<see cref="Programmes"/>). Empty on Kholat Syakhl, where there is no programme.</summary>
-        public readonly NetworkVariable<PlanNet> Plan = new NetworkVariable<PlanNet>();
         public static readonly System.Collections.Generic.List<HikerController> All = new System.Collections.Generic.List<HikerController>();
 
         public static HikerController ByClient(ulong clientId)
@@ -69,12 +60,9 @@ namespace Height1079.Runtime
         SnowTrail trail;
         Equipment equipment;
         SkiGear skis;
-        ClimbGear climb;
         public Equipment Gear => equipment;
         /// <summary>Skis, poles and the волокуша, and the snow figures under the feet.</summary>
         public SkiGear Skis => skis;
-        /// <summary>The mountain under the boots on the southern slope of Elbrus; silent on Kholat Syakhl.</summary>
-        public ClimbGear Climbing => climb;
         Camera cam;
         Transform head;
         float yaw, pitch = .08f, orbit = 6f;
@@ -122,8 +110,7 @@ namespace Height1079.Runtime
             if (equipment == null) equipment = gameObject.AddComponent<Equipment>();
             skis = GetComponent<SkiGear>();
             if (skis == null) skis = gameObject.AddComponent<SkiGear>();
-            climb = GetComponent<ClimbGear>();
-            if (climb == null) climb = gameObject.AddComponent<ClimbGear>();
+            ClimbAwake();
         }
 
         public override void OnNetworkDespawn() { All.Remove(this); }
@@ -132,8 +119,8 @@ namespace Height1079.Runtime
         {
             if (!All.Contains(this)) All.Add(this);
             body.isKinematic = !IsOwner;
-            // the group came up the Auspiya on skis and camped on them; the southern slope of Elbrus is walked and ridden
-            if (IsServer) Mode.Value = (byte)(Height1079.Core.World.IsElbrus ? Travel.Foot : Travel.Skis);
+            // the group came up the Auspiya on skis and camped on them; a map walked in daylight is walked and ridden
+            if (IsServer) Mode.Value = (byte)(LocationViews.RunsNight ? Travel.Skis : Travel.Foot);
             if (!IsOwner) return;
             // trimmed to what the fixed string can hold: this used to throw here, before the camera below existed
             Name.Value = new FixedString64Bytes(Bootstrap.CleanName(Bootstrap.PlayerName));
@@ -142,8 +129,8 @@ namespace Height1079.Runtime
             cam.tag = "MainCamera"; cam.nearClipPlane = .1f; cam.farClipPlane = 4500f; cam.fieldOfView = 60f;
             // the small standing dressing stops being drawn at a distance where it is three metres of nothing
             Scenery.Cull(cam);
-            float goalX = Height1079.Core.World.IsElbrus ? Elbrus.WestSummit.X : WorldData.Tent.X;
-            float goalZ = Height1079.Core.World.IsElbrus ? Elbrus.WestSummit.Z : WorldData.Tent.Z;
+            // face whatever this map is walked towards — the tent, the summit (ILocation.Goal)
+            var (goalX, goalZ) = Height1079.Core.World.Goal;
             yaw = Mathf.Atan2(transform.position.x - goalX, transform.position.z - goalZ) * Mathf.Rad2Deg + 180f;
             SetCursor(true);
             if (IsServer) NightSession.Instance?.RenameServer(OwnerClientId, DisplayName); else NameRpc(Bootstrap.CleanName(Bootstrap.PlayerName));
@@ -211,7 +198,7 @@ namespace Height1079.Runtime
             if (!paused && !finished && !Backpacks.UiOpen && !SettingsUi && Input.GetMouseButtonDown(0) && Cursor.lockState != CursorLockMode.Locked) SetCursor(true);
             if (paused && Input.GetMouseButtonDown(0) && !Bootstrap.PointerOverUi()) { paused = false; SetCursor(true); }
             if (Controls.ToggleView) firstPerson = !firstPerson;
-            if (!paused && !finished) { equipment.HandleInput(); Backpacks.HandleInput(this); skis.HandleInput(); climb.HandleInput(); Camps.HandleInput(this); Programmes.HandleInput(this); }
+            if (!paused && !finished) { equipment.HandleInput(); Backpacks.HandleInput(this); skis.HandleInput(); MapInput(); }
             // a window that wants to be clicked needs the pointer back: the rucksack, and the settings sheet (F10),
             // which is worth opening precisely where the game is slow
             bool ui = Backpacks.UiOpen || SettingsUi;
@@ -237,7 +224,7 @@ namespace Height1079.Runtime
             Backpacks.HandleWork(this, holdE && job != WorkKind.None);
             if (job != WorkKind.None) Bootstrap.AutoKindle = false;
 
-            bool wantKindle = job == WorkKind.None && holdE && !Height1079.Core.World.IsElbrus && WorldData.NearCamp(transform.position.x, transform.position.z)
+            bool wantKindle = job == WorkKind.None && holdE && LocationViews.RunsNight && WorldData.NearCamp(transform.position.x, transform.position.z)
                 && session != null && session.FireRemaining.Value <= 0f
                 && new Vector2(body.linearVelocity.x, body.linearVelocity.z).magnitude < .3f;
             if (wantKindle != kindling)
@@ -253,36 +240,27 @@ namespace Height1079.Runtime
             if (Controls.JumpRoute) JumpAlongRoute();
         }
 
-        /// <summary>The nine stages of the summit route, for jumping between them with F4 on Elbrus. The climb takes
-        /// eight hours of play from the bottom, so testing what the saddle looks like by walking to it is not testing.
-        /// Off the mountain the key does nothing.</summary>
-        static readonly (string Name, float S)[] RouteStops =
-        {
-            ("Гара-Баши, 3847", 0f), ("Приют 11, 4050", 1096f), ("Скалы Пастухова, 4650", 3035f),
-            ("Выход на 5100", 4031f), ("Косая полка, 5290", 4511f), ("Седловина, 5382", 5451f),
-            ("Вершинный взлёт, 5450", 5806f),
-            // eighty metres short of the top: standing on the summit itself ends the run the moment you land, and the
-            // point of the key is to look around up there, not to win
-            ("Вершинное плато, 5630", 6600f), ("Поляна Азау, 2350", -1f),
-        };
-        int routeStop = -1;
+        /// <summary>The parts of a walk that belong to one map and not to the game: the gear that map is climbed with,
+        /// its route, its debug key. Each is implemented in a partial of this class that is compiled only when the map
+        /// is in the build (docs/ELBRUS.md); with the map left out the implementation is gone and every call above
+        /// disappears with it, which is what <c>partial void</c> is for.</summary>
+        partial void ClimbAwake();
+        /// <summary>Keys that belong to the map: its own gear, its camps, its programme sheet.</summary>
+        partial void MapInput();
+        /// <summary>Riding: the legs do nothing, but the map still wants to know where the cabin has got to.</summary>
+        partial void ClimbRide();
+        partial void ClimbLocked(ref bool locked);
+        partial void ClimbWish(ref Vector3 wish);
+        partial void ClimbMayRun(ref bool mayRun);
+        partial void ClimbSpeed(ref float factor);
+        /// <summary>True when the map is moving the body itself and the legs must keep out of it.</summary>
+        partial void ClimbSlide(ref bool sliding);
+        /// <summary>The push the map adds to a step that is already being taken: wind, ataxia, the fall line.</summary>
+        partial void ClimbDrift(Vector3 forward);
+        /// <summary>Stepping into a cabin: whatever the map was doing to the body stops here.</summary>
+        partial void ClimbBoard();
+        partial void JumpAlongRoute();
 
-        /// <summary>Owner only: step to the next stage of the route and stand there.</summary>
-        void JumpAlongRoute()
-        {
-            if (!IsOwner || !Height1079.Core.World.IsElbrus || Bootstrap.Dem == null) return;
-            routeStop = (routeStop + 1) % RouteStops.Length;
-            var stop = RouteStops[routeStop];
-            float x, z;
-            if (stop.S < 0f) { x = Elbrus.Start.x; z = Elbrus.Start.z; }
-            else { var p = Elbrus.PointAt(Elbrus.SummitRoute, stop.S); x = p.x; z = p.z; }
-            if (Ride != null) LeaveRide(new Vector3(x, Bootstrap.Dem.Sample(x, z) + .1f, z));
-            else Place(new Vector3(x, Bootstrap.Dem.Sample(x, z) + .6f, z));
-            stumbleUntil = 0f; tripUntil = 0f; impact = 0f; stuckFor = 0f; stuckAt = transform.position;
-            // and arrive able to walk: kitted out, crampons on, acclimatised (NightSession.DebugOutfit)
-            NightSession.Instance?.DebugOutfit();
-            Bootstrap.Hud?.SetStatus($"F4: {stop.Name} · снаряжение выдано");
-        }
 
         /// <summary>A cabin moves its own transform in <c>Update</c>, and the passenger used to be snapped to the seat in
         /// <c>FixedUpdate</c>: fifty times a second against a frame rate of sixty-odd, and at eight times speed the car
@@ -309,7 +287,7 @@ namespace Height1079.Runtime
                 body.linearVelocity = Vector3.zero;
                 lastVerticalSpeed = 0f;
                 // the HUD still wants to know where on the mountain the cabin has got to
-                if (climb != null && Height1079.Core.World.IsElbrus) climb.Sample(Vector3.zero);
+                ClimbRide();
                 return;
             }
             // the flag says we are in a cabin but there is no cabin: it was destroyed under us. Take the state off, or
@@ -331,10 +309,9 @@ namespace Height1079.Runtime
             if (grounded && lastVerticalSpeed < -HardLanding) { StumbleRpc(); stumbleUntil = Time.time + 1.2f; }
             lastVerticalSpeed = v.y;
 
-            // the southern slope of Elbrus: the mountain has a say about the next step before the legs do
-            bool climbing = climb != null && Height1079.Core.World.IsElbrus;
-            bool locked = paused || finished || Stumbling || (skis != null && skis.Busy)
-                || (climbing && (climb.Busy || climb.Sliding));
+            // the map under the boots has a say about the next step before the legs do
+            bool held = false; ClimbLocked(ref held);
+            bool locked = paused || finished || Stumbling || (skis != null && skis.Busy) || held;
             float f = locked ? 0f : (Controls.Forward ? 1f : 0f) - (Controls.Back ? 1f : 0f);
             float r = locked ? 0f : (Controls.Right ? 1f : 0f) - (Controls.Left ? 1f : 0f);
             Vector3 forward = Quaternion.Euler(0, yaw, 0) * Vector3.forward, right = Quaternion.Euler(0, yaw, 0) * Vector3.right;
@@ -343,10 +320,11 @@ namespace Height1079.Runtime
             float load = Backpacks.CarriedKg(this);
             // read the ground under the boots and the pools the host keeps, then let the gear gate cut the wish down:
             // above the rocks without the kit the uphill component is simply gone
-            if (climbing) { climb.Sample(wish); wish = climb.Allow(wish); }
+            ClimbWish(ref wish);
             // above 4 600 m nobody runs. Not "running costs more" — the move is gone (Ascent.MayRun)
-            bool hurry = Controls.Run && !Crawling && load < SurvivalRules.RunLimitKg && (!climbing || climb.MayRun);
-            bool snow = skis != null && Bootstrap.Dem != null && !Height1079.Core.World.IsElbrus;
+            bool mayRun = true; ClimbMayRun(ref mayRun);
+            bool hurry = Controls.Run && !Crawling && load < SurvivalRules.RunLimitKg && mayRun;
+            bool snow = skis != null && Bootstrap.Dem != null && LocationViews.RunsNight;
             var mode = snow ? skis.Mode : Travel.Foot;
             bool gliding = snow && (mode == Travel.Skis || mode == Travel.Hauling);
             float sunk = 0f, speed;
@@ -375,29 +353,18 @@ namespace Height1079.Runtime
                 speed *= SurvivalRules.LoadSpeedFactor(load);
                 // surface × thin air × mountain sickness × drowsiness, and nothing at all while the heart is making
                 // him stand and breathe (Ascent.SpeedFactor, Ascent.Report.MustStop)
-                if (climbing) speed *= climb.SpeedFactor;
+                float slow = 1f; ClimbSpeed(ref slow); speed *= slow;
             }
             speed *= Mathf.Lerp(1f, .35f, crouch);
             // Cold slows the legs: clarity/heat below 40 costs up to 35 % of speed.
             if (session != null) speed *= Mathf.Lerp(.65f, 1f, Mathf.Clamp01(session.Heat / 40f));
 
             float slope = Vector3.Angle(groundNormal, Vector3.up);
-            if (grounded && climbing && climb.Sliding)
-            {
-                // the feet went and the axe did not hold: nothing the player does matters until the run-out is spent.
-                // On the косая полка that is three to six hundred metres down the line of the water (Ascent.RunoutM)
-                var fall = Vector3.ProjectOnPlane(Vector3.down, groundNormal).normalized;
-                body.AddForce(fall * ClimbGear.SlidePull, ForceMode.Acceleration);
-                var run = body.linearVelocity;
-                var flat = new Vector2(run.x, run.z);
-                if (flat.magnitude > ClimbGear.SlideTopMs)
-                {
-                    flat = flat.normalized * ClimbGear.SlideTopMs;
-                    body.linearVelocity = new Vector3(flat.x, run.y, flat.y);
-                }
-                climb.Slid(flat.magnitude * Time.fixedDeltaTime);
-                if (!climb.Sliding) stumbleUntil = Time.time + 1.6f;
-            }
+            // the feet went and the axe did not hold: while the run-out is being spent the map moves the body and
+            // nothing the player does matters (ClimbSlide)
+            bool sliding = false;
+            if (grounded) ClimbSlide(ref sliding);
+            if (sliding) { }
             else if (grounded && slope <= SlopeLimit && Stumbling && impact > 0f)
             {
                 // thrown by a blow: let the body fly and skid, only gravity and snow drag it
@@ -470,15 +437,7 @@ namespace Height1079.Runtime
 
             // the wind of the funnel and the ataxia of the mountain sickness both push the same way — toward the fall
             // line, which on the shelf is where they kill (Ascent.Report.DriftMs)
-            if (grounded && climbing && !climb.Sliding)
-            {
-                var push = climb.Drift(forward);
-                if (push.sqrMagnitude > 1e-4f)
-                {
-                    var now = body.linearVelocity;
-                    body.linearVelocity = new Vector3(now.x + push.x, now.y, now.z + push.z);
-                }
-            }
+            if (grounded) ClimbDrift(forward);
 
             if (wish.sqrMagnitude > .01f)
             {
@@ -557,7 +516,7 @@ namespace Height1079.Runtime
             if (!IsOwner || seat == null || Ride != null) return;
             Ride = seat;
             Riding.Value = true;
-            climb?.StopSlide();
+            ClimbBoard();
             body.linearVelocity = Vector3.zero;
             body.isKinematic = true;
             // interpolation draws a kinematic body where it was a physics step ago; on a moving cabin that is a lag of
@@ -614,7 +573,7 @@ namespace Height1079.Runtime
         Quaternion Gait(out float heave, out Vector3 drift)
         {
             heave = 0f; drift = Vector3.zero;
-            if (skis == null || body == null || Height1079.Core.World.IsElbrus) return Quaternion.identity;
+            if (skis == null || body == null || !LocationViews.RunsNight) return Quaternion.identity;
             float v = new Vector2(body.linearVelocity.x, body.linearVelocity.z).magnitude;
             bool glide = skis.OnSkis;
             float cadence = glide ? Mathf.Clamp(v / 1.9f, 0f, 1.5f) : Mathf.Clamp(v / .85f, 0f, 2.6f);
