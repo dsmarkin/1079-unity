@@ -3,11 +3,61 @@ using Height1079.Core;
 
 namespace Height1079.Runtime
 {
-    /// <summary>Places the reconstructed event sites, landmark trees and the archive layer (alternative versions, KAN landmarks, route flags).
-    /// The archive layer is hidden by default and toggled with F2.</summary>
+    /// <summary>Builds the world as it stood the morning after, and everything the player has to imagine on top.
+    ///
+    /// There is one state now. What the record puts on the ground on 2 February is solid and has colliders: the
+    /// tent cut and half down, the cedar with its broken branches and its burnt-out fire, the floor of branches in
+    /// the ravine, the labaz standing where it was built the day before, the tracks. What had already stopped
+    /// existing is drawn as a ghost and has no colliders — you walk through it — because the camp of 31 January
+    /// was packed up and carried away that same afternoon, and the only honest way to show it is as something the
+    /// player is picturing rather than finding.
+    ///
+    /// The transparency carries how much is known, which is the same distinction docs/MAP.md keeps in prose:
+    /// <see cref="GhostFirm"/> for a reconstruction whose place is proved (the 31 January camp — the labaz anchors
+    /// it and the 2022 excavation confirmed it), <see cref="GhostFaint"/> for an assumption (the route lines, the
+    /// competing determinations of where the tent stood). F2 still hides the faint layer, so the scene can be read
+    /// without it; the firm ghosts stay.</summary>
     public static class WorldDressing
     {
         public static GameObject Archive { get; private set; }
+
+        /// <summary>Reconstruction whose place is documented.</summary>
+        public const float GhostFirm = 0.9f;
+        /// <summary>Reconstruction that is our assumption.</summary>
+        public const float GhostFaint = 0.42f;
+
+        static Shader ghostShader;
+
+        /// <summary>Turns everything under <paramref name="go"/> into something the player sees but cannot touch.
+        /// The colliders go first: walking through a thing says "not here" faster than any amount of transparency.</summary>
+        static void Ghostify(GameObject go, float certainty)
+        {
+            if (go == null) return;
+            foreach (var c in go.GetComponentsInChildren<Collider>(true)) Object.Destroy(c);
+
+            if (ghostShader == null) ghostShader = Shader.Find("Height1079/Ghost");
+            if (ghostShader == null) { Debug.LogWarning("1079: нет шейдера Height1079/Ghost — слой остаётся плотным"); return; }
+
+            foreach (var r in go.GetComponentsInChildren<Renderer>(true))
+            {
+                var made = new Material[r.sharedMaterials.Length];
+                for (int i = 0; i < made.Length; i++)
+                {
+                    var src = r.sharedMaterials[i];
+                    var m = new Material(ghostShader) { name = (src != null ? src.name : "Ghost") + " (ghost)" };
+                    if (src != null && src.HasProperty("_MainTex")) m.SetTexture("_MainTex", src.GetTexture("_MainTex"));
+                    m.SetFloat("_Ghost", certainty);
+                    made[i] = m;
+                }
+                r.sharedMaterials = made;
+                r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                r.receiveShadows = false;
+            }
+            foreach (var tm in go.GetComponentsInChildren<TextMesh>(true))
+            {
+                var c = tm.color; c.a *= Mathf.Clamp01(.35f + .65f * certainty); tm.color = c;
+            }
+        }
 
         static GameObject Spawn(string prefab, Vector3 pos, Quaternion rot, Transform parent)
         {
@@ -32,6 +82,14 @@ namespace Height1079.Runtime
             // mirrored when it is not. PhysX cannot hold a collider on a negatively scaled object — it says so in the
             // player log and forces the box positive — so the box (symmetric in x, centred on the ridge, so a mirror
             // does not move it at all) goes onto a child whose own mirror cancels the parent's.
+            // the day after: the tent as the damage left it, not as the group pitched it
+            if (tent != null)
+            {
+                var evening = tent.transform.Find("Evening_1959-02-01");
+                var found = tent.transform.Find("SearchState_1959-02-26");
+                if (evening != null) evening.gameObject.SetActive(false);
+                if (found != null) found.gameObject.SetActive(true);
+            }
             if (tent != null && Vector3.Dot(rot * Vector3.right, new Vector3(dx, 0, dz)) < 0)
             {
                 var box = tent.GetComponent<BoxCollider>();
@@ -52,11 +110,15 @@ namespace Height1079.Runtime
             var l = WorldData.Labaz;
             var (ldx, ldz, _) = dem.Fall(l.X, l.Z);
             var labazRot = Quaternion.LookRotation(new Vector3(-ldz, 0, ldx));
-            Spawn("Sites/Site_Labaz_1959_Morning", Ground(dem, l.X, l.Z), labazRot, sites);
+            // The labaz was built on the morning of 1 February and was still standing — solid. Everything else of
+            // that camp went into the rucksacks the same afternoon, so it is drawn and not placed.
+            Spawn("Sites/Site_Labaz_1959", Ground(dem, l.X, l.Z), labazRot, sites);
             var (px, pz) = WorldData.CampTentPad;
             var toFire = new Vector3(WorldData.Camp.x - px, 0, WorldData.Camp.z - pz);
             campTent = Spawn("Sites/Site_Camp_31Jan_Tent", Ground(dem, px, pz, .02f), Quaternion.LookRotation(toFire), sites)?.transform;
             campFire = Spawn("Sites/Site_Camp_31Jan_Fire", Ground(dem, WorldData.Camp.x, WorldData.Camp.z, -.05f), Quaternion.LookRotation(-toFire), sites)?.transform;
+            if (campTent != null) Ghostify(campTent.gameObject, GhostFirm);
+            if (campFire != null) Ghostify(campFire.gameObject, GhostFirm);
 
             tracks = Spawn("Tracks/AnimalTracks", Vector3.zero, Quaternion.identity, sites)?.transform;
 
@@ -74,8 +136,6 @@ namespace Height1079.Runtime
 
             // markers: documented event points are visible, everything else is in the archive layer
             Archive = new GameObject("ArchiveLayer");
-            // the labaz as the searchers found it on 2 Mar (same spot as the morning pit)
-            Spawn("Sites/Site_Labaz_1959", Ground(dem, l.X, l.Z), labazRot, Archive.transform);
             foreach (var p in WorldData.Pois)
             {
                 string kind = p.Kind.ToString();
@@ -92,7 +152,29 @@ namespace Height1079.Runtime
             }
             Flags(dem, WorldData.FootprintLine, 25f, "Sites/Flag_Footprints");
             Flags(dem, WorldData.AscentRoute, 40f, "Sites/Flag_Ascent");
-            Archive.SetActive(false);
+            Ghostify(Archive, GhostFaint);
+
+            // and where the nine lay — outlines, drawn on the snow, with the name and what the protocol says
+            var fallen = new GameObject("Fallen").transform;
+            foreach (var spot in Sites.Fallen.All)
+            {
+                var toTent = new Vector3(t.X - spot.X, 0, t.Z - spot.Z);
+                var head = spot.HeadToTent && toTent.sqrMagnitude > 1f ? toTent.normalized : Vector3.forward;
+                var o = Spawn("Sites/Marker_BodyOutline", Ground(dem, spot.X, spot.Z, .02f), Quaternion.LookRotation(-head), fallen);
+                if (o == null) continue;
+                string name = spot.Id;
+                foreach (var m in Campaign.Roster) if (m.Id == spot.Id) { name = m.Name; break; }
+                o.name = "Fallen " + spot.Id;
+                var sign = Spawn("Sites/Marker_Event", Ground(dem, spot.X, spot.Z, .02f) + head * 1.35f, Quaternion.LookRotation(-head), fallen);
+                if (sign != null)
+                {
+                    sign.name = "Name " + spot.Id;
+                    var label = sign.GetComponentInChildren<TextMesh>();
+                    if (label != null) label.text = Wrap(name, 22);
+                    Ghostify(sign, GhostFirm);
+                }
+                Ghostify(o, GhostFirm);
+            }
         }
 
         static void Flags(HeightField dem, (float x, float z)[] line, float every, string prefab)

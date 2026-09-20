@@ -140,6 +140,60 @@ namespace Height1079.EditorTools.World
 
         static void AddBoxCollider(GameObject go, Vector3 center, Vector3 size) { var c = go.AddComponent<BoxCollider>(); c.center = center; c.size = size; }
 
+        // ------------------------------------------------------------------ where one of them lay
+
+        /// <summary>An outline on the snow, not a body. The world is the day after and the nine were still where
+        /// they fell, but modelling them would put named, real dead people — two of them nearly undressed — under
+        /// the player's feet. An outline says the same thing about place and posture, and says the one further
+        /// thing that is true: this is a reconstruction drawn by someone standing there, not a photograph.
+        ///
+        /// Lying with the head at local −Z, so the caller points that end wherever the protocol puts it (on the
+        /// slope the three lay with their heads toward the tent). The runtime gives it the ghost material.</summary>
+        public static GameObject BodyOutline()
+        {
+            var root = new GameObject("Marker_BodyOutline");
+            var mb = new MeshBuilder(1);
+
+            // half-silhouette: distance along the body, half width. Head, shoulders, waist, hips, legs, feet.
+            var prof = new (float t, float w)[]
+            {
+                (0.00f, .022f), (0.035f, .085f), (0.095f, .086f), (0.125f, .052f),
+                (0.165f, .210f), (0.300f, .175f), (0.430f, .150f), (0.520f, .168f),
+                (0.640f, .140f), (0.780f, .105f), (0.920f, .078f), (1.00f, .058f),
+            };
+            const float Len = 1.72f, Stroke = .028f, Y = .035f;
+            float W(float t)
+            {
+                for (int i = 1; i < prof.Length; i++)
+                    if (t <= prof[i].t)
+                    {
+                        float k = Mathf.InverseLerp(prof[i - 1].t, prof[i].t, t);
+                        return Mathf.Lerp(prof[i - 1].w, prof[i].w, Mathf.SmoothStep(0, 1, k));
+                    }
+                return prof[prof.Length - 1].w;
+            }
+
+            // one closed stroke round the silhouette: down the right side, across the feet, up the left
+            const int N = 46;
+            var path = new System.Collections.Generic.List<Vector2>();
+            for (int i = 0; i <= N; i++) { float t = i / (float)N; path.Add(new Vector2(W(t), -Len * .5f + t * Len)); }
+            for (int i = N; i >= 0; i--) { float t = i / (float)N; path.Add(new Vector2(-W(t), -Len * .5f + t * Len)); }
+
+            for (int i = 0; i < path.Count; i++)
+            {
+                Vector2 a = path[i], b = path[(i + 1) % path.Count];
+                Vector2 d = (b - a);
+                if (d.sqrMagnitude < 1e-8f) continue;
+                d.Normalize();
+                Vector2 n = new Vector2(-d.y, d.x) * (Stroke * .5f);
+                Vector3 A0 = new Vector3(a.x - n.x, Y, a.y - n.y), A1 = new Vector3(a.x + n.x, Y, a.y + n.y);
+                Vector3 B0 = new Vector3(b.x - n.x, Y, b.y - n.y), B1 = new Vector3(b.x + n.x, Y, b.y + n.y);
+                mb.Quad(0, A0, B0, B1, A1, Vector2.zero, Vector2.right, Vector2.one, Vector2.up, true);
+            }
+            Part(root.transform, "Outline", mb, Materials.Get("BodyOutline", new Color(.70f, .78f, .86f), smoothness: .1f));
+            return Save(root);
+        }
+
         // ------------------------------------------------------------------ labaz
         public static GameObject Labaz(GameObject branchesModel, bool morning = false)
         {

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 
 namespace Height1079.Core
 {
@@ -129,6 +130,53 @@ namespace Height1079.Core
         }
 
         /// <summary>Tree line in this valley from the canopy model: 95% of trees stand below ~750 m.</summary>
+        /// <summary>Where the nine lay on the morning after, and on whose word.
+        ///
+        /// Drawn as outlines, never as bodies: these are real people with living relatives, and two of them lay
+        /// nearly undressed. An outline carries the place and the posture, which is what the scene has to say, and
+        /// carries one thing a model could not — that this is a reconstruction by someone standing on the spot.
+        ///
+        /// The three on the slope have their own coordinates and lay, by the 1959 protocols, almost on the line
+        /// from the tent to the cedar with their heads toward the tent. The two at the cedar were found a metre
+        /// north of the fire at its foot. The four in the ravine have no individual coordinates at all — only the
+        /// KAN point for the group of them — so they are spread around it and the note says so.</summary>
+        public static class Fallen
+        {
+            public sealed class Spot
+            {
+                public string Id = "", Note = "";
+                public float X, Z;
+                /// <summary>Head toward the tent, as the protocols put the three on the slope.</summary>
+                public bool HeadToTent;
+            }
+
+            static Spot At(string id, float x, float z, bool head, string note)
+                => new Spot { Id = id, X = x, Z = z, HeadToTent = head, Note = note };
+
+            public static readonly IReadOnlyList<Spot> All = Build();
+
+            static IReadOnlyList<Spot> Build()
+            {
+                var k = WorldData.Get("kolmogorova");
+                var sl = WorldData.Get("slobodin");
+                var dy = WorldData.Get("dyatlov");
+                var (fx, fz) = Cedar.Fire;
+                var rv = WorldData.Ravine;
+                return new List<Spot>
+                {
+                    At("kolmogorova", k.X, k.Z, true, "≈630 м от кедра выше по склону, лицом вниз, головой к палатке (протоколы 1959)"),
+                    At("slobodin", sl.X, sl.Z, true, "≈480 м от кедра, на линии палатка — кедр (протоколы 1959)"),
+                    At("dyatlov", dy.X, dy.Z, true, "≈300 м от кедра, у берёзы, лицом вверх, головой к палатке (протоколы 1959)"),
+                    At("doroshenko", fx - 0.55f, fz + Cedar.BodiesNorthOfFire, false, "у подножия кедра, в метре к северу от костра, лицом вниз, на тонком слое лапника"),
+                    At("krivonishchenko", fx + 0.55f, fz + Cedar.BodiesNorthOfFire, false, "рядом с Дорошенко, на спине"),
+                    At("dubinina", rv.X - 1.4f, rv.Z + 0.6f, false, "в русле ручья ниже настила; индивидуальных координат нет, место — по точке КАН"),
+                    At("kolevatov", rv.X - 0.4f, rv.Z + 1.1f, false, "в русле ручья ниже настила; индивидуальных координат нет"),
+                    At("zolotaryov", rv.X + 0.7f, rv.Z + 0.3f, false, "в русле ручья ниже настила; индивидуальных координат нет"),
+                    At("thibeaux", rv.X + 1.5f, rv.Z - 0.5f, false, "в русле ручья ниже настила; индивидуальных координат нет"),
+                };
+            }
+        }
+
         public const float TreeLine = 750f;
     }
 }
