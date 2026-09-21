@@ -15,6 +15,12 @@
 # runs on macOS, picks the credentials out of the keychain by itself, and no token is ever handled by
 # the agent or written into a config.
 #
+# The scripts it runs are the ones in Tools/mac, NOT the copies of the same names in the project root. Those
+# copies are not in git, they drift, and the drift is invisible: on 21.09 the root build.command was still the
+# two-session version from before Elbrus became optional, so it skipped the session that sets the assembly
+# define. The player it produced had scene data that did not match its own assemblies — "level0 is corrupted",
+# and then a player that died before it could open a log. Everything else said the build had succeeded.
+#
 # Files in Tools/mac/errand/ (all git-ignored):
 #   next      what to do, plus a stamp that makes each request unique: "build+run 20260920-0925"
 #   state     "running <token>" while it works, then "done rc=<code> <token> <when>"
@@ -52,7 +58,11 @@ start_game() {
     local app="$ROOT/Builds/mac/1079.app"
     local EXTRA="${1:-}"
     [ -d "$app" ] || { printf 'no build at %s\n' "$app"; return 66; }
-    open -n "$app" --args -logFile "$ROOT/player.log" -screen-fullscreen 0 -screen-width 1280 -screen-height 800 $EXTRA
+    # `open` failing looked exactly like the game starting: this line printed "launched" whatever happened, and
+    # the only symptom was an empty player.log, which reads like a crash before logging ever opened.
+    open -n "$app" --args -logFile "$ROOT/player.log" -screen-fullscreen 0 -screen-width 1280 -screen-height 800 $EXTRA 2>&1
+    local rc=$?
+    [ $rc -eq 0 ] || { printf 'open failed rc=%s\n' "$rc"; return $rc; }
     printf 'player launched%s\n' "${EXTRA:+ ($EXTRA)}"
 }
 
@@ -61,11 +71,12 @@ start_game() {
 run_job() {
     printf '== %s  %s\n' "$TOKEN" "$(date '+%F %T %Z')"
     case "$JOB" in
-        check)     bash "$ROOT/check.command" ;;
-        build)     bash "$ROOT/build.command" ;;
+        check)     bash "$ROOT/Tools/mac/check.command" ;;
+        build)     bash "$ROOT/Tools/mac/build.command" ;;
+        build-no-elbrus) bash "$ROOT/Tools/mac/build.command" --no-elbrus ;;
         run)       start_game ;;
         shots)     start_game -shots ;;
-        build+run) stop_game; bash "$ROOT/build.command" && start_game ;;
+        build+run) stop_game; bash "$ROOT/Tools/mac/build.command" && start_game ;;
         quit)      stop_game ;;
         push)      GIT_TERMINAL_PROMPT=0 git -C "$ROOT" push origin main ;;
         ping)      printf 'errand runner alive: %s\n' "$(sw_vers -productVersion 2>/dev/null || uname -s)" ;;
