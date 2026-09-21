@@ -80,6 +80,13 @@ run_job() {
         quit)      stop_game ;;
         push)      GIT_TERMINAL_PROMPT=0 git -C "$ROOT" push origin main ;;
         ping)      printf 'errand runner alive: %s\n' "$(sw_vers -productVersion 2>/dev/null || uname -s)" ;;
+        # The agent's shell is a Linux VM: it can write a file into a mounted folder but cannot show it to
+        # anyone. `open -R` runs here, on macOS, and reveals the thing in Finder with it selected.
+        reveal)    target="${TOKEN#reveal }"; target="${target%% [0-9]*}"
+                   [ -n "$target" ] || target="$ROOT"
+                   case "$target" in /*) ;; *) target="$ROOT/$target" ;; esac
+                   [ -e "$target" ] || { printf 'nothing at %s\n' "$target"; return 66; }
+                   open -R "$target" && printf 'revealed %s\n' "$target" ;;
         *)         printf 'unknown errand: %s\n' "$JOB"; return 64 ;;
     esac
 }
